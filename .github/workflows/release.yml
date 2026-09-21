@@ -152,6 +152,8 @@ jobs:
         run: |
           cd arte && ls -la
           for f in Propons-IA-Windows.exe Propons-IA-Android.apk Propons-IA-iOS.ipa altstore-source.json propons-ia_amd64.deb propons-ia.x86_64.rpm propons-ia-linux-x86_64.tar.gz; do test -s "$f" || { echo "faltando: $f"; exit 1; }; done
+          # APK também dentro de um .zip: alguns navegadores (Chrome) seguram o .apk esperando confirmação
+          zip -0 -j Propons-IA-Android.zip Propons-IA-Android.apk
           rm -f SHA256SUMS && sha256sum Propons-IA-* propons-ia* > SHA256SUMS
       - name: Publicar
         env: { GH_TOKEN: '${{ github.token }}' }
