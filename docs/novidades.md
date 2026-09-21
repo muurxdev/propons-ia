@@ -1,3 +1,10 @@
+## Novidades da 1.8.0
+
+- **Você escolhe o modelo:** na primeira vez o app abre normalmente, sem baixar nada, e mostra a escolha do modelo de IA (Leve, Normal ou Avançado, com o recomendado para o seu aparelho). Ao escolher, ele baixa, liga a IA e abre o chat. No Linux, a escolha aparece numa janela ou no terminal.
+- **Caixa de mensagem como a do Claude:** maior, com o texto em cima e embaixo o **"+"**, o **seletor de modelo** (troque ou baixe o modelo ali mesmo), o 🎤 e o enviar.
+- **Saudação com frase:** "Boa noite, qual a pauta de hoje?", "Bom dia, em que posso ajudar?" e outras, sorteadas a cada conversa nova.
+- O "+" agora tem Câmera, Fotos, Arquivos, Áudio e Biblioteca (os modelos ficam no seletor).
+
 ## Novidades da 1.7.1
 
 - **Tela inicial mais limpa:** só a saudação da hora (Boa madrugada, Bom dia, Boa tarde ou Boa noite) e o campo para digitar.

@@ -43,6 +43,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     private var modelo: ModeloIA!
     private var naSplash = true
     private var trocando = false
+    private var escolhendo = false
     private var cancelarBaixar = false
     private var baixandoId: String?
     private let fm = FileManager.default
@@ -100,6 +101,16 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     private var aoTentar: CheckedContinuation<Void, Never>?
 
     private func iniciar() async {
+        // primeira abertura: abre a interface para a pessoa escolher o modelo (nada é baixado antes)
+        if acharModelo(modelo) == nil {
+            escolhendo = true; naSplash = false
+            await MainActor.run {
+                let dir = Bundle.main.resourceURL!.appendingPathComponent("interface", isDirectory: true)
+                let u = URL(string: dir.appendingPathComponent("index.html").absoluteString + "#escolher")!
+                web.loadFileURL(u, allowingReadAccessTo: dir)
+            }
+            return
+        }
         while true {
             let arq = acharModelo(modelo)
             if arq == nil {
@@ -231,6 +242,12 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             responder(id, true)
             if novo.id != modelo.id { Task { await trocarModelo(novo) } }
         case "salvarArquivo": compartilhar(id: id, nome: args["nome"] as? String ?? "arquivo.txt", conteudo: args["conteudo"] as? String ?? "")
+        case "escolherModelo":
+            guard let m = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }), m.id != "avancado" else { erro(id, "modelo indisponível no iPhone"); return }
+            if !escolhendo { erro(id, "o modelo já foi escolhido"); return }
+            if baixandoId != nil { erro(id, "já há um download em andamento"); return }
+            responder(id, true)
+            Task { await escolherPrimeiro(m) }
         case "baixarModelo":
             guard let m = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }), m.id != "avancado" else { erro(id, "modelo indisponível no iPhone"); return }
             if baixandoId != nil || trocando { erro(id, "já há um download em andamento"); return }
@@ -319,6 +336,28 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
                     else if let e = e { limpar(); self.erro(id, e.localizedDescription) }
                 }
             }
+        }
+    }
+
+    // primeira abertura: baixa o modelo escolhido (continua com a tela apagada), liga a IA e abre o chat
+    private func escolherPrimeiro(_ m: ModeloIA) async {
+        UserDefaults.standard.set(m.id, forKey: "modelo"); modelo = m
+        if acharModelo(m) == nil {
+            baixandoId = m.id
+            do { _ = try await baixar(m, naTela: false) } catch {
+                baixandoId = nil
+                let s = (error as NSError).localizedDescription
+                evento("download-fim", ["id": m.id, "ok": false, "erro": s == "cancelado" ? "cancelado" : mensagem(erro: error)]); return
+            }
+            baixandoId = nil
+        }
+        evento("motor", ["estado": "ligando"])
+        await esperarAtivo()
+        do { try await carregarMotor() } catch { evento("motor", ["estado": "erro", "mensagem": error.localizedDescription]); return }
+        escolhendo = false
+        await MainActor.run {
+            let dir = Bundle.main.resourceURL!.appendingPathComponent("interface", isDirectory: true)
+            web.loadFileURL(dir.appendingPathComponent("index.html"), allowingReadAccessTo: dir)
         }
     }
 

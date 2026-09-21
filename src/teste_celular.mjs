@@ -53,7 +53,7 @@ const topoHeader = await js(`document.querySelector('header').getBoundingClientR
 ok('cabeçalho abaixo da barra de status', topoHeader >= parseFloat(margens.t) - 1, `topo ${topoHeader}px`);
 await js(`fecharLateral(); nova(); 1`); await espera(300);
 await foto('6-inicio-sugestoes');
-ok('tela inicial só com a saudação', /^(Boa madrugada|Bom dia|Boa tarde|Boa noite)$/.test(await js(`$('#boasvindas').innerText.trim()`)) && !(await js(`!!document.querySelector('[data-sug]')`)));
+ok('tela inicial com a saudação e uma frase', /^(Boa madrugada|Bom dia|Boa tarde|Boa noite), .+/.test(await js(`$('#boasvindas').innerText.trim()`)) && !(await js(`!!document.querySelector('[data-sug]')`)));
 // arrastar da borda abre o histórico
 const toque = (type, x, y) => cdp('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
 await toque('touchStart', 4, 400); for (let x = 20; x <= 260; x += 40) { await toque('touchMove', x, 402); await espera(16); } await toque('touchEnd');

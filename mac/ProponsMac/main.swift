@@ -115,7 +115,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     var porta = 8765
     var motor: Process?
     var modelo = Modelo.todos[1]
-    var naSplash = true, trocando = false, desligando = false, visaoAtiva = false
+    var naSplash = true, trocando = false, desligando = false, visaoAtiva = false, escolhendo = false
     var baixandoId: String?, cancelarBaixar = false, baixadorAtual: Baixador?
     var quedas: [Date] = []
     var aoTentar: CheckedContinuation<Void, Never>?
@@ -180,6 +180,14 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     func splash(_ v: Double, _ t: String, _ s: String) { guard naSplash else { return }; js("window.p && p(\(v), \(jsonTexto(t)), \(jsonTexto(s)))") }
 
     func iniciar() async {
+        // primeira abertura: abre a interface para a pessoa escolher o modelo (nada é baixado antes)
+        if acharModelo(modelo) == nil && ProcessInfo.processInfo.environment["PROPONS_MODELO"] == nil,
+           var html = try? String(contentsOf: recursos.appendingPathComponent("interface/index.html"), encoding: .utf8) {
+            escolhendo = true; naSplash = false
+            html = html.replacingOccurrences(of: "<head>", with: "<head><script>window.PROPONS_ESCOLHER=true</script>")
+            await MainActor.run { web.loadHTMLString(html, baseURL: URL(string: "https://propons.local/")) }
+            return
+        }
         while true {
             if acharModelo(modelo) == nil {
                 do { _ = try await baixar(modelo, naTela: true) }
@@ -249,6 +257,25 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         do { _ = try await baixar(m, naTela: false) } catch { let s = (error as NSError).localizedDescription; falha = s == "cancelado" ? "cancelado" : mensagem(error, m) }
         baixandoId = nil
         evento("download-fim", ["id": m.id, "ok": falha == nil, "erro": falha ?? NSNull()])
+    }
+
+    // primeira abertura: baixa o modelo escolhido, liga a IA e abre o chat
+    func escolherPrimeiro(_ m: Modelo) async {
+        var c = lerConfig(); c["modelo"] = m.id; salvarConfig(c); modelo = m
+        if acharModelo(m) == nil {
+            baixandoId = m.id
+            do { _ = try await baixar(m, naTela: false) } catch {
+                baixandoId = nil
+                let s = (error as NSError).localizedDescription
+                evento("download-fim", ["id": m.id, "ok": false, "erro": s == "cancelado" ? "cancelado" : mensagem(error, m)]); return
+            }
+            baixandoId = nil
+        }
+        evento("motor", ["estado": "ligando"])
+        if let e = await ligarMotor() { evento("motor", ["estado": "erro", "mensagem": e]); return }
+        escolhendo = false
+        let u = URL(string: "http://127.0.0.1:\(porta)/#k=\(chave)")!
+        await MainActor.run { web.load(URLRequest(url: u)) }
     }
 
     // MARK: motor
@@ -375,6 +402,12 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
             let novo = try modeloDe(a)
             if baixandoId != nil || trocando { throw erro("espere o download ou a troca atual terminar") }
             if novo.id != modelo.id { Task { await trocarModelo(novo) } }
+            return true
+        case "escolherModelo":
+            let m = try modeloDe(a)
+            if !escolhendo { throw erro("o modelo já foi escolhido") }
+            if baixandoId != nil { throw erro("já há um download em andamento") }
+            Task { await escolherPrimeiro(m) }
             return true
         case "baixarModelo", "baixarVoz":
             let m = acao == "baixarVoz" ? try vozDe(a) : try modeloDe(a)

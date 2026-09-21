@@ -17,9 +17,9 @@ for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 const plat = await js('PLATAFORMA.tipo');
 // 1) o "+"
 await js('nova(); $("#anexar").click(); 1'); await espera(700);
-ok('"+" abre a folha com câmera, fotos, arquivos, áudio e modelos', (await js(`[...document.querySelectorAll('.opcoes [data-op]')].map(b=>b.dataset.op).join(',')`)) === 'camera,fotos,arquivos,audio,modelos');
+ok('"+" abre a folha com câmera, fotos, arquivos, áudio e biblioteca', (await js(`[...document.querySelectorAll('.opcoes [data-op]')].map(b=>b.dataset.op).join(',')`)) === 'camera,fotos,arquivos,audio,biblioteca');
 await espera(600);
-ok('"+" mostra os modelos para trocar', (await js(`document.querySelectorAll('#maisModelos .lm').length`)) >= 2, await js(`[...document.querySelectorAll('#maisModelos .lm')].map(b=>b.innerText.replace(/\\s+/g,' ')).join(' | ')`));
+ok('seletor de modelo ao lado do "+"', /Leve|Normal|Avançado/.test(await js(`$('#nomeModelo').textContent`)), await js(`$('#nomeModelo').textContent`));
 await foto('f1-mais');
 await js('fecharDialogo(); 1'); await espera(400);
 // 2) anexa a foto

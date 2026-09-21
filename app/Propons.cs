@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.7.1";
+    public const string Versao = "1.8.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -212,6 +212,7 @@ class Janela : Form
     readonly string chave = GerarChave(); // llama-server --api-key: só a nossa página usa o motor
     TaskCompletionSource<bool> tentarDeNovo;
     bool desligando, trocando;
+    bool escolhendo;                       // primeira abertura: a pessoa escolhe o modelo antes de baixar
     volatile bool cancelarBaixar;          // "Cancelar download" na tela de modelos
     string baixandoId;                     // modelo sendo baixado agora (um por vez)
     readonly List<DateTime> quedas = new List<DateTime>();
@@ -369,6 +370,14 @@ class Janela : Form
         }
         catch (Exception ex) { Program.Log("webview: " + ex); Falha("Este PC não tem o componente de janela do Windows (WebView2)."); return; }
 
+        // primeira abertura (nenhum modelo baixado): abre a interface para a pessoa escolher o modelo
+        if (forcar == null && AcharModelo(modelo) == null)
+        {
+            escolhendo = true;
+            string html = File.ReadAllText(Path.Combine(pasta, @"interface\index.html"), Encoding.UTF8);
+            await Navegar(html.Replace("<head>", "<head><script>window.PROPONS_ESCOLHER=true</script>"));
+            return;
+        }
         await PrepararModeloEMotor(true);
     }
 
@@ -435,7 +444,8 @@ class Janela : Form
             foreach (string d in Directory.GetDirectories(Raiz()))
             {
                 string n = Path.GetFileName(d);
-                if (n != Pacote.Build && n != "webview" && n != "modelos" && n != "dados") try { Directory.Delete(d, true); } catch { }
+                // só pastas de versões antigas (nome = 12 letras/números hexadecimais); nunca mexe em outras pastas
+                if (n != Pacote.Build && Regex.IsMatch(n, "^[0-9a-f]{12}$")) try { Directory.Delete(d, true); } catch { }
             }
         }
         catch { }
@@ -731,6 +741,13 @@ class Janela : Form
                 case "cancelarDownload": cancelarBaixar = true; dados = true; break;
                 case "ocupado": ManterAcordado(args.ContainsKey("sim") && args["sim"] is bool && (bool)args["sim"], true); dados = true; break;
                 case "apagarModelo": dados = ApagarModelo(Modelo.PorId(Arg(args, "id"))); break;
+                case "escolherModelo":
+                    Modelo me = Modelo.PorId(Arg(args, "id"));
+                    if (me == null) throw new Exception("modelo desconhecido");
+                    if (!escolhendo) throw new Exception("o modelo já foi escolhido");
+                    if (baixandoId != null) throw new Exception("já há um download em andamento");
+                    { var _e = EscolherPrimeiroModelo(me); }
+                    dados = true; break;
                 case "baixarVoz":
                     Modelo vb = Vozes.PorId(Arg(args, "id"));
                     if (vb == null) throw new Exception("voz desconhecida");
@@ -887,6 +904,26 @@ class Janela : Form
             return Dic("texto", texto, "segundos", (DateTime.Now - t0).TotalSeconds);
         }
         finally { ManterAcordado(false); }
+    }
+
+    // primeira abertura: baixa o modelo escolhido, liga a IA e abre o chat
+    async Task EscolherPrimeiroModelo(Modelo m)
+    {
+        Dictionary<string, object> c = LerConfig(); c["modelo"] = m.Id; SalvarConfig(c); modelo = m;
+        if (AcharModelo(m) == null)
+        {
+            baixandoId = m.Id; cancelarBaixar = false; string falha = null;
+            try { await Baixar(m, false); }
+            catch (Exception ex) { falha = ex is OperationCanceledException ? "cancelado" : MensagemDownload(ex.Message, m); }
+            finally { baixandoId = null; }
+            if (falha != null) { Evento("download-fim", Dic("id", m.Id, "ok", false, "erro", falha)); return; }
+        }
+        arquivoModelo = AcharModelo(m);
+        Evento("motor", Dic("estado", "ligando"));
+        string erro = await LigarMotor();
+        if (erro != null) { Evento("motor", Dic("estado", "erro", "mensagem", erro)); return; }
+        escolhendo = false;
+        web.CoreWebView2.Navigate("http://127.0.0.1:" + porta + "/#k=" + chave);
     }
 
     // ---------- gerenciar modelos ----------

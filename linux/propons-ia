@@ -4,7 +4,7 @@
 # numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.7.1"
+VERSAO="1.8.0"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"
@@ -92,6 +92,32 @@ fi
 MODELO_ID="$(ler_config MODELO)"
 if [ -z "$MODELO_ID" ] || [ -z "$(campo "$MODELO_ID" 1)" ]; then
   [ "$(ram_bytes)" -lt $((6*1024*1024*1024)) ] && MODELO_ID=leve || MODELO_ID=normal
+fi
+# primeira abertura (nada escolhido nem baixado): a pessoa escolhe o modelo antes do download
+if [ "$ACAO" = abrir ] && [ -z "$MODELO_ARG" ] && [ -z "$(ler_config MODELO)" ] && ! ls "$MODELOS"/Qwen3.5-*.gguf >/dev/null 2>&1; then
+  rec="$MODELO_ID"; esc=""
+  marca() { [ "$1" = "$rec" ] && echo TRUE || echo FALSE; }
+  if ! no_terminal && tem zenity; then
+    esc="$(zenity --list --radiolist --title="Própons IA" --width=560 --height=320 \
+      --text="Boas-vindas! Escolha o modelo de IA que vai responder você.\nEle é baixado uma vez e depois funciona sem internet. Dá para trocar depois." \
+      --column="" --column="id" --column="Modelo" --column="Tamanho" --hide-column=2 --print-column=2 \
+      "$(marca leve)" leve "Leve (0.8B) — mais rápido$([ "$rec" = leve ] && echo ' · recomendado')" "508 MB" \
+      "$(marca normal)" normal "Normal (2B) — equilibrado$([ "$rec" = normal ] && echo ' · recomendado')" "1,2 GB" \
+      "$(marca avancado)" avancado "Avançado (4B) — mais inteligente (8 GB+ de RAM)" "2,6 GB" 2>/dev/null)" || exit 0
+  elif ! no_terminal && tem kdialog; then
+    esc="$(kdialog --title "Própons IA" --radiolist "Escolha o modelo de IA (baixado uma vez; depois funciona sem internet):" \
+      leve "Leve (0.8B) — mais rápido · 508 MB" "$( [ "$rec" = leve ] && echo on || echo off)" \
+      normal "Normal (2B) — equilibrado · 1,2 GB" "$( [ "$rec" = normal ] && echo on || echo off)" \
+      avancado "Avançado (4B) — mais inteligente · 2,6 GB" off 2>/dev/null)" || exit 0
+  elif no_terminal && [ -t 0 ]; then
+    echo; echo "  Boas-vindas à Própons IA! Escolha o modelo de IA (baixado uma vez; depois funciona sem internet):"
+    echo "    1) Leve (0.8B) — mais rápido · 508 MB$([ "$rec" = leve ] && echo '   ← recomendado')"
+    echo "    2) Normal (2B) — equilibrado · 1,2 GB$([ "$rec" = normal ] && echo '   ← recomendado')"
+    echo "    3) Avançado (4B) — mais inteligente (8 GB+ de RAM) · 2,6 GB"
+    read -r -p "  Número [Enter = recomendado]: " n
+    case "$n" in 1) esc=leve ;; 2) esc=normal ;; 3) esc=avancado ;; *) esc="$rec" ;; esac
+  fi
+  [ -n "$esc" ] && [ -n "$(campo "$esc" 1)" ] && { gravar_config MODELO "$esc"; MODELO_ID="$esc"; }
 fi
 ARQ="$MODELOS/$(campo "$MODELO_ID" 2)"; TAM="$(campo "$MODELO_ID" 3)"; SHA="$(campo "$MODELO_ID" 4)"; URL="$(url_modelo "$(campo "$MODELO_ID" 2)")"
 # módulo de visão (ler fotos) do modelo escolhido

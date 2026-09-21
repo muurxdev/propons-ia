@@ -145,6 +145,8 @@ const PLATAFORMA = (() => {
       return pedir('sistema', {}, 15000);
     },
     trocarModelo(id) { return pedir('modelo', { id }, 10000); },
+    // primeira abertura: a pessoa escolhe o modelo; o app baixa, liga a IA e abre o chat
+    escolherModelo(id) { return pedir('escolherModelo', { id }, 10000); },
     // ler fotos (módulo de visão): Windows, Android e Linux (no Linux, pelo comando propons-ia --visao)
     temVisao: tipo !== 'ios',
     ligarVisao(ligar) { return pedir('visao', { ligar: !!ligar }, 10000); },

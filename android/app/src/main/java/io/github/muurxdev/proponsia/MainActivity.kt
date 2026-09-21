@@ -88,6 +88,7 @@ class MainActivity : Activity() {
     @Volatile private var desligando = false
     @Volatile private var trocando = false
     @Volatile private var cancelarBaixar = false
+    @Volatile private var escolhendo = false       // primeira abertura: a pessoa escolhe o modelo antes de baixar
     @Volatile private var baixandoId: String? = null
     private var naSplash = true
     private var aoTentar: (() -> Unit)? = null
@@ -206,6 +207,13 @@ class MainActivity : Activity() {
     private fun iniciar() {
         try { copiarInterface() } catch (e: Exception) { splash(-2.0, "Não foi possível abrir", "Falha ao preparar os arquivos: ${e.message}"); return }
         modelo = modelos.firstOrNull { it.id == prefs.getString("modelo", null) } ?: if (ramTotal < 6L shl 30) modelos[0] else modelos[1]
+        if (acharModelo(modelo) == null) {
+            // primeira abertura: abre a interface para a pessoa escolher o modelo (nada é baixado antes)
+            escolhendo = true; naSplash = false
+            val html = File(pastaInterface, "index.html").readText().replaceFirst("<head>", "<head><script>window.PROPONS_ESCOLHER=true</script>")
+            ui.post { web.loadDataWithBaseURL("https://propons.local/", html, "text/html", "utf-8", null) }
+            return
+        }
         prepararModeloEMotor()
     }
 
@@ -459,6 +467,12 @@ class MainActivity : Activity() {
                             }
                             "cancelarDownload" -> { cancelarBaixar = true; true }
                             "apagarModelo" -> apagarModelo(modeloDe(args))
+                            "escolherModelo" -> {
+                                val m = modeloDe(args)
+                                if (!escolhendo) throw Exception("o modelo já foi escolhido")
+                                if (baixandoId != null) throw Exception("já há um download em andamento")
+                                escolherPrimeiro(m); true
+                            }
                             "baixarVoz" -> {
                                 val v = vozes.firstOrNull { it.id == args.optString("id") } ?: throw Exception("voz desconhecida")
                                 if (baixandoId != null) throw Exception("já há um download em andamento")
@@ -538,6 +552,25 @@ class MainActivity : Activity() {
             .put("temTranscricao", File(applicationInfo.nativeLibraryDir, "libwhisper_cli.so").exists()).put("vozes", listaVozes())
             .put("so", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
             .put("versao", packageManager.getPackageInfo(packageName, 0).versionName).put("modelos", lista)
+    }
+
+    // primeira abertura: baixa o modelo escolhido (com notificação), liga a IA e abre o chat
+    private fun escolherPrimeiro(m: Modelo) = trabalho.execute {
+        prefs.edit().putString("modelo", m.id).apply(); modelo = m
+        if (acharModelo(m) == null) {
+            baixandoId = m.id; cancelarBaixar = false
+            try { baixar(m, false) } catch (e: Exception) {
+                baixandoId = null
+                evento("download-fim", JSONObject().put("id", m.id).put("ok", false).put("erro", if (e.message == "cancelado") "cancelado" else mensagemFalha(e.message ?: "", m)))
+                return@execute
+            }
+            baixandoId = null
+        }
+        evento("motor", JSONObject().put("estado", "ligando"))
+        val erro = ligarMotor(acharModelo(m)!!)
+        if (erro != null) { evento("motor", JSONObject().put("estado", "erro").put("mensagem", erro)); return@execute }
+        escolhendo = false
+        ui.post { web.loadUrl("http://127.0.0.1:$porta/#k=$chave") }
     }
 
     // ---------------- gerenciar modelos ----------------
