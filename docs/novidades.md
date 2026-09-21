@@ -1,22 +1,27 @@
-## Novidades da 1.1.0
+## Novidades da 1.2.0
 
-**Agora também no celular:** Android (`.apk`) e iPhone/iPad (`.ipa` pelo SideStore/AltStore) — veja os tutoriais abaixo.
+**Baixe pelo site:** [muurxdev.github.io/propons-ia](https://muurxdev.github.io/propons-ia/). Ele mostra o download certo para o seu aparelho e funciona direto no celular.
 
-- **Código com cores** (Python, Java, C/C++, C#, JavaScript, Go, Rust, PHP, SQL, HTML/CSS…), nome da linguagem e botão copiar
-- **Conversas completas:** busca, grupos por data, renomear, exportar (.md), editar e reenviar a pergunta, backup/importação
-- **Anexar arquivos** de texto e código (📎, arrastar ou colar)
-- **Configurações:** tema, tamanho da letra e **escolha do modelo** — novo **Avançado (4B)** para PCs fortes
-- **Diagnóstico embutido:** memória, processador, espaço, velocidade real da IA e autoteste, com relatório para copiar
-- Botão **Continuar** quando a resposta é cortada; aviso de **nova versão**
-- **Mais estável:** a IA religa sozinha se o motor cair; histórico com backup automático; conversas longas não travam mais
-- **Mais seguro:** só o próprio app consegue usar o motor da IA (chave de acesso por sessão)
+- **Visual novo no celular:** usa a tela toda (atrás da barra de status e da barra de navegação), botões maiores e sugestões na tela inicial
+- **Ajustes como um app:** tela cheia no celular, com a lista e as páginas; no PC, menu ao lado
+- **Gestos:** arraste da borda para abrir o histórico, segure uma conversa para abrir o menu dela, e o botão voltar fecha menus e telas
+- **Modelos de IA:** baixar, usar, cancelar download e apagar cada modelo, com o espaço ocupado e o modelo recomendado para o seu aparelho
+- **Atualizações:**
+  - avisa sozinho quando sai versão nova;
+  - tem os botões **Procurar atualizações** e **Atualizar tudo**, que também confere os modelos;
+  - no **Windows** e no **Android** a atualização é instalada pelo próprio app;
+  - no iPhone, abre o SideStore/AltStore;
+  - no Linux, use `propons-ia --atualizar`.
+- **Compartilhar** respostas e conversas no celular
+- Diálogos próprios em vez das caixas do sistema; confirmações sobem de baixo no celular
 
 ## Instalar
 
 | Plataforma | Como |
 |---|---|
-| Windows 10/11 | baixe `Propons-IA-Windows.exe` e abra (funciona direto do pendrive) |
-| Linux (qualquer) | `curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh \| bash` |
+| Qualquer aparelho | abra **[muurxdev.github.io/propons-ia](https://muurxdev.github.io/propons-ia/)** e toque em baixar |
+| Windows 10/11 | `Propons-IA-Windows.exe`: abra (funciona direto do pendrive). Quem tem a 1.1: baixe de novo e substitua o arquivo; a partir da 1.2 a atualização é automática |
+| Linux (qualquer) | `curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh \| bash` (ou `propons-ia --atualizar`) |
 | Ubuntu/Debian/Kali/Mint | `.deb` · Fedora/Nobara/openSUSE: `.rpm` — comandos no README |
-| Android 9+ | baixe `Propons-IA-Android.apk` — [tutorial](https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-android.md) |
+| Android 9+ | baixe pelo site acima — [tutorial](https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-android.md) |
 | iPhone/iPad (iOS 16+) | fonte do SideStore/AltStore: `https://github.com/muurxdev/propons-ia/releases/latest/download/altstore-source.json` — [tutorial](https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-ios.md) |

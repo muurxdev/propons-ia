@@ -4,7 +4,7 @@
 # numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.1.0"
+VERSAO="1.2.0"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"
@@ -25,7 +25,7 @@ url_modelo() { local a="$1"; local repo="${a%-Q4_K_M.gguf}-GGUF"; echo "$URL_BAS
 
 mkdir -p "$MODELOS" "$INTERFACE"
 tem() { command -v "$1" >/dev/null 2>&1; }
-ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"
+ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"; APAGAR_ID=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --leve) MODELO_ARG=leve ;;
@@ -36,6 +36,8 @@ while [ $# -gt 0 ]; do
     --parar) ACAO=parar ;;
     --verificar) ACAO=verificar ;;
     --diagnostico|--diagnóstico) ACAO=diagnostico ;;
+    --atualizar) ACAO=atualizar ;;
+    --apagar-modelo) shift; ACAO=apagar; APAGAR_ID="${1:-}" ;;
     -h|--ajuda|--help)
       cat <<EOF
 Própons IA $VERSAO — assistente de estudos que roda no seu computador.
@@ -46,6 +48,8 @@ Própons IA $VERSAO — assistente de estudos que roda no seu computador.
   propons-ia --diagnostico         confere sistema, bibliotecas, navegador, modelo e mede a velocidade
   propons-ia --parar               desliga a IA se ela ficou aberta
   propons-ia --verificar           confere só se o motor funciona neste sistema
+  propons-ia --atualizar           baixa e instala a versão mais nova (conversas e modelos continuam)
+  propons-ia --apagar-modelo NOME  apaga um modelo baixado para liberar espaço
 EOF
       exit 0 ;;
   esac
@@ -88,6 +92,20 @@ case "$ACAO" in
     p="$(cat "$PIDFILE" 2>/dev/null)"
     if pid_e_motor "$p"; then kill "$p" && echo "Própons IA desligada."; else echo "A Própons IA não estava aberta."; fi
     rm -f "$PIDFILE" "$PORTAFILE"; exit 0 ;;
+  atualizar)
+    tem curl || { echo "Instale o curl para atualizar."; exit 1; }
+    nova="$(curl -fsSL --max-time 15 https://api.github.com/repos/muurxdev/propons-ia/releases/latest 2>/dev/null | sed -n 's/.*"tag_name": *"v\{0,1\}\([0-9.]*\)".*/\1/p' | head -1)"
+    [ -n "$nova" ] || { echo "Sem internet para verificar a versão nova."; exit 1; }
+    if [ "$nova" = "$VERSAO" ]; then echo "Você já está na versão mais recente ($VERSAO)."; exit 0; fi
+    echo "Atualizando a Própons IA $VERSAO → $nova …"
+    curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh | bash
+    exit $? ;;
+  apagar)
+    arq="$(campo "$APAGAR_ID" 2)"
+    [ -n "$arq" ] || { echo "Modelo desconhecido: $APAGAR_ID (use: leve, normal ou avancado)"; exit 2; }
+    [ "$APAGAR_ID" = "$MODELO_ID" ] && pid_e_motor "$(cat "$PIDFILE" 2>/dev/null)" && { echo "Esse modelo está em uso. Feche a Própons IA ou troque de modelo antes."; exit 1; }
+    if [ -f "$MODELOS/$arq" ] || [ -f "$MODELOS/$arq.baixando" ]; then rm -f "$MODELOS/$arq" "$MODELOS/$arq.baixando"; echo "Modelo $APAGAR_ID apagado."; else echo "O modelo $APAGAR_ID não estava baixado."; fi
+    exit 0 ;;
   verificar)
     if motor_ok; then echo "OK: o motor da Própons IA funciona neste sistema ($(uname -m))."; exit 0; fi
     echo "ERRO: o motor não iniciou. Bibliotecas que faltam: $(libs_faltando)"; exit 1 ;;
@@ -136,8 +154,8 @@ escrever_sistema() {
     modelos+="${modelos:+,}{\"id\":\"$id\",\"nome\":\"$nome\",\"descricao\":\"$desc\",\"arquivo\":\"$arq\",\"tamanho\":$tb,\"ramMin\":$ram_min,\"baixado\":$baixado,\"atual\":$([ "$id" = "$MODELO_ID" ] && echo true || echo false)}"
   done
   esc_json() { sed 's/\\/\\\\/g; s/"/\\"/g'; }
-  printf '{"versao":"%s","so":"%s","cpu":"%s","nucleos":%s,"ramTotal":%s,"ramLivre":%s,"discoLivre":%s,"pastaDados":"%s","navegador":"%s","modelos":[%s]}\n' \
-    "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$modelos" \
+  printf '{"versao":"%s","so":"%s","cpu":"%s","nucleos":%s,"ramTotal":%s,"ramLivre":%s,"discoLivre":%s,"pastaDados":"%s","pastaModelos":"%s","navegador":"%s","modelos":[%s]}\n' \
+    "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "$MODELOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$modelos" \
     >"$INTERFACE/sistema.json"
 }
 preparar_interface() {

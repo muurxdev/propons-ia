@@ -47,7 +47,7 @@ e, no SideStore/AltStore, vá em **My Apps** → **+** → escolha o arquivo bai
 - O app precisa ser **renovado a cada 7 dias**. O SideStore/AltStore faz isso sozinho em segundo plano
   (ou toque em **Refresh All**). Se passar do prazo, o app só não abre até renovar — **suas conversas não se perdem**.
 - A conta grátis permite **até 3 apps** instalados assim ao mesmo tempo.
-- Atualizações aparecem no SideStore/AltStore quando uma nova versão for publicada.
+- Atualizações aparecem no SideStore/AltStore quando uma nova versão for publicada. A Própons IA também avisa: o botão **Atualizar** (em Ajustes → Atualizações) abre o SideStore/AltStore direto.
 
 ## Problemas comuns
 

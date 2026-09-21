@@ -45,6 +45,77 @@ for (const d of diag || []) console.log(`     [${d.st}] ${d.titulo}: ${d.det || 
 ok('diagnóstico sem erros', diag && diag.length > 5 && !diag.some(d => d.st === 'erro'), diag && diag.filter(d => d.st === 'erro').map(d => d.titulo).join(', '));
 await foto('4-diagnostico');
 await js(`fecharModal(); abrirLateral(); 1`); await espera(400); await foto('5-historico');
+
+// ---- 1.2: tela cheia, ajustes em tela cheia, modelos, atualizações, gestos ----
+const margens = await js(`(()=>{const s=document.documentElement.style;return {t:s.getPropertyValue('--sa-t'),b:s.getPropertyValue('--sa-b')}})()`);
+ok('tela cheia: barras do sistema viram margens da página', parseFloat(margens.t) > 0, JSON.stringify(margens));
+const topoHeader = await js(`document.querySelector('header').getBoundingClientRect().top`);
+ok('cabeçalho abaixo da barra de status', topoHeader >= parseFloat(margens.t) - 1, `topo ${topoHeader}px`);
+await js(`fecharLateral(); nova(); 1`); await espera(300);
+await foto('6-inicio-sugestoes');
+ok('sugestões na tela inicial', (await js(`document.querySelectorAll('[data-sug]').length`)) === 4);
+// arrastar da borda abre o histórico
+const toque = (type, x, y) => cdp('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+await toque('touchStart', 4, 400); for (let x = 20; x <= 260; x += 40) { await toque('touchMove', x, 402); await espera(16); } await toque('touchEnd');
+await espera(400);
+ok('arrastar da borda abre o histórico', !(await js(`$('#lateral').classList.contains('fechada')`)));
+await foto('7-gaveta-arrastada');
+await js(`fecharLateral(); 1`); await espera(300);
+// menu da conversa vira folha de baixo
+await js(`menuConversa(document.querySelector('[data-menu]'), conversas[0].id); 1`); await espera(350);
+ok('menu da conversa em folha', await js(`!!document.querySelector('.dlg.folha')`));
+await foto('8-menu-folha');
+await js(`fecharDialogo(); 1`);
+// ajustes: lista em tela cheia e subpáginas
+await js(`abrirConfig(); 1`); await espera(500);
+ok('ajustes em tela cheia (lista)', await js(`(()=>{const r=document.querySelector('.painel').getBoundingClientRect();return r.width>=innerWidth-1 && r.height>=innerHeight-1 && !document.querySelector('.painel').classList.contains('sub')})()`));
+await foto('9-ajustes');
+await js(`irPara('modelo'); 1`); await espera(1200);
+ok('modelos: 3 cartões', (await js(`document.querySelectorAll('.mcard').length`)) === 3);
+ok('modelos: um em uso', (await js(`document.querySelectorAll('.mcard.on').length`)) === 1);
+await foto('10-modelos');
+// baixar e cancelar (sem baixar o modelo inteiro)
+const alvo = await js(`(sistemaCache.modelos.find(m=>!m.baixado && !m.bloqueado && m.id!=='avancado')||{}).id || ''`);
+if (alvo) {
+  await js(`window.__fim=null; PLATAFORMA.ao('download-fim', d => window.__fim = d); PLATAFORMA.baixarModelo('${alvo}').then(()=>1)`);
+  let pct = 0; for (let i = 0; i < 120 && pct <= 0.002; i++) { await espera(500); pct = await js(`(baixando['${alvo}']||{}).pct||0`); }
+  ok('modelos: download começa com progresso', pct > 0.002, `${(pct * 100).toFixed(1)}%`);
+  await foto('11-baixando');
+  await js(`PLATAFORMA.cancelarDownload('${alvo}').then(()=>1)`);
+  let fim = null; for (let i = 0; i < 40 && !fim; i++) { await espera(500); fim = await js(`window.__fim`); }
+  ok('modelos: cancelar download', fim && fim.erro === 'cancelado', JSON.stringify(fim));
+  const apagou = await js(`PLATAFORMA.apagarModelo('${alvo}').then(()=>'ok',e=>e.message)`);
+  ok('modelos: apagar o parcial', apagou === 'ok', apagou);
+}
+const ativoId = await js(`sistemaCache.modelos.find(m=>m.atual).id`);
+const recusa = await js(`PLATAFORMA.apagarModelo('${ativoId}').then(()=>'apagou!',e=>e.message)`);
+ok('modelos: não apaga o que está em uso', /em uso/.test(recusa), recusa);
+// verificar modelos (SHA-256)
+const ver = await js(`PLATAFORMA.verificarModelos()`);
+ok('modelos: SHA-256 dos baixados confere', Array.isArray(ver) && ver.length >= 1 && ver.every(x => x.ok), JSON.stringify(ver));
+// atualizações
+await js(`irPara('atualizacoes'); 1`); await espera(800);
+const upd = await js(`checarAtualizacao()`);
+ok('atualizações: consulta a versão publicada', upd !== null, JSON.stringify(upd).slice(0, 80));
+await js(`desenharAba(); 1`); await espera(300);
+await foto('12-atualizacoes');
+await js(`voltarPainel(); 1`); await espera(400);
+ok('voltar sai da subpágina', await js(`!document.querySelector('.painel').classList.contains('sub')`));
+await js(`fecharModal(); 1`);
+// instalação da atualização: baixa o APK da release, confere o SHA-256 e entrega ao instalador do Android
+if (process.env.TESTAR_INSTALADOR) {
+  const { execSync } = await import('node:child_process');
+  try { execSync('adb shell appops set io.github.muurxdev.proponsia REQUEST_INSTALL_PACKAGES allow'); } catch (e) {}
+  await js(`window.__atu=[]; PLATAFORMA.ao('atualizacao', d => window.__atu.push(d)); 1`);
+  const r = await js(`PLATAFORMA.atualizar('${process.env.TESTAR_INSTALADOR}').then(r=>JSON.stringify(r),e=>'erro: '+e.message)`);
+  const fases = await js(`window.__atu.map(d=>d.fase).filter((x,i,a)=>a.indexOf(x)===i).join(' → ')`);
+  ok('atualização: baixou, conferiu e abriu o instalador', r === 'true' && /baixando.*verificando.*instalando/.test(fases), `${r} · ${fases}`);
+  await espera(4000);
+  try { execSync(`adb exec-out screencap -p > "${saida}/13-instalador.png"`, { shell: '/bin/bash' }); } catch (e) {}
+  try { execSync('adb shell input keyevent KEYCODE_BACK'); } catch (e) {}
+  let erro = null; for (let i = 0; i < 20 && !erro; i++) { await espera(500); erro = await js(`(window.__atu.find(d=>d.fase==='erro')||{}).mensagem||null`); }
+  ok('atualização: cancelar no instalador volta ao app com aviso', !!erro, erro);
+}
 fs.writeFileSync(`${saida}/resultado.json`, JSON.stringify({ resultados, diagnostico: diag, sistema: sis }, null, 1));
 ws.close();
 const falhas = resultados.filter(r => r[0] !== 'OK ').length;

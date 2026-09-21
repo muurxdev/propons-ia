@@ -7,6 +7,7 @@ final class Baixador: NSObject, URLSessionDataDelegate {
     private var feito: Int64 = 0
     private var codigo = 0
     private var cont: CheckedContinuation<Void, Error>?
+    private var tarefa: URLSessionDataTask?
     private let progresso: (Int64) -> Void
 
     init(progresso: @escaping (Int64) -> Void) { self.progresso = progresso }
@@ -24,9 +25,12 @@ final class Baixador: NSObject, URLSessionDataDelegate {
         if desde > 0 { req.setValue("bytes=\(desde)-", forHTTPHeaderField: "Range") }
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             self.cont = c
-            sessao.dataTask(with: req).resume()
+            let t = sessao.dataTask(with: req); self.tarefa = t; t.resume()
         }
     }
+
+    /// "Cancelar download" na tela de modelos
+    func cancelar() { tarefa?.cancel() }
 
     func urlSession(_ s: URLSession, dataTask: URLSessionDataTask, didReceive resp: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {

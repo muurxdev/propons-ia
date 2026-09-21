@@ -15,6 +15,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -25,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.1.0";
+    public const string Versao = "1.2.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -185,6 +186,8 @@ class Janela : Form
     readonly string chave = GerarChave(); // llama-server --api-key: só a nossa página usa o motor
     TaskCompletionSource<bool> tentarDeNovo;
     bool desligando, trocando;
+    volatile bool cancelarBaixar;          // "Cancelar download" na tela de modelos
+    string baixandoId;                     // modelo sendo baixado agora (um por vez)
     readonly List<DateTime> quedas = new List<DateTime>();
     StreamWriter logMotor;
     readonly JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
@@ -374,9 +377,10 @@ class Janela : Form
         }
     }
     static string TituloDownload(string f) { return f == "sem espaço" ? "Pouco espaço neste PC" : f == "corrompido" ? "Download com defeito" : "Sem conexão para baixar a IA"; }
-    string MensagemDownload(string f)
+    string MensagemDownload(string f, Modelo m = null)
     {
-        if (f == "sem espaço") return "A IA precisa de cerca de " + ((modelo.Tamanho >> 20) + 400) + " MB livres no disco deste PC.";
+        if (f == "cancelado") return "Download cancelado.";
+        if (f == "sem espaço") return "A IA precisa de cerca de " + (((m ?? modelo).Tamanho >> 20) + 400) + " MB livres no disco deste PC.";
         if (f == "corrompido") return "O arquivo baixado veio com defeito e foi descartado. Tente de novo.";
         return "Na primeira vez em cada PC é preciso internet. Verifique a conexão e tente de novo.";
     }
@@ -448,7 +452,7 @@ class Janela : Form
             BeginInvoke((Action)delegate
             {
                 if (naSplash) Splash(v, "Baixando a IA", sub + " · " + jaMB + " de " + totMB + " MB");
-                else Evento("download", Dic("pct", v, "feito", ja, "total", m.Tamanho, "nome", m.Nome));
+                else Evento("download", Dic("id", m.Id, "pct", v, "feito", ja, "total", m.Tamanho, "nome", m.Nome));
             });
         };
         await Task.Run(delegate
@@ -474,6 +478,7 @@ class Janela : Form
                         byte[] buf = new byte[1 << 20]; int n; DateTime ultimo = DateTime.MinValue;
                         while ((n = s.Read(buf, 0, buf.Length)) > 0)
                         {
+                            if (cancelarBaixar) throw new OperationCanceledException("cancelado");
                             f.Write(buf, 0, n); ja += n;
                             if ((DateTime.Now - ultimo).TotalMilliseconds > 250) { ultimo = DateTime.Now; progresso(ja); }
                         }
@@ -481,6 +486,7 @@ class Janela : Form
                 }
                 catch (Exception ex)
                 {
+                    if (ex is OperationCanceledException) throw;
                     // disco cheio no meio do download: não adianta tentar de novo
                     if (ex is IOException) { try { if (new DriveInfo(Path.GetPathRoot(dir)).AvailableFreeSpace < (64L << 20)) throw new IOException("sem espaço"); } catch (IOException) { throw; } catch { } }
                     long agora = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
@@ -492,6 +498,7 @@ class Janela : Form
         });
 
         if (naSplash) Splash(-1, "Verificando o download", "");
+        else Evento("download", Dic("id", m.Id, "pct", 1.0, "feito", m.Tamanho, "total", m.Tamanho, "nome", m.Nome, "fase", "verificando"));
         bool ok = await Task.Run(delegate
         {
             using (SHA256 sha = SHA256.Create()) using (FileStream f = new FileStream(parcial, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, FileOptions.SequentialScan))
@@ -566,8 +573,9 @@ class Janela : Form
             if (AcharModelo(novo) == null)
             {
                 string falha = null;
-                try { await Baixar(novo, false); } catch (Exception ex) { falha = ex.Message; }
-                if (falha != null) { modelo = antigo; c["modelo"] = antigo.Id; SalvarConfig(c); Evento("motor", Dic("estado", "erro", "mensagem", MensagemDownload(falha))); return; }
+                baixandoId = novo.Id; cancelarBaixar = false;
+                try { await Baixar(novo, false); } catch (Exception ex) { falha = ex is OperationCanceledException ? "cancelado" : ex.Message; } finally { baixandoId = null; }
+                if (falha != null) { modelo = antigo; c["modelo"] = antigo.Id; SalvarConfig(c); Evento("motor", Dic("estado", "erro", "mensagem", MensagemDownload(falha, novo))); return; }
             }
             Evento("motor", Dic("estado", "trocando"));
             PararMotor();
@@ -616,9 +624,21 @@ class Janela : Form
                 case "modelo":
                     Modelo novo = Modelo.PorId(Arg(args, "id"));
                     if (novo == null) throw new Exception("modelo desconhecido");
+                    if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
                     if (novo.Id != modelo.Id) { var _ = TrocarModelo(novo); }
                     dados = true; break;
                 case "salvarArquivo": dados = SalvarArquivo(Arg(args, "nome"), Arg(args, "conteudo")); break;
+                case "baixarModelo":
+                    Modelo mb = Modelo.PorId(Arg(args, "id"));
+                    if (mb == null) throw new Exception("modelo desconhecido");
+                    if (baixandoId != null || trocando) throw new Exception("já há um download em andamento");
+                    if (AcharModelo(mb) == null) { var _b = SoBaixar(mb); }
+                    else Evento("download-fim", Dic("id", mb.Id, "ok", true));
+                    dados = true; break;
+                case "cancelarDownload": cancelarBaixar = true; dados = true; break;
+                case "apagarModelo": dados = ApagarModelo(Modelo.PorId(Arg(args, "id"))); break;
+                case "verificarModelos": dados = await Task.Run(delegate { return VerificarModelos(); }); break;
+                case "atualizar": dados = await Atualizar(Arg(args, "versao")); break;
                 default: throw new Exception("ação desconhecida: " + acao);
             }
         }
@@ -664,6 +684,136 @@ class Janela : Form
         string wv = "?"; try { wv = CoreWebView2Environment.GetAvailableBrowserVersionString(); } catch { }
         return Dic("ramTotal", (long)ms.total, "ramLivre", (long)ms.avail, "cpu", cpu, "nucleos", Environment.ProcessorCount, "discoLivre", disco,
             "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"));
+    }
+
+    // ---------- gerenciar modelos ----------
+    async Task SoBaixar(Modelo m)
+    {
+        baixandoId = m.Id; cancelarBaixar = false;
+        string erro = null;
+        try { await Baixar(m, false); }
+        catch (Exception ex) { erro = ex is OperationCanceledException ? "cancelado" : MensagemDownload(ex.Message, m); Program.Log("download " + m.Id + ": " + ex.Message); }
+        finally { baixandoId = null; }
+        Evento("download-fim", Dic("id", m.Id, "ok", erro == null, "erro", erro));
+    }
+
+    object ApagarModelo(Modelo m)
+    {
+        if (m == null) throw new Exception("modelo desconhecido");
+        if (m.Id == modelo.Id) throw new Exception("este modelo está em uso; troque de modelo antes de apagar");
+        if (baixandoId == m.Id) throw new Exception("cancele o download antes de apagar");
+        string[] arquivos = {
+            Path.Combine(Raiz(), @"modelos\" + m.Arquivo), Path.Combine(Raiz(), @"modelos\" + m.Arquivo + ".baixando"),
+            Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), @"modelos\" + m.Arquivo) };
+        foreach (string a in arquivos) try { if (File.Exists(a)) File.Delete(a); } catch (Exception ex) { Program.Log("apagar " + a + ": " + ex.Message); }
+        if (AcharModelo(m) != null) throw new Exception("não foi possível apagar o arquivo");
+        return true;
+    }
+
+    // confere o SHA-256 de cada modelo baixado; os com defeito são apagados (menos o que está em uso)
+    List<object> VerificarModelos()
+    {
+        List<object> r = new List<object>();
+        foreach (Modelo m in Modelo.Todos)
+        {
+            string p = AcharModelo(m);
+            if (p == null || m.Id == baixandoId) continue;
+            Modelo mm = m;
+            bool ok = ShaArquivo(p, delegate (double v) { BeginInvoke((Action)delegate { Evento("verificacao", Dic("id", mm.Id, "nome", mm.Nome, "pct", v)); }); }) == m.Sha256;
+            bool apagado = false;
+            if (!ok && m.Id != modelo.Id) try { File.Delete(p); apagado = true; } catch { }
+            r.Add(Dic("id", m.Id, "nome", m.Nome, "ok", ok, "apagado", apagado));
+        }
+        return r;
+    }
+
+    static string ShaArquivo(string p, Action<double> progresso)
+    {
+        using (SHA256 sha = SHA256.Create())
+        using (FileStream f = new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 20, FileOptions.SequentialScan))
+        {
+            byte[] buf = new byte[1 << 20]; int n; long lido = 0; DateTime ultimo = DateTime.MinValue;
+            while ((n = f.Read(buf, 0, buf.Length)) > 0)
+            {
+                sha.TransformBlock(buf, 0, n, null, 0); lido += n;
+                if (progresso != null && (DateTime.Now - ultimo).TotalMilliseconds > 300) { ultimo = DateTime.Now; progresso((double)lido / Math.Max(1, f.Length)); }
+            }
+            sha.TransformFinalBlock(buf, 0, 0);
+            return BitConverter.ToString(sha.Hash).Replace("-", "").ToLowerInvariant();
+        }
+    }
+
+    // ---------- atualização do programa ----------
+    // baixa o .exe novo da release, confere com o SHA256SUMS dela e deixa um script trocar o arquivo quando este fechar
+    async Task<object> Atualizar(string versao)
+    {
+        if (versao == null || !Regex.IsMatch(versao, @"^\d{1,3}\.\d{1,3}\.\d{1,3}$")) throw new Exception("versão inválida");
+        const string Arquivo = "Propons-IA-Windows.exe";
+        string exe = Application.ExecutablePath, dir = Path.GetDirectoryName(exe);
+        string baseUrl = "https://github.com/muurxdev/propons-ia/releases/download/v" + versao + "/";
+        string novo = Path.Combine(dir, ".propons-atualizacao.tmp");
+        try { File.WriteAllText(novo, ""); } catch { throw new Exception("sem permissão para gravar na pasta do programa. Baixe a versão nova pelo site."); }
+
+        string somas = await Task.Run(delegate { return BaixarTexto(baseUrl + "SHA256SUMS"); });
+        string esperado = null;
+        foreach (string l in somas.Split('\n'))
+        {
+            string[] p = l.Trim().Split(new[] { ' ', '*' }, StringSplitOptions.RemoveEmptyEntries);
+            if (p.Length == 2 && p[1] == Arquivo) esperado = p[0].ToLowerInvariant();
+        }
+        if (esperado == null) throw new Exception("a versão " + versao + " não tem o programa do Windows");
+
+        await Task.Run(delegate
+        {
+            HttpWebRequest r = (HttpWebRequest)WebRequest.Create(baseUrl + Arquivo);
+            r.UserAgent = "ProponsIA/" + Program.Versao; r.Timeout = 30000; r.ReadWriteTimeout = 30000; r.AllowAutoRedirect = true;
+            r.Proxy = WebRequest.GetSystemWebProxy(); r.Proxy.Credentials = CredentialCache.DefaultCredentials;
+            using (HttpWebResponse resp = (HttpWebResponse)r.GetResponse())
+            using (Stream s = resp.GetResponseStream())
+            using (FileStream f = new FileStream(novo, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, FileOptions.WriteThrough))
+            {
+                long total = resp.ContentLength, ja = 0; byte[] buf = new byte[1 << 18]; int n; DateTime ultimo = DateTime.MinValue;
+                while ((n = s.Read(buf, 0, buf.Length)) > 0)
+                {
+                    f.Write(buf, 0, n); ja += n;
+                    if ((DateTime.Now - ultimo).TotalMilliseconds > 250)
+                    {
+                        ultimo = DateTime.Now; long jj = ja;
+                        BeginInvoke((Action)delegate { Evento("atualizacao", Dic("fase", "baixando", "pct", total > 0 ? (double)jj / total : 0.0, "feito", jj, "total", total)); });
+                    }
+                }
+                f.Flush(true);
+            }
+        });
+        Evento("atualizacao", Dic("fase", "verificando", "pct", 1.0));
+        string sha = await Task.Run(delegate { return ShaArquivo(novo, null); });
+        if (sha != esperado) { try { File.Delete(novo); } catch { } throw new Exception("o arquivo baixado veio com defeito. Tente de novo."); }
+
+        Evento("atualizacao", Dic("fase", "instalando", "pct", 1.0));
+        // PowerShell (texto em UTF-16 via -EncodedCommand, aceita o "ó" do nome): espera fechar, troca e abre de novo
+        string q = "'";
+        Func<string, string> lit = delegate (string t) { return q + t.Replace(q, q + q) + q; };
+        string ps = "$ErrorActionPreference='Stop';$p=" + Process.GetCurrentProcess().Id + ";$n=" + lit(novo) + ";$e=" + lit(exe) + ";" +
+            "while(Get-Process -Id $p -ErrorAction SilentlyContinue){Start-Sleep -Milliseconds 300};" +
+            "$ok=$false;for($i=0;$i -lt 60 -and -not $ok;$i++){try{[IO.File]::Copy($n,$e,$true);$ok=$true}catch{Start-Sleep -Milliseconds 500}};" +
+            "if($ok){Remove-Item -LiteralPath $n -Force -ErrorAction SilentlyContinue};Start-Process -FilePath $e";
+        ProcessStartInfo psi = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(ps)));
+        psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
+        Process.Start(psi);
+        Program.Log("atualizando para " + versao);
+        System.Windows.Forms.Timer fechar = new System.Windows.Forms.Timer { Interval = 1500 };
+        fechar.Tick += delegate { fechar.Stop(); Close(); };
+        fechar.Start();
+        return true;
+    }
+
+    static string BaixarTexto(string url)
+    {
+        HttpWebRequest r = (HttpWebRequest)WebRequest.Create(url);
+        r.UserAgent = "ProponsIA/" + Program.Versao; r.Timeout = 30000; r.AllowAutoRedirect = true;
+        r.Proxy = WebRequest.GetSystemWebProxy(); r.Proxy.Credentials = CredentialCache.DefaultCredentials;
+        using (HttpWebResponse resp = (HttpWebResponse)r.GetResponse())
+        using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) return sr.ReadToEnd();
     }
 
     object SalvarArquivo(string nome, string conteudo)

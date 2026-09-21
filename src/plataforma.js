@@ -142,6 +142,17 @@ const PLATAFORMA = (() => {
       return pedir('sistema', {}, 15000);
     },
     trocarModelo(id) { return pedir('modelo', { id }, 10000); },
+    // gerenciar modelos (Windows, Android, iOS; no Linux é pelo comando propons-ia)
+    baixarModelo(id) { return pedir('baixarModelo', { id }, 10000); },
+    cancelarDownload(id) { return pedir('cancelarDownload', { id }, 5000); },
+    apagarModelo(id) { return pedir('apagarModelo', { id }, 15000); },
+    verificarModelos() { return pedir('verificarModelos', {}, 30 * 60000); },
+    // atualização do app: Windows e Android baixam, conferem (SHA-256) e instalam; iOS abre o SideStore/AltStore
+    podeAtualizarSozinho: tipo === 'windows' || tipo === 'android',
+    atualizar(versao) { return pedir('atualizar', { versao }, 60 * 60000); },
+    abrirLoja() { return pedir('abrirLoja', {}, 5000); },
+    podeCompartilhar: tipo === 'android' || tipo === 'ios',
+    compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },
     abrirLink(url) { if (tipo === 'web' || tipo === 'windows') window.open(url, '_blank', 'noopener'); else pedir('link', { url }, 3000).catch(() => {}); },
     async salvarArquivo(nome, conteudo, tipoMime) {

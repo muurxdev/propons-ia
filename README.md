@@ -53,6 +53,8 @@ propons-ia                          # abre (ou pelo menu de aplicativos)
 propons-ia --modelo avancado        # troca o modelo: leve | normal | avancado (fica salvo)
 propons-ia --diagnostico            # confere sistema, bibliotecas e mede a velocidade
 propons-ia --parar                  # desliga, se tiver ficado aberta
+propons-ia --atualizar              # instala a versão mais nova
+propons-ia --apagar-modelo avancado # apaga um modelo baixado
 curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh | bash -s -- --remover
 ```
 Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. Sem eles, abre no navegador padrão.
@@ -66,7 +68,9 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Código completo** quando você pede, com **cores** por linguagem, rótulo e botão copiar; botão **Continuar** se a resposta for cortada
 - **Anexar arquivos** de texto e código (📎, arrastar ou colar) para a IA ler e explicar
 - **Algoritmos** (bubble sort, selection sort, quick sort, busca binária com uma lista de números): passo a passo e resumo **calculados por código** — sempre corretos
-- **Configurações:** tema, tamanho da letra e **modelo**: Leve (0.8B) · Normal (2B) · Avançado (4B, PCs com 8 GB+)
+- **Modelos de IA:** Leve (0.8B) · Normal (2B) · Avançado (4B, 8 GB+). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
+- **Atualizações:** avisa quando sai versão nova e tem o botão **Atualizar tudo**. No Windows e no Android, o próprio app instala; no iPhone, pelo SideStore/AltStore; no Linux, com `propons-ia --atualizar`
+- **Feita para o celular:** tela cheia, ajustes como um app, gestos (arrastar o histórico, segurar uma conversa), compartilhar respostas
 - **Diagnóstico embutido:** memória, processador, espaço, velocidade real da IA e autoteste, com relatório para copiar
 - **Estável e privada:** o motor religa sozinho se cair; histórico com backup; tudo roda no aparelho e só o próprio app acessa o motor
 

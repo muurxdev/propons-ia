@@ -7,7 +7,8 @@ import os
 struct ProponsIAApp: App {
     var body: some Scene {
         WindowGroup {
-            Tela().ignoresSafeArea(.container, edges: .bottom)
+            // tela cheia: a página usa env(safe-area-inset-*) para o notch e a barra de início; só o teclado encolhe a tela
+            Tela().ignoresSafeArea(.container, edges: .all)
         }
     }
 }
@@ -40,6 +41,9 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     private var modelo: ModeloIA!
     private var naSplash = true
     private var trocando = false
+    private var cancelarBaixar = false
+    private var baixandoId: String?
+    private var baixadorAtual: Baixador?
     private let fm = FileManager.default
 
     private lazy var suporte: URL = {
@@ -68,6 +72,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         web.isOpaque = false
         web.backgroundColor = .systemBackground
         web.scrollView.contentInsetAdjustmentBehavior = .never
+        web.scrollView.bounces = false
         if #available(iOS 16.4, *) { web.isInspectable = true }
         let id = UserDefaults.standard.string(forKey: "modelo")
         modelo = ModeloIA.todos.first { $0.id == id && $0.id != "avancado" } ?? (ram < 5_500_000_000 ? ModeloIA.todos[0] : ModeloIA.todos[1])
@@ -119,6 +124,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         let s = (erro as NSError).localizedDescription
         if s == "sem espaço" { return "Libere cerca de \((modelo.tamanho >> 20) + 400) MB no iPhone e tente de novo." }
         if s == "corrompido" { return "O arquivo veio com defeito e foi descartado. Tente de novo." }
+        if s == "cancelado" { return "Download cancelado." }
         return "Na primeira vez é preciso internet (de preferência Wi-Fi). Mantenha o app aberto durante o download."
     }
 
@@ -156,23 +162,25 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             guard let self = self, Date().timeIntervalSince(ultimo) > 0.25 else { return }
             ultimo = Date(); let v = Double(feito) / Double(m.tamanho)
             if naTela { self.splash(v, "Baixando a IA", "Só na primeira vez · (feito >> 20) de (m.tamanho >> 20) MB") }
-            else { self.evento("download", ["pct": v, "feito": feito, "total": m.tamanho, "nome": m.nome]) }
+            else { self.evento("download", ["id": m.id, "pct": v, "feito": feito, "total": m.tamanho, "nome": m.nome]) }
         }
+        baixadorAtual = b
+        defer { baixadorAtual = nil }
+        let cancelado = NSError(domain: "propons", code: 3, userInfo: [NSLocalizedDescriptionKey: "cancelado"])
         while tamanho(parcial) < m.tamanho {
+            if cancelarBaixar { throw cancelado }
             let ja = tamanho(parcial)
             do { try await b.baixar(m.url, para: parcial, desde: ja); falhas = 0 }
             catch {
+                if cancelarBaixar { throw cancelado }
                 falhas = tamanho(parcial) > ja ? 0 : falhas + 1
                 if falhas >= 4 { throw error }
                 try? await Task.sleep(nanoseconds: UInt64(2_000_000_000 * (falhas + 1)))
             }
         }
         if naTela { splash(-1, "Verificando o download", "") }
-        var hash = SHA256()
-        let leitor = try FileHandle(forReadingFrom: parcial)
-        while let d = try leitor.read(upToCount: 1 << 20), !d.isEmpty { hash.update(data: d) }
-        try leitor.close()
-        guard hash.finalize().map({ String(format: "%02x", $0) }).joined() == m.sha256 else {
+        else { evento("download", ["id": m.id, "pct": 1.0, "feito": m.tamanho, "total": m.tamanho, "nome": m.nome, "fase": "verificando"]) }
+        guard sha256(parcial) == m.sha256 else {
             try? fm.removeItem(at: parcial); throw NSError(domain: "propons", code: 2, userInfo: [NSLocalizedDescriptionKey: "corrompido"])
         }
         try? fm.removeItem(at: final); try fm.moveItem(at: parcial, to: final)
@@ -201,9 +209,25 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             responder(id, true)
         case "modelo":
             guard let novo = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }), novo.id != "avancado" else { erro(id, "modelo indisponível no iPhone"); return }
+            if baixandoId != nil || trocando { erro(id, "espere o download ou a troca atual terminar"); return }
             responder(id, true)
             if novo.id != modelo.id { Task { await trocarModelo(novo) } }
         case "salvarArquivo": compartilhar(id: id, nome: args["nome"] as? String ?? "arquivo.txt", conteudo: args["conteudo"] as? String ?? "")
+        case "baixarModelo":
+            guard let m = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }), m.id != "avancado" else { erro(id, "modelo indisponível no iPhone"); return }
+            if baixandoId != nil || trocando { erro(id, "já há um download em andamento"); return }
+            responder(id, true)
+            if acharModelo(m) != nil { evento("download-fim", ["id": m.id, "ok": true]) } else { Task { await soBaixar(m) } }
+        case "cancelarDownload": cancelarBaixar = true; baixadorAtual?.cancelar(); responder(id, true)
+        case "apagarModelo":
+            guard let m = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }) else { erro(id, "modelo desconhecido"); return }
+            if m.id == modelo.id { erro(id, "este modelo está em uso; troque de modelo antes de apagar"); return }
+            if baixandoId == m.id { erro(id, "cancele o download antes de apagar"); return }
+            try? fm.removeItem(at: pastaModelos.appendingPathComponent(m.arquivo)); try? fm.removeItem(at: pastaModelos.appendingPathComponent(m.arquivo + ".baixando"))
+            if acharModelo(m) == nil { responder(id, true) } else { erro(id, "não foi possível apagar o arquivo") }
+        case "verificarModelos": DispatchQueue.global(qos: .userInitiated).async { self.responder(id, self.verificarModelos()) }
+        case "abrirLoja": abrirLoja(id)
+        case "compartilhar": compartilharTexto(id: id, texto: args["texto"] as? String ?? "")
         default: erro(id, "ação desconhecida: \(acao)")
         }
     }
@@ -232,6 +256,8 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         let antigo = modelo!
         UserDefaults.standard.set(novo.id, forKey: "modelo"); modelo = novo
         if acharModelo(novo) == nil {
+            baixandoId = novo.id; cancelarBaixar = false
+            defer { baixandoId = nil }
             do { _ = try await baixar(novo, naTela: false) } catch {
                 modelo = antigo; UserDefaults.standard.set(antigo.id, forKey: "modelo")
                 evento("motor", ["estado": "erro", "mensagem": mensagem(erro: error)]); return
@@ -240,6 +266,62 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         evento("motor", ["estado": "trocando"])
         do { try await carregarMotor(); evento("motor", ["estado": "pronto", "nome": novo.nome]) }
         catch { modelo = antigo; try? await carregarMotor(); evento("motor", ["estado": "erro", "mensagem": error.localizedDescription]) }
+    }
+
+    // MARK: gerenciar modelos
+    private func soBaixar(_ m: ModeloIA) async {
+        baixandoId = m.id; cancelarBaixar = false
+        var falha: String? = nil
+        do { _ = try await baixar(m, naTela: false) }
+        catch { let s = (error as NSError).localizedDescription; falha = s == "cancelado" ? "cancelado" : mensagem(erro: error) }
+        baixandoId = nil
+        evento("download-fim", ["id": m.id, "ok": falha == nil, "erro": falha ?? NSNull()])
+    }
+
+    /// confere o SHA-256 de cada modelo baixado; os com defeito são apagados (menos o que está em uso)
+    private func verificarModelos() -> [[String: Any]] {
+        var r: [[String: Any]] = []
+        for m in ModeloIA.todos {
+            guard let u = acharModelo(m), m.id != baixandoId else { continue }
+            let ok = sha256(u) { v in self.evento("verificacao", ["id": m.id, "nome": m.nome, "pct": v]) } == m.sha256
+            var apagado = false
+            if !ok && m.id != modelo.id { apagado = (try? fm.removeItem(at: u)) != nil }
+            r.append(["id": m.id, "nome": m.nome, "ok": ok, "apagado": apagado])
+        }
+        return r
+    }
+
+    private func sha256(_ u: URL, progresso: ((Double) -> Void)? = nil) -> String {
+        guard let h = try? FileHandle(forReadingFrom: u) else { return "" }
+        defer { try? h.close() }
+        var hash = SHA256()
+        let total = Double(max(1, tamanho(u)))
+        var lido = 0.0, ultimo = Date.distantPast
+        while let d = try? h.read(upToCount: 1 << 20), !d.isEmpty {
+            hash.update(data: d); lido += Double(d.count)
+            if let p = progresso, Date().timeIntervalSince(ultimo) > 0.3 { ultimo = Date(); p(lido / total) }
+        }
+        return hash.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: atualização (no iPhone quem instala é o SideStore/AltStore)
+    private func abrirLoja(_ id: Any?) {
+        let opcoes = ["sidestore://", "altstore://"].compactMap { URL(string: $0) }
+        func tentar(_ i: Int) {
+            guard i < opcoes.count else { responder(id, false); return }
+            UIApplication.shared.open(opcoes[i], options: [:]) { ok in if ok { self.responder(id, true) } else { tentar(i + 1) } }
+        }
+        DispatchQueue.main.async { tentar(0) }
+    }
+
+    private func compartilharTexto(id: Any?, texto: String) {
+        DispatchQueue.main.async {
+            let vc = UIActivityViewController(activityItems: [texto], applicationActivities: nil)
+            vc.completionWithItemsHandler = { _, ok, _, _ in self.responder(id, ok) }
+            vc.popoverPresentationController?.sourceView = self.web
+            vc.popoverPresentationController?.sourceRect = CGRect(x: self.web.bounds.midX, y: self.web.bounds.midY, width: 1, height: 1)
+            self.web.window?.rootViewController?.present(vc, animated: true)
+        }
     }
 
     private func carregarConversas() -> String {
@@ -265,7 +347,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             return d
         }
         return ["ramTotal": Int64(ram), "ramLivre": Int64(os_proc_available_memory()), "cpu": maquina, "nucleos": ProcessInfo.processInfo.activeProcessorCount,
-                "discoLivre": livre == Int64.max ? 0 : livre, "pastaDados": "armazenamento do app", "so": "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion) · \(maquina)",
+                "discoLivre": livre == Int64.max ? 0 : livre, "pastaDados": "armazenamento do app", "pastaModelos": "armazenamento do app", "so": "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion) · \(maquina)",
                 "versao": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?", "modelos": modelos]
     }
 

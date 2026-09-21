@@ -46,11 +46,38 @@ const pid1 = motorPid(); execSync(`powershell -NoProfile -Command "Stop-Process 
 await espera(1500); const reconectou = await pronto(120); const pid2 = motorPid();
 ok('vigia religou o motor', reconectou && pid2 && pid2 !== pid1, `${pid1} → ${pid2}`);
 m = await pergunta('responda só: ok'); ok('responde depois de religar', m.texto.length > 0 && !m.erro, m.texto);
+// 1.2: ajustes com menu ao lado, modelos (baixar/cancelar/apagar/verificar) e atualizações
+await js(`abrirConfig(); 1`); await espera(600);
+ok('ajustes: menu ao lado + conteúdo', await js(`(()=>{const n=document.querySelector('.p-nav').getBoundingClientRect(), c=document.querySelector('.p-conteudo').getBoundingClientRect(); return n.width>150 && c.width>200 && c.left>=n.right-1})()`));
+await js(`irPara('modelo'); 1`); await espera(1200);
+ok('modelos: 3 cartões, 1 em uso', (await js(`document.querySelectorAll('.mcard').length`)) === 3 && (await js(`document.querySelectorAll('.mcard.on').length`)) === 1);
+await foto('w4-modelos');
+const alvo = await js(`(sistemaCache.modelos.find(m=>!m.baixado)||{}).id || ''`);
+if (alvo) {
+  await js(`window.__fim=null; PLATAFORMA.ao('download-fim', d => window.__fim = d); PLATAFORMA.baixarModelo('${alvo}').then(()=>1)`);
+  let pct = 0; for (let i = 0; i < 120 && pct <= 0.002; i++) { await espera(500); pct = await js(`(baixando['${alvo}']||{}).pct||0`); }
+  ok('modelos: download com progresso', pct > 0.002, `${alvo} ${(pct * 100).toFixed(1)}%`);
+  await foto('w5-baixando');
+  await js(`PLATAFORMA.cancelarDownload('${alvo}').then(()=>1)`);
+  let fim = null; for (let i = 0; i < 40 && !fim; i++) { await espera(500); fim = await js('window.__fim'); }
+  ok('modelos: cancelar download', fim && fim.erro === 'cancelado', JSON.stringify(fim));
+  ok('modelos: apagar o parcial', (await js(`PLATAFORMA.apagarModelo('${alvo}').then(()=>'ok',e=>e.message)`)) === 'ok');
+}
+const emUso = await js(`sistemaCache.modelos.find(m=>m.atual).id`);
+const recusa = await js(`PLATAFORMA.apagarModelo('${emUso}').then(()=>'apagou!',e=>e.message)`);
+ok('modelos: não apaga o que está em uso', /em uso/.test(recusa), recusa);
+const tv = Date.now(); const ver = await js('PLATAFORMA.verificarModelos()');
+ok('modelos: SHA-256 dos baixados confere', ver.length >= 1 && ver.every(x => x.ok), `${ver.map(x => x.nome).join(', ')} em ${((Date.now() - tv) / 1000).toFixed(0)} s`);
+await js(`irPara('atualizacoes'); 1`); const u = await js('checarAtualizacao()'); await js('desenharAba(); 1'); await espera(300);
+ok('atualizações: consulta a release publicada', u !== null, JSON.stringify(u).slice(0, 60)); await foto('w6-atualizacoes');
+await js('fecharModal(); 1');
 // troca de modelo
 if (!semTroca) {
   for (const [id, nome] of [['avancado', '4B'], ['normal', '2B']]) {
-    await js(`abrirConfig('modelo'); 1`); await espera(800);
-    await js(`window.confirm = () => true; document.querySelector('[data-modelo="${id}"]').click(); 1`);
+    await js(`abrirConfig('modelo'); 1`); await espera(1200);
+    await js(`document.querySelector('[data-modelo="${id}"]').click(); 1`); await espera(400);
+    await js(`(()=>{const b=document.querySelector('.dlg .btn.primario'); if(b) b.click(); return 1})()`); await espera(300);
+    await js(`(()=>{const b=document.querySelector('.dlg .btn.primario'); if(b) b.click(); return 1})()`);
     const t0 = Date.now(); await espera(3000);
     const ok2 = await pronto(900);
     const p = await js('PLATAFORMA.props()');

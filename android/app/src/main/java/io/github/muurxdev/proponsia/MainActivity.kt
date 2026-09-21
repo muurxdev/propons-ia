@@ -3,6 +3,10 @@ package io.github.muurxdev.proponsia
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.ActivityManager
+import android.app.PendingIntent
+import android.content.pm.PackageInstaller
+import android.provider.Settings
+import android.view.WindowManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
@@ -63,6 +67,8 @@ class MainActivity : Activity() {
     private lateinit var modelo: Modelo
     @Volatile private var desligando = false
     @Volatile private var trocando = false
+    @Volatile private var cancelarBaixar = false
+    @Volatile private var baixandoId: String? = null
     private var naSplash = true
     private var aoTentar: (() -> Unit)? = null
     private var escolhaArquivos: ValueCallback<Array<Uri>>? = null
@@ -100,6 +106,7 @@ class MainActivity : Activity() {
                 if (u.host == "127.0.0.1" || u.scheme == "file" || u.scheme == "data" || u.scheme == "about") return false
                 abrirLink(u.toString()); return true
             }
+            override fun onPageFinished(view: WebView, url: String?) { if (cssMargens.isNotEmpty()) view.evaluateJavascript(cssMargens, null) }
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
@@ -115,15 +122,32 @@ class MainActivity : Activity() {
         trabalho.execute { iniciar() }
     }
 
-    // conteúdo abaixo da barra de status e acima do teclado/barra de navegação (Android 15 desenha "ponta a ponta")
+    // tela cheia "ponta a ponta": o app desenha atrás da barra de status e da barra de navegação.
+    // As medidas dessas barras (e do recorte da câmera) vão para a página como variáveis CSS (--sa-*);
+    // só o teclado encolhe a janela, para a caixa de mensagem ficar sempre visível.
+    private var cssMargens = ""
     private fun aplicarMargens(v: View) {
+        if (Build.VERSION.SDK_INT >= 30) window.setDecorFitsSystemWindows(false)
+        else window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
+        window.statusBarColor = Color.TRANSPARENT; window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= 29) { window.isNavigationBarContrastEnforced = false; window.isStatusBarContrastEnforced = false }
         v.setOnApplyWindowInsetsListener { view, ins ->
+            val d = resources.displayMetrics.density
+            var t: Int; var b: Int; var l: Int; var r: Int; var teclado: Int
             if (Build.VERSION.SDK_INT >= 30) {
-                val b = ins.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime() or WindowInsets.Type.displayCutout())
-                view.setPadding(b.left, b.top, b.right, b.bottom)
+                val s = ins.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                t = s.top; b = s.bottom; l = s.left; r = s.right
+                teclado = ins.getInsets(WindowInsets.Type.ime()).bottom
             } else {
-                @Suppress("DEPRECATION") view.setPadding(ins.systemWindowInsetLeft, ins.systemWindowInsetTop, ins.systemWindowInsetRight, ins.systemWindowInsetBottom)
+                t = ins.systemWindowInsetTop; b = ins.systemWindowInsetBottom; l = ins.systemWindowInsetLeft; r = ins.systemWindowInsetRight
+                teclado = if (b > 150 * d) b else 0            // Android 9/10: o teclado vem somado à barra de baixo
             }
+            view.setPadding(0, 0, 0, teclado)
+            val px = { x: Int -> "${"%.1f".format(java.util.Locale.US, x / d)}px" }
+            cssMargens = "(function(){var s=document.documentElement.style;s.setProperty('--sa-t','${px(t)}');s.setProperty('--sa-b','${px(if (teclado > 0) 0 else b)}');" +
+                "s.setProperty('--sa-l','${px(l)}');s.setProperty('--sa-r','${px(r)}')})()"
+            web.evaluateJavascript(cssMargens, null)
             ins
         }
     }
@@ -132,14 +156,14 @@ class MainActivity : Activity() {
 
     private fun aplicarTema(esc: Boolean) {
         val cor = if (esc) Color.parseColor("#17171B") else Color.WHITE
-        @Suppress("DEPRECATION") run { window.statusBarColor = cor; window.navigationBarColor = cor }
         window.decorView.setBackgroundColor(cor)
+        web.setBackgroundColor(cor)
         if (Build.VERSION.SDK_INT >= 30) {
             val claro = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
             window.insetsController?.setSystemBarsAppearance(if (esc) 0 else claro, claro)
         } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = if (esc) 0 else (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR)
+            val base = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            window.decorView.systemUiVisibility = base or (if (esc) 0 else (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR))
         }
     }
 
@@ -183,8 +207,9 @@ class MainActivity : Activity() {
     }
 
     private fun tituloFalha(f: String) = when (f) { "sem espaço" -> "Pouco espaço no celular"; "corrompido" -> "Download com defeito"; else -> "Sem conexão para baixar a IA" }
-    private fun mensagemFalha(f: String) = when (f) {
-        "sem espaço" -> "A IA precisa de cerca de ${(modelo.tamanho shr 20) + 400} MB livres no celular."
+    private fun mensagemFalha(f: String, m: Modelo = modelo) = when (f) {
+        "cancelado" -> "Download cancelado."
+        "sem espaço" -> "A IA precisa de cerca de ${(m.tamanho shr 20) + 400} MB livres no celular."
         "corrompido" -> "O arquivo baixado veio com defeito e foi descartado. Tente de novo."
         else -> "Na primeira vez é preciso internet (de preferência Wi-Fi). Verifique a conexão e tente de novo."
     }
@@ -210,17 +235,19 @@ class MainActivity : Activity() {
                         val buf = ByteArray(1 shl 20); var ja = if (continuar) antes else 0L
                         while (true) {
                             val n = ins.read(buf); if (n < 0) break
+                            if (cancelarBaixar) throw Exception("cancelado")
                             out.write(buf, 0, n); ja += n
                             val agora = System.currentTimeMillis()
                             if (agora - ultimo > 250) {
                                 ultimo = agora; val v = ja.toDouble() / m.tamanho
                                 if (splash) splash(v, "Baixando a IA", "Só na primeira vez · ${ja shr 20} de ${m.tamanho shr 20} MB")
-                                else evento("download", JSONObject().put("pct", v).put("feito", ja).put("total", m.tamanho).put("nome", m.nome))
+                                else evento("download", JSONObject().put("id", m.id).put("pct", v).put("feito", ja).put("total", m.tamanho).put("nome", m.nome))
                             }
                         }
                     }
                 }
             } catch (e: Exception) {
+                if (e.message == "cancelado") throw e
                 if (pastaModelos.usableSpace < (64L shl 20)) throw Exception("sem espaço")
                 if (parcial.length() > antes) falhas = 0 else falhas++
                 if (falhas >= 4) throw Exception("sem conexão")
@@ -228,9 +255,8 @@ class MainActivity : Activity() {
             }
         }
         if (splash) splash(-1.0, "Verificando o download", "")
-        val md = MessageDigest.getInstance("SHA-256")
-        parcial.inputStream().use { i -> val b = ByteArray(1 shl 20); while (true) { val n = i.read(b); if (n < 0) break; md.update(b, 0, n) } }
-        if (md.digest().joinToString("") { "%02x".format(it) } != m.sha256) { parcial.delete(); throw Exception("corrompido") }
+        else evento("download", JSONObject().put("id", m.id).put("pct", 1.0).put("feito", m.tamanho).put("total", m.tamanho).put("nome", m.nome).put("fase", "verificando"))
+        if (sha256(parcial) != m.sha256) { parcial.delete(); throw Exception("corrompido") }
         final.delete(); parcial.renameTo(final)
         return final
     }
@@ -288,10 +314,11 @@ class MainActivity : Activity() {
             val antigo = modelo
             prefs.edit().putString("modelo", novo.id).apply(); modelo = novo
             if (acharModelo(novo) == null) {
+                baixandoId = novo.id; cancelarBaixar = false
                 try { baixar(novo, false) } catch (e: Exception) {
                     modelo = antigo; prefs.edit().putString("modelo", antigo.id).apply()
-                    evento("motor", JSONObject().put("estado", "erro").put("mensagem", mensagemFalha(e.message ?: ""))); return@execute
-                }
+                    evento("motor", JSONObject().put("estado", "erro").put("mensagem", mensagemFalha(e.message ?: "", novo))); return@execute
+                } finally { baixandoId = null }
             }
             evento("motor", JSONObject().put("estado", "trocando"))
             pararMotor()
@@ -318,7 +345,21 @@ class MainActivity : Activity() {
                             "carregar" -> carregarConversas()
                             "salvar" -> { salvarConversas(args.optString("dados", "[]")); true }
                             "sistema" -> sistema()
-                            "modelo" -> { val novo = modelos.firstOrNull { it.id == args.optString("id") } ?: throw Exception("modelo desconhecido"); if (novo.id != modelo.id) trocarModelo(novo); true }
+                            "modelo" -> {
+                                val novo = modeloDe(args)
+                                if (baixandoId != null || trocando) throw Exception("espere o download ou a troca atual terminar")
+                                if (novo.id != modelo.id) trocarModelo(novo); true
+                            }
+                            "baixarModelo" -> {
+                                val m = modeloDe(args)
+                                if (baixandoId != null || trocando) throw Exception("já há um download em andamento")
+                                if (acharModelo(m) == null) soBaixar(m) else evento("download-fim", JSONObject().put("id", m.id).put("ok", true)); true
+                            }
+                            "cancelarDownload" -> { cancelarBaixar = true; true }
+                            "apagarModelo" -> apagarModelo(modeloDe(args))
+                            "verificarModelos" -> verificarModelos()
+                            "atualizar" -> atualizar(args.optString("versao"))
+                            "compartilhar" -> { val t = args.optString("texto"); ui.post { compartilhar(t) }; true }
                             else -> throw Exception("ação desconhecida: $acao")
                         }
                         responder(id, dados)
@@ -354,9 +395,129 @@ class MainActivity : Activity() {
             .put("tamanho", m.tamanho).put("ramMin", m.ramMin).put("baixado", acharModelo(m) != null).put("atual", m.id == modelo.id)
             .apply { if (m.id == "avancado" && ramTotal < 7L shl 30) put("bloqueado", "precisa de 8 GB") })
         return JSONObject().put("ramTotal", mi.totalMem).put("ramLivre", mi.availMem).put("cpu", soc.trim()).put("nucleos", Runtime.getRuntime().availableProcessors())
-            .put("discoLivre", filesDir.usableSpace).put("pastaDados", "armazenamento interno do app")
+            .put("discoLivre", filesDir.usableSpace).put("pastaDados", "armazenamento interno do app").put("pastaModelos", "armazenamento interno do app")
             .put("so", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
             .put("versao", packageManager.getPackageInfo(packageName, 0).versionName).put("modelos", lista)
+    }
+
+    // ---------------- gerenciar modelos ----------------
+    private fun modeloDe(args: JSONObject) = modelos.firstOrNull { it.id == args.optString("id") } ?: throw Exception("modelo desconhecido")
+
+    private fun soBaixar(m: Modelo) = thread {
+        baixandoId = m.id; cancelarBaixar = false
+        var erro: String? = null
+        try { baixar(m, false) } catch (e: Exception) { erro = if (e.message == "cancelado") "cancelado" else mensagemFalha(e.message ?: "", m) } finally { baixandoId = null }
+        evento("download-fim", JSONObject().put("id", m.id).put("ok", erro == null).put("erro", erro ?: JSONObject.NULL))
+    }
+
+    private fun apagarModelo(m: Modelo): Boolean {
+        if (m.id == modelo.id) throw Exception("este modelo está em uso; troque de modelo antes de apagar")
+        if (baixandoId == m.id) throw Exception("cancele o download antes de apagar")
+        File(pastaModelos, m.arquivo).delete(); File(pastaModelos, m.arquivo + ".baixando").delete()
+        if (acharModelo(m) != null) throw Exception("não foi possível apagar o arquivo")
+        return true
+    }
+
+    // confere o SHA-256 de cada modelo baixado; os com defeito são apagados (menos o que está em uso)
+    private fun verificarModelos(): JSONArray {
+        val r = JSONArray()
+        for (m in modelos) {
+            val f = acharModelo(m) ?: continue
+            if (m.id == baixandoId) continue
+            val ok = sha256(f) { v -> evento("verificacao", JSONObject().put("id", m.id).put("nome", m.nome).put("pct", v)) } == m.sha256
+            val apagado = !ok && m.id != modelo.id && f.delete()
+            r.put(JSONObject().put("id", m.id).put("nome", m.nome).put("ok", ok).put("apagado", apagado))
+        }
+        return r
+    }
+
+    private fun sha256(f: File, progresso: ((Double) -> Unit)? = null): String {
+        val md = MessageDigest.getInstance("SHA-256"); val total = f.length().coerceAtLeast(1); var lido = 0L; var ultimo = 0L
+        f.inputStream().use { i ->
+            val b = ByteArray(1 shl 20)
+            while (true) {
+                val n = i.read(b); if (n < 0) break
+                md.update(b, 0, n); lido += n
+                val agora = System.currentTimeMillis()
+                if (progresso != null && agora - ultimo > 300) { ultimo = agora; progresso(lido.toDouble() / total) }
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    // ---------------- atualização do app ----------------
+    // baixa o APK da release, confere com o SHA256SUMS dela e entrega ao instalador do Android (PackageInstaller)
+    private fun atualizar(versao: String): Any {
+        if (!Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}$""").matches(versao)) throw Exception("versão inválida")
+        val base = "https://github.com/muurxdev/propons-ia/releases/download/v$versao/"
+        val esperado = lerTexto(base + "SHA256SUMS").lines().map { it.trim().split(Regex("[ *]+")) }
+            .firstOrNull { it.size == 2 && it[1] == "Propons-IA-Android.apk" }?.get(0)?.lowercase() ?: throw Exception("a versão $versao não tem o app do Android")
+        cacheDir.listFiles()?.filter { it.name.startsWith("atualizacao-") && !it.name.contains(versao) }?.forEach { it.delete() }
+        val apk = File(cacheDir, "atualizacao-$versao.apk")
+        if (!(apk.exists() && sha256(apk) == esperado)) {
+            val c = URL(base + "Propons-IA-Android.apk").openConnection() as HttpURLConnection
+            c.connectTimeout = 30000; c.readTimeout = 30000; c.instanceFollowRedirects = true
+            c.setRequestProperty("User-Agent", "ProponsIA-Android")
+            if (c.responseCode !in 200..299) throw Exception("HTTP ${c.responseCode} ao baixar a versão nova")
+            val total = c.contentLengthLong
+            c.inputStream.use { ins -> FileOutputStream(apk).use { out ->
+                val buf = ByteArray(1 shl 18); var ja = 0L; var ultimo = 0L
+                while (true) {
+                    val n = ins.read(buf); if (n < 0) break
+                    out.write(buf, 0, n); ja += n
+                    val agora = System.currentTimeMillis()
+                    if (agora - ultimo > 250) { ultimo = agora; evento("atualizacao", JSONObject().put("fase", "baixando").put("pct", if (total > 0) ja.toDouble() / total else 0.0).put("feito", ja).put("total", total)) }
+                }
+            } }
+            evento("atualizacao", JSONObject().put("fase", "verificando").put("pct", 1.0))
+            if (sha256(apk) != esperado) { apk.delete(); throw Exception("o arquivo baixado veio com defeito. Tente de novo.") }
+        }
+        if (!packageManager.canRequestPackageInstalls()) {
+            ui.post { try { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) } catch (_: Exception) {} }
+            return JSONObject().put("precisaPermissao", true)
+        }
+        evento("atualizacao", JSONObject().put("fase", "instalando").put("pct", 1.0))
+        val instalador = packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(packageName) }
+        val sessao = instalador.createSession(params)
+        instalador.openSession(sessao).use { s ->
+            s.openWrite("propons-ia.apk", 0, apk.length()).use { out -> apk.inputStream().use { it.copyTo(out) }; s.fsync(out) }
+            val i = Intent(this, MainActivity::class.java).setAction(ACAO_INSTALACAO).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+            s.commit(PendingIntent.getActivity(this, 7, i, flags).intentSender)
+        }
+        return true
+    }
+
+    private fun lerTexto(url: String): String {
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.connectTimeout = 20000; c.readTimeout = 20000; c.instanceFollowRedirects = true
+        c.setRequestProperty("User-Agent", "ProponsIA-Android")
+        if (c.responseCode !in 200..299) throw Exception("sem acesso à versão nova (HTTP ${c.responseCode})")
+        return c.inputStream.bufferedReader().use { it.readText() }
+    }
+
+    // resposta do instalador: pede a confirmação do usuário ou avisa se deu errado
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action != ACAO_INSTALACAO) return
+        when (val st = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -999)) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                val confirmar: Intent? = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                    else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                try { if (confirmar != null) startActivity(confirmar) } catch (e: Exception) {
+                    evento("atualizacao", JSONObject().put("fase", "erro").put("mensagem", "Não foi possível abrir o instalador: ${e.message}"))
+                }
+            }
+            PackageInstaller.STATUS_SUCCESS -> {}
+            else -> evento("atualizacao", JSONObject().put("fase", "erro").put("mensagem",
+                if (st == PackageInstaller.STATUS_FAILURE_ABORTED) "Instalação cancelada." else "O Android não instalou a atualização: ${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "erro $st"}"))
+        }
+    }
+
+    private fun compartilhar(texto: String) {
+        val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, texto)
+        try { startActivity(Intent.createChooser(i, "Compartilhar")) } catch (_: Exception) {}
     }
 
     private fun salvarArquivo(id: Any?, nome: String, conteudo: String, tipo: String) {
@@ -431,5 +592,6 @@ class MainActivity : Activity() {
     companion object {
         const val PEDIDO_ARQUIVOS = 1
         const val PEDIDO_SALVAR = 2
+        const val ACAO_INSTALACAO = "io.github.muurxdev.proponsia.INSTALACAO"
     }
 }

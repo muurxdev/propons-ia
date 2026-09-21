@@ -16,7 +16,11 @@
 > O Google Play Protect pode avisar que o app é de "desenvolvedor desconhecido" (porque não veio da Play Store).
 > Toque em **Mais detalhes → Instalar mesmo assim**.
 
-## Receber atualizações automaticamente (opcional)
+## Atualizações
+
+A Própons IA avisa quando sai versão nova. Toque em **Atualizar agora** (ou vá em **Ajustes → Atualizações**): ela baixa, confere o arquivo e abre o instalador do Android. Na primeira vez, o Android pede para **permitir instalar apps** da Própons IA. Suas conversas e modelos continuam.
+
+### Alternativa: Obtainium (opcional)
 
 Use o **[Obtainium](https://obtainium.imranr.dev/)** (grátis, código aberto):
 1. Instale o Obtainium.
@@ -25,7 +29,7 @@ Use o **[Obtainium](https://obtainium.imranr.dev/)** (grátis, código aberto):
 
 ## Dicas
 
-- **Configurações → Modelo de IA:** Leve (mais rápido), Normal (padrão) ou Avançado (4B, só celulares com 8 GB+).
-- **Configurações → Diagnóstico:** mostra memória, velocidade real da IA e se está tudo funcionando.
+- **Ajustes → Modelos de IA:** Leve (mais rápido), Normal (padrão) ou Avançado (4B, só celulares com 8 GB+). Dá para baixar, trocar e apagar os modelos.
+- **Ajustes → Diagnóstico:** mostra memória, velocidade real da IA e se está tudo funcionando.
 - O botão **voltar** fecha o menu/janela aberta; se não houver nada aberto, o app vai para segundo plano.
 - Se o Android fechar a IA em segundo plano, ela religa sozinha quando você volta ao app.
