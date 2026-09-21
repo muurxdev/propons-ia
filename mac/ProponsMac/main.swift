@@ -257,7 +257,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         for p in 8765...8795 {
             let s = socket(AF_INET, SOCK_STREAM, 0); defer { close(s) }
             var a = sockaddr_in(); a.sin_family = sa_family_t(AF_INET); a.sin_port = in_port_t(UInt16(p).bigEndian); a.sin_addr.s_addr = inet_addr("127.0.0.1")
-            let r = withUnsafePointer(to: &a) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+            let r = withUnsafePointer(to: &a) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
             if r == 0 { return p }
         }
         return 8765
@@ -465,18 +465,31 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
     func sistema() -> [String: Any] {
         let cpu = sysctlTexto("machdep.cpu.brand_string")
-        let modelos: [[String: Any]] = Modelo.todos.map { m in
-            ["id": m.id, "nome": m.nome, "descricao": m.descricao, "arquivo": m.arquivo, "tamanho": m.tamanho, "ramMin": m.ramMin,
-             "baixado": acharModelo(m) != nil, "atual": m.id == modelo.id, "visaoTamanho": m.visaoTamanho, "visaoBaixada": acharModelo(m.visao()) != nil]
+        var modelos: [[String: Any]] = []
+        for m in Modelo.todos {
+            var d: [String: Any] = ["id": m.id, "nome": m.nome, "descricao": m.descricao, "arquivo": m.arquivo]
+            d["tamanho"] = m.tamanho; d["ramMin"] = m.ramMin
+            d["baixado"] = acharModelo(m) != nil; d["atual"] = m.id == modelo.id
+            d["visaoTamanho"] = m.visaoTamanho; d["visaoBaixada"] = acharModelo(m.visao()) != nil
+            modelos.append(d)
         }
         let atualVoz = vozAtual()
-        let vozes: [[String: Any]] = Modelo.vozes.map { v in ["id": v.id, "nome": v.nome, "descricao": v.descricao, "tamanho": v.tamanho, "baixado": acharModelo(v) != nil, "atual": v.id == atualVoz.id] }
+        var vozes: [[String: Any]] = []
+        for v in Modelo.vozes {
+            var d: [String: Any] = ["id": v.id, "nome": v.nome, "descricao": v.descricao]
+            d["tamanho"] = v.tamanho; d["baixado"] = acharModelo(v) != nil; d["atual"] = v.id == atualVoz.id
+            vozes.append(d)
+        }
         let v = ProcessInfo.processInfo.operatingSystemVersion
-        return ["ramTotal": Int64(ram), "ramLivre": ramLivre(), "cpu": cpu.isEmpty ? sysctlTexto("hw.model") : cpu, "nucleos": ProcessInfo.processInfo.activeProcessorCount,
-                "discoLivre": livre(), "pastaDados": pastaDados.path, "pastaModelos": pastaModelos.path,
-                "so": "macOS \(v.majorVersion).\(v.minorVersion).\(v.patchVersion) · \(sysctlTexto("hw.model"))", "versao": VERSAO, "modelos": modelos,
-                "visaoLigada": visaoLigada(), "visaoAtiva": visaoAtiva, "temVisao": true,
-                "temTranscricao": fm.isExecutableFile(atPath: recursos.appendingPathComponent("voz/whisper-cli").path), "vozes": vozes]
+        var s: [String: Any] = [:]
+        s["ramTotal"] = Int64(ram); s["ramLivre"] = ramLivre()
+        s["cpu"] = cpu.isEmpty ? sysctlTexto("hw.model") : cpu; s["nucleos"] = ProcessInfo.processInfo.activeProcessorCount
+        s["discoLivre"] = livre(); s["pastaDados"] = pastaDados.path; s["pastaModelos"] = pastaModelos.path
+        s["so"] = "macOS \(v.majorVersion).\(v.minorVersion).\(v.patchVersion) · " + sysctlTexto("hw.model")
+        s["versao"] = VERSAO; s["modelos"] = modelos; s["vozes"] = vozes
+        s["visaoLigada"] = visaoLigada(); s["visaoAtiva"] = visaoAtiva; s["temVisao"] = true
+        s["temTranscricao"] = fm.isExecutableFile(atPath: recursos.appendingPathComponent("voz/whisper-cli").path)
+        return s
     }
 
     // MARK: transcrição (whisper-cli)
