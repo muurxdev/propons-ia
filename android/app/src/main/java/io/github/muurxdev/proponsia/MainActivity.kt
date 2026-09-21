@@ -289,7 +289,9 @@ class MainActivity : Activity() {
         val exe = File(dir, "libllama_server.so")
         val nucleos = Runtime.getRuntime().availableProcessors()
         val threads = if (nucleos >= 8) 4 else if (nucleos >= 4) nucleos / 2 + 1 else nucleos
-        val pb = ProcessBuilder(exe.path, "-m", arq.path, "--host", "127.0.0.1", "--port", "$porta", "--path", pastaInterface.path,
+        // prioridade menor (nice) que a da tela: a interface continua lisa enquanto a IA responde
+        val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
+        val pb = ProcessBuilder(*nice, exe.path, "-m", arq.path, "--host", "127.0.0.1", "--port", "$porta", "--path", pastaInterface.path,
             "-c", "4096", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning", "off", "--reasoning-budget", "0",
             "--api-key", chave, "-t", "$threads")
         pb.environment()["LD_LIBRARY_PATH"] = dir

@@ -38,7 +38,7 @@ ok('anexo lido', m && /6/.test(m.texto), m && m.texto.slice(0, 100));
 ok('histórico salvo (ponte Android)', (await js(`PLATAFORMA.carregar().then(s => JSON.parse(s).length)`)) >= 1);
 const sis = await js(`PLATAFORMA.sistema()`);
 ok('sistema pela ponte', sis && sis.ramTotal > 0 && Array.isArray(sis.modelos), sis && sis.so);
-await js(`abrirConfig('diagnostico'); 1`); await espera(300);
+await js(`abrirConfig('diagnostico'); 1`); await espera(600);
 await js(`rodarDiagnostico()`);
 const diag = await js(`window.__diagnostico`);
 for (const d of diag || []) console.log(`     [${d.st}] ${d.titulo}: ${d.det || ''}`);
@@ -65,11 +65,27 @@ await js(`fecharLateral(); 1`); await espera(300);
 await js(`menuConversa(document.querySelector('[data-menu]'), conversas[0].id); 1`); await espera(350);
 ok('menu da conversa em folha', await js(`!!document.querySelector('.dlg.folha')`));
 await foto('8-menu-folha');
-await js(`fecharDialogo(); 1`);
+// arrastar a folha para baixo pela alça fecha
+const arrastar = async (seletor, dist = 420) => {
+  const r = await js(`(()=>{const e=document.querySelector('${seletor}').getBoundingClientRect();return {x:e.left+e.width/2,y:e.top+e.height/2}})()`);
+  await toque('touchStart', r.x, r.y);
+  for (let d = 20; d <= dist; d += 40) { await toque('touchMove', r.x, r.y + d); await espera(16); }
+  await toque('touchEnd'); await espera(450);
+};
+await arrastar('.dlg.folha .dlg-topo');
+ok('arrastar o menu para baixo fecha', !(await js(`!!document.querySelector('.dlg-fundo')`)));
+await js(`menuConversa(document.querySelector('[data-menu]'), conversas[0].id); 1`); await espera(350);
+await arrastar('.dlg.folha .dlg-topo', 40);
+ok('arrastar só um pouco não fecha (volta)', await js(`!!document.querySelector('.dlg-fundo:not(.saindo)')`));
+await js(`document.querySelector('.dlg-fundo [data-x]').click(); 1`); await espera(400);
+ok('botão X fecha a folha', !(await js(`!!document.querySelector('.dlg-fundo')`)));
 // ajustes: lista em tela cheia e subpáginas
 await js(`abrirConfig(); 1`); await espera(500);
-ok('ajustes em tela cheia (lista)', await js(`(()=>{const r=document.querySelector('.painel').getBoundingClientRect();return r.width>=innerWidth-1 && r.height>=innerHeight-1 && !document.querySelector('.painel').classList.contains('sub')})()`));
+ok('ajustes sobem de baixo quase na tela toda', await js(`(()=>{const r=document.querySelector('.painel').getBoundingClientRect();return r.width>=innerWidth-1 && r.height>=innerHeight*0.85 && Math.abs(r.bottom-innerHeight)<2 && !document.querySelector('.painel').classList.contains('sub')})()`));
 await foto('9-ajustes');
+await arrastar('.p-arrastar');
+ok('arrastar os ajustes para baixo fecha', !(await js(`!!document.querySelector('.painel-fundo')`)));
+await js(`abrirConfig(); 1`); await espera(500);
 await js(`irPara('modelo'); 1`); await espera(1200);
 ok('modelos: 3 cartões', (await js(`document.querySelectorAll('.mcard').length`)) === 3);
 ok('modelos: um em uso', (await js(`document.querySelectorAll('.mcard.on').length`)) === 1);

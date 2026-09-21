@@ -38,12 +38,62 @@ const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3;
 
 /* ---------------- utilidades ---------------- */
 function toast(t, ms = 2200) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
-/* diálogo próprio (no celular sobe de baixo). botoes: [[rótulo, valor, 'primario'|'perigo'|'']]; devolve o valor escolhido (null ao fechar) */
+/* enquanto uma folha ou a gaveta anima, o texto da resposta espera (a animação tem prioridade) */
+let pausaDesenhoAte = 0;
+const pausarDesenho = (ms = 360) => { pausaDesenhoAte = Math.max(pausaDesenhoAte, performance.now() + ms); };
+/* ---------------- folhas (tudo que abre por cima sobe de baixo) ----------------
+   Fecham tocando fora, no X, com o botão voltar ou arrastando para baixo pela alça/topo (seguindo o dedo). */
+function animarSaida(fundo, folha, depois) {
+  if (!fundo || fundo.classList.contains('saindo')) return;
+  fundo.classList.add('saindo');
+  pausarDesenho(240);
+  folha.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)'; folha.style.transform = 'translateY(105%)';
+  fundo.style.transition = 'background-color .2s'; fundo.style.backgroundColor = 'rgba(0,0,0,0)';
+  setTimeout(() => { fundo.remove(); if (depois) depois(); }, 200);
+}
+function folhaArrastavel(fundo, folha, fechar) {
+  let y0 = null, dy = 0, t0 = 0, id = null, moveu = false;
+  folha.addEventListener('pointerdown', e => {
+    if (e.button > 0) return;
+    const zona = e.target.closest('.p-arrastar, .dlg-topo, .p-topo, .p-nav-topo, .folha');
+    if (!zona) return;
+    if (!e.target.closest('.folha') && e.target.closest('button, input, textarea, select, a')) return;
+    y0 = e.clientY; dy = 0; t0 = performance.now(); id = e.pointerId; moveu = false;
+  });
+  folha.addEventListener('pointermove', e => {
+    if (y0 === null || e.pointerId !== id) return;
+    dy = Math.max(0, e.clientY - y0);
+    if (moveu) pausarDesenho(200);
+    if (!moveu && dy > 6) { moveu = true; try { folha.setPointerCapture(id); } catch (er) {} folha.style.transition = 'none'; fundo.style.transition = 'none'; }
+    if (moveu) { folha.style.transform = `translateY(${dy}px)`; fundo.style.backgroundColor = `rgba(10,10,14,${(0.45 * Math.max(0, 1 - dy / folha.offsetHeight)).toFixed(3)})`; }
+  });
+  const soltar = () => {
+    if (y0 === null) return;
+    const v = dy / Math.max(1, performance.now() - t0);
+    if (moveu) {
+      // o toque que arrastou não vira clique no botão embaixo do dedo
+      const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
+      folha.addEventListener('click', engolir, { capture: true, once: true });
+      setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
+      if (dy > Math.min(140, folha.offsetHeight * 0.3) || v > 0.7) fechar();
+      else { folha.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1)'; folha.style.transform = ''; fundo.style.transition = 'background-color .24s'; fundo.style.backgroundColor = ''; }
+    }
+    y0 = null;
+  };
+  folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
+}
+const topoFolha = titulo => `<div class="dlg-topo"><span class="alca"></span><h3>${esc(titulo || '')}</h3><button class="icone" data-x aria-label="Fechar">${ICO.fechar}</button></div>`;
+
+/* diálogo próprio (folha que sobe de baixo). botoes: [[rótulo, valor, 'primario'|'perigo'|'']]; devolve o valor escolhido (null ao fechar) */
 function perguntar(titulo, html, botoes) {
   return new Promise(ok => {
     const f = document.createElement('div'); f.className = 'dlg-fundo';
-    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}"><h3>${esc(titulo)}</h3>${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
-    const fim = v => { f.remove(); ok(v); };
+    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}">${topoFolha(titulo)}${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
+    let resolvido = false;
+    const fim = v => { if (resolvido) return; resolvido = true; ok(v); animarSaida(f, f.firstChild); };
+    f.querySelector('[data-x]').onclick = () => fim(null);
+    folhaArrastavel(f, f.firstChild, () => fim(null));
+    pausarDesenho();
     botoes.forEach(([rot, v, tipo]) => { const b = document.createElement('button'); b.className = 'btn' + (tipo ? ' ' + tipo : ''); b.textContent = rot; b.onclick = () => fim(v); f.querySelector('.botoes').appendChild(b); });
     f.onclick = e => { if (e.target === f) fim(null); };
     f.fechar = () => fim(null);
@@ -59,7 +109,7 @@ function perguntarTexto(titulo, valor) {
   inp.onkeydown = e => { if (e.key === 'Enter') inp.closest('.dlg').querySelector('.primario').click(); };
   return p.then(v => v === 'ok' ? inp.value.trim() : null);
 }
-function fecharDialogo() { const d = [...document.querySelectorAll('.dlg-fundo')].pop(); if (d) { d.fechar ? d.fechar() : d.remove(); return true; } return false; }
+function fecharDialogo() { const d = [...document.querySelectorAll('.dlg-fundo:not(.saindo)')].pop(); if (d) { d.fechar ? d.fechar() : animarSaida(d, d.firstChild); return true; } return false; }
 function estado(txt, erro) { const e = $('#estado'); if (txt) { e.textContent = txt; e.hidden = false; e.classList.toggle('erro', !!erro); } else e.hidden = true; }
 function copiarTexto(t) {
   if (navigator.clipboard && window.isSecureContext !== false) return navigator.clipboard.writeText(t).catch(() => copiaVelha(t));
@@ -150,11 +200,15 @@ $('#busca').addEventListener('input', desenharLista);
 function fecharMenus() { document.querySelectorAll('.menu').forEach(m => m.remove()); document.querySelectorAll('[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
 function menuFlutuante(ancora, itens, titulo) {
   fecharMenus();
-  if (estreita()) {   // celular: folha que sobe de baixo, com botões grandes
+  {   // folha que sobe de baixo, com botões grandes (arrastar para baixo ou X fecha)
     const f = document.createElement('div'); f.className = 'dlg-fundo';
-    f.innerHTML = `<div class="dlg folha"><div class="alca"></div>${titulo ? `<h3>${esc(titulo)}</h3>` : ''}</div>`;
-    itens.forEach(([ico, rot, fn, perigo]) => { const b = document.createElement('button'); b.className = 'op' + (perigo ? ' perigo' : ''); b.innerHTML = ico + `<span>${rot}</span>`; b.onclick = () => { f.remove(); fn(); }; f.firstChild.appendChild(b); });
-    f.onclick = e => { if (e.target === f) f.remove(); };
+    f.innerHTML = `<div class="dlg folha">${topoFolha(titulo)}</div>`;
+    const folha = f.firstChild, sair = depois => animarSaida(f, folha, depois);
+    itens.forEach(([ico, rot, fn, perigo]) => { const b = document.createElement('button'); b.className = 'op' + (perigo ? ' perigo' : ''); b.innerHTML = ico + `<span>${rot}</span>`; b.onclick = () => { sair(); fn(); }; folha.appendChild(b); });
+    f.onclick = e => { if (e.target === f) sair(); };
+    folha.querySelector('[data-x]').onclick = () => sair();
+    folhaArrastavel(f, folha, () => sair());
+    pausarDesenho();
     document.body.appendChild(f); return;
   }
   const m = document.createElement('div'); m.className = 'menu';
@@ -464,17 +518,39 @@ async function responder(conv, continuacao) {
   let novo = '', fim = 'stop', erro = null, cortou = false, tRender = 0;
   const sobreAlgoritmo = !pedeCodigo && !!Object.values(RE_ALG).some(r => r.test(texto));
   const foraDeCodigo = s => s.split('```').filter((_, i) => i % 2 === 0).join('\n').replace(/`[^`]*`/g, '');
+  // desenho incremental: os blocos já fechados (até a última linha em branco fora de um bloco de código)
+  // são desenhados uma vez só; a cada quadro só o final da resposta é refeito. O intervalo se adapta ao custo.
+  let fixoAte = 0, fixoEl = null, caudaEl = null, custo = 4;
+  const pontoFixo = s => {
+    let dentro = false, ultimo = 0, pos = 0;
+    const linhas = s.split('\n');
+    for (let k = 0; k < linhas.length - 1; k++) {
+      const l = linhas[k]; pos += l.length + 1;
+      if (/^\s*(```|~~~)/.test(l)) dentro = !dentro;
+      else if (!dentro && !l.trim()) ultimo = pos;
+    }
+    return ultimo;
+  };
   const render = () => {
     tRender = 0;
     const el = geracao && geracao.el; if (!el || !el.isConnected) return;
-    el.innerHTML = md(inicio + novo); rolar();
+    const espera = pausaDesenhoAte - performance.now();
+    if (espera > 0) { tRender = setTimeout(() => requestAnimationFrame(render), espera); return; }
+    const t0 = performance.now(), s = inicio + novo;
+    if (!fixoEl || !fixoEl.isConnected) { el.innerHTML = '<div class="fixo"></div><div class="cauda"></div>'; fixoEl = el.firstChild; caudaEl = el.lastChild; fixoAte = 0; }
+    const corte = pontoFixo(s);
+    if (corte > fixoAte) { fixoEl.insertAdjacentHTML('beforeend', md(s.slice(fixoAte, corte))); fixoAte = corte; }
+    caudaEl.innerHTML = md(s.slice(fixoAte));
+    rolar();
+    custo = custo * 0.7 + (performance.now() - t0) * 0.3;
   };
+  const agendar = () => { if (!tRender) tRender = setTimeout(() => requestAnimationFrame(render), Math.max(50, Math.min(400, custo * 4))); };
   try {
     const r = await PLATAFORMA.gerar([{ role: 'system', content: SYSTEM }, ...historico],
       { temperatura: pedeCodigo ? 0.2 : 0.35, repeticao: pedeCodigo ? 1.0 : 1.05, maxTokens, continuar: !!continuacao }, t => {
         novo += t;
         if (sobreAlgoritmo && !continuacao && INVENTA.test(foraDeCodigo(novo))) { cortou = true; ctrl.abort(); return; }
-        if (!tRender) tRender = setTimeout(render, 60);
+        agendar();
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';
   } catch (e) {
@@ -514,8 +590,8 @@ $('#entrada').addEventListener('keydown', e => {
 $('#enviar').onclick = () => { if (geracao) geracao.ctrl.abort(); else enviar($('#entrada').value); };
 $('#nova').onclick = nova; $('#novaLat').onclick = () => { nova(); if (estreita()) fecharLateral(); };
 const estreita = () => innerWidth <= 760;
-function abrirLateral() { $('#lateral').classList.remove('fechada'); }
-function fecharLateral() { $('#lateral').classList.add('fechada'); }
+function abrirLateral() { pausarDesenho(260); $('#lateral').classList.remove('fechada'); }
+function fecharLateral() { if (!$('#lateral').classList.contains('fechada')) pausarDesenho(260); $('#lateral').classList.add('fechada'); }
 $('#abrirLat').onclick = () => $('#lateral').classList.toggle('fechada');
 $('#fundo').onclick = fecharLateral;
 document.addEventListener('keydown', e => {
@@ -524,12 +600,12 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.shiftKey && k === 'o') { e.preventDefault(); nova(); }
   if (e.ctrlKey && k === 'k') { e.preventDefault(); abrirLateral(); $('#busca').focus(); }
   if (e.ctrlKey && k === ',') { e.preventDefault(); abrirConfig(); }
-  if (e.key === 'Escape') { if (!fecharDialogo()) { if (document.querySelector('.painel-fundo')) voltarPainel(); else if (estreita()) fecharLateral(); } fecharMenus(); }
+  if (e.key === 'Escape') { if (!fecharDialogo()) { if (document.querySelector('.painel-fundo:not(.saindo)')) voltarPainel(); else if (estreita()) fecharLateral(); } fecharMenus(); }
 });
 // celular: botão voltar fecha, nesta ordem, o diálogo, a subpágina dos ajustes, os ajustes e a gaveta
 window.__proponsVoltar = () => {
   if (fecharDialogo()) return true;
-  if (document.querySelector('.painel-fundo')) { voltarPainel(); return true; }
+  if (document.querySelector('.painel-fundo:not(.saindo)')) { voltarPainel(); return true; }
   if (!$('#lateral').classList.contains('fechada') && estreita()) { fecharLateral(); return true; }
   return false;
 };
@@ -537,7 +613,7 @@ window.__proponsVoltar = () => {
 (() => {
   let ini = null;
   document.addEventListener('touchstart', e => {
-    if (!estreita() || document.querySelector('.painel-fundo, .dlg-fundo')) return;
+    if (!estreita() || document.querySelector('.painel-fundo:not(.saindo), .dlg-fundo:not(.saindo)')) return;
     const p = e.touches[0], aberta = !$('#lateral').classList.contains('fechada');
     if (!aberta && p.clientX > 28) return;
     ini = { x: p.clientX, y: p.clientY, aberta, dx: 0, travado: null };
@@ -608,33 +684,39 @@ function desenharNav() {
   n.innerHTML = `<div class="p-nav-topo"><h2>Ajustes</h2><button class="icone" data-fechar aria-label="Fechar">${ICO.fechar}</button></div>` +
     PAGINAS.map(g => `<div class="p-grupo">${g.map(([k, t, ic]) => `<button class="p-item${k === abaAtual ? ' on' : ''}" data-aba="${k}"><span class="pi">${ic}</span><span class="pt"><b>${t}</b><small>${esc(subtitulo(k))}</small></span>${k === 'atualizacoes' && atualizacao ? '<i class="ponto"></i>' : ''}<span class="seta">${ICO.seta}</span></button>`).join('')}</div>`).join('');
   n.querySelectorAll('[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
-  n.querySelector('[data-fechar]').onclick = fecharModal;
+  n.querySelector('[data-fechar]').onclick = () => fecharModal();
 }
-function fecharModal() { document.querySelectorAll('.painel-fundo').forEach(m => m.remove()); }
+function fecharModal(imediato) { document.querySelectorAll('.painel-fundo:not(.saindo)').forEach(f => imediato ? f.remove() : animarSaida(f, f.firstChild)); }
 function voltarPainel() {
+  pausarDesenho(300);
   const p = $('.painel');
   if (p && estreita() && p.classList.contains('sub')) { p.classList.remove('sub'); desenharNav(); }
   else fecharModal();
 }
 function abrirConfig(aba) {
-  fecharModal(); fecharMenus(); if (estreita()) fecharLateral();
+  fecharModal(true); fecharMenus(); if (estreita()) fecharLateral();
   const f = document.createElement('div'); f.className = 'painel-fundo';
-  f.innerHTML = `<div class="painel" role="dialog" aria-label="Ajustes"><nav class="p-nav" id="pNav"></nav>
+  f.innerHTML = `<div class="painel" role="dialog" aria-label="Ajustes"><div class="p-arrastar"><span class="alca"></span></div><nav class="p-nav" id="pNav"></nav>
     <section class="p-conteudo"><div class="p-topo"><button class="icone p-voltar" id="pVoltar" aria-label="Voltar">${ICO.voltar}</button><h3 id="pTitulo"></h3><button class="icone p-fechar" aria-label="Fechar">${ICO.fechar}</button></div><div class="p-corpo" id="corpoConfig"></div></section></div>`;
   document.body.appendChild(f);
   f.onclick = e => { if (e.target === f) fecharModal(); };
-  f.querySelector('.p-fechar').onclick = fecharModal;
+  f.querySelector('.p-fechar').onclick = () => fecharModal();
+  folhaArrastavel(f, f.firstChild, () => fecharModal());
   $('#pVoltar').onclick = voltarPainel;
-  if (aba || !estreita()) irPara(aba || abaAtual); else desenharNav();
-  lerSistema().then(desenharNav);
+  pausarDesenho(420);
+  if (aba || !estreita()) irPara(aba || abaAtual, true); else desenharNav();
+  setTimeout(() => lerSistema().then(() => { if (!document.querySelector('.painel-fundo.saindo')) desenharNav(); }), 360);
 }
-function irPara(aba) {
+function irPara(aba, abrindo) {
   if (!TITULOS[aba]) aba = 'modelo';
   abaAtual = aba; desenharNav();
   const p = $('.painel'); if (!p) return;
   p.classList.add('sub'); $('#pTitulo').textContent = TITULOS[aba];
   $('#corpoConfig').scrollTop = 0;
-  desenharAba();
+  pausarDesenho(300);
+  // abrindo a folha: mostra a página só depois da animação (o conteúdo pesado não disputa o quadro com ela)
+  if (abrindo) { $('#corpoConfig').innerHTML = '<p class="info">Carregando…</p>'; setTimeout(() => { if ($('#corpoConfig') && abaAtual === aba) desenharAba(); }, 340); }
+  else desenharAba();
 }
 $('#abrirConfig').onclick = () => abrirConfig();
 
@@ -1018,7 +1100,7 @@ async function avisoAutomatico() {
   const u = await checarAtualizacao();
   if (!u || pref('avisarAtualizacao') === 'nao') return;
   if (pref('adiarVersao') === u.versao && +(pref('adiarAte') || 0) > Date.now()) return;
-  if (document.querySelector('.dlg-fundo') || atualizando) return;
+  if (document.querySelector('.dlg-fundo:not(.saindo)') || atualizando) return;
   const v = await perguntar(`Nova versão ${u.versao} disponível`,
     `<p>Você está na ${VERSAO}. Atualize para ter as melhorias e correções mais recentes.</p>${u.notas ? `<div class="notas txt">${md(limparNotas(u.notas))}</div>` : ''}`,
     [['Depois', 'depois', ''], [rotuloAtualizar(), 'sim', 'primario']]);
@@ -1035,6 +1117,23 @@ function abaSobre(c) {
   $('#irAtual').onclick = () => irPara('atualizacoes');
   $('#abrirSite').onclick = () => PLATAFORMA.abrirLink('https://muurxdev.github.io/propons-ia/');
   $('#abrirRepo').onclick = () => PLATAFORMA.abrirLink('https://github.com/' + REPO);
+}
+
+/* a 1ª vez que uma folha abre, o navegador monta os estilos dela (lento em aparelho fraco): monta uma vez,
+   invisível, com o app ocioso, para a abertura de verdade já sair lisa */
+function aquecerFolhas() {
+  const quando = window.requestIdleCallback || (f => setTimeout(f, 200));
+  quando(() => {
+    if (document.querySelector('.painel-fundo, .dlg-fundo') || geracao) return;
+    // abre os Ajustes e um diálogo de verdade, quase transparentes e sem receber toques, por dois quadros
+    const abaAntes = abaAtual;
+    abrirConfig(estreita() ? undefined : abaAtual);
+    perguntar('Própons IA', '<p>…</p>', [['Ok', 0, 'primario']]);
+    menuFlutuante(document.body, [[ICO.renomear, 'Renomear', () => {}], [ICO.apagar, 'Apagar', () => {}, true]], 'Própons IA');
+    const folhas = document.querySelectorAll('.painel-fundo, .dlg-fundo');
+    folhas.forEach(f => { f.style.opacity = '0.001'; f.style.pointerEvents = 'none'; f.style.animation = 'none'; if (f.firstChild) f.firstChild.style.animation = 'none'; });
+    requestAnimationFrame(() => requestAnimationFrame(() => { folhas.forEach(f => f.remove()); abaAtual = abaAntes; }));
+  });
 }
 
 /* ---------------- motor: saúde contínua ---------------- */
@@ -1068,6 +1167,7 @@ if (!estreita()) abrirLateral();
   if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
   await carregarHistorico();
   verificar();
+  setTimeout(aquecerFolhas, 2500);
   setTimeout(avisoAutomatico, 4000);
   setInterval(avisoAutomatico, 6 * 3600 * 1000);
 })();

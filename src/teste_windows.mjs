@@ -38,7 +38,7 @@ ok('continuar', (await js('atual.msgs[atual.msgs.length-1].texto.length')) > c &
 const s = await js('PLATAFORMA.sistema()'); ok('sistema pela ponte', s && s.ramTotal > 0 && s.modelos.length === 3, s && s.so);
 ok('conversas no arquivo', fs.existsSync(s.pastaDados + '\\conversas.json'), s.pastaDados);
 // diagnóstico
-await js(`abrirConfig('diagnostico'); 1`); await js('rodarDiagnostico()');
+await js(`abrirConfig('diagnostico'); 1`); await espera(600); await js('rodarDiagnostico()');
 const diag = await js('window.__diagnostico'); for (const d of diag) console.log(`     [${d.st}] ${d.titulo}: ${d.det || ''}`);
 ok('diagnóstico sem erros', !diag.some(d => d.st === 'erro')); await foto('w2-diagnostico'); await js('fecharModal(); 1');
 // vigia: derruba o motor à força

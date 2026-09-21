@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.2.1";
+    public const string Versao = "1.3.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -549,6 +549,8 @@ class Janela : Form
             p.OutputDataReceived += grava; p.ErrorDataReceived += grava;
             p.Exited += MotorSaiu;
             p.Start(); p.BeginOutputReadLine(); p.BeginErrorReadLine();
+            // prioridade menor que a da janela: usa a CPU livre, mas cede na hora de desenhar a interface (sem travadas)
+            try { p.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
             Job.Prender(p);
             motor = p;
         }
