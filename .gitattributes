@@ -1,0 +1,8 @@
+* text=auto
+*.sh text eol=lf
+linux/propons-ia text eol=lf
+linux/*.desktop text eol=lf
+linux/PKGBUILD text eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary

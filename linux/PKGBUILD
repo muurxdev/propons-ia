@@ -1,0 +1,26 @@
+# Arch Linux / Manjaro / EndeavourOS:
+#   git clone https://github.com/muurxdev/propons-ia.git && cd propons-ia/linux && makepkg -si
+pkgname=propons-ia
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="IA de estudos que roda no seu computador"
+arch=('x86_64' 'aarch64')
+url="https://github.com/muurxdev/propons-ia"
+license=('LicenseRef-Proprietary')
+depends=('gcc-libs' 'openssl' 'zlib' 'zstd' 'curl')
+optdepends=('chromium: abrir em janela própria'
+            'zenity: barra de progresso no primeiro download')
+options=('!strip' '!debug')
+source_x86_64=("propons-ia-linux-x86_64-$pkgver.tar.gz::https://github.com/muurxdev/propons-ia/releases/download/v$pkgver/propons-ia-linux-x86_64.tar.gz")
+source_aarch64=("propons-ia-linux-aarch64-$pkgver.tar.gz::https://github.com/muurxdev/propons-ia/releases/download/v$pkgver/propons-ia-linux-aarch64.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+  install -d "$pkgdir/opt" "$pkgdir/usr/bin"
+  cp -a "$srcdir/propons-ia" "$pkgdir/opt/propons-ia"
+  ln -s /opt/propons-ia/propons-ia "$pkgdir/usr/bin/propons-ia"
+  install -Dm644 "$srcdir/propons-ia/propons-ia.desktop" "$pkgdir/usr/share/applications/propons-ia.desktop"
+  install -Dm644 "$srcdir/propons-ia/propons-ia.png" "$pkgdir/usr/share/icons/hicolor/256x256/apps/propons-ia.png"
+  install -Dm644 "$srcdir/propons-ia/propons-ia.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/propons-ia.svg"
+}

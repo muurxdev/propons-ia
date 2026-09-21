@@ -1,0 +1,23 @@
+# saídas de build
+dist/
+app/*.exe
+app/*.log
+app/*.ps1
+!app/*.cs
+
+# dependências baixadas pelos scripts de build (não versionar binários de terceiros)
+payload/motor/
+payload/WebView2Loader.dll
+app/Microsoft.Web.WebView2.*.dll
+linux/vendor/
+
+# gerados / testes locais
+payload/interface/
+logo/*.png
+!logo/logo256.png
+logo/*.html
+logo/app/
+logo/splash-teste.*
+linux/testes/resultado.txt
+*.tmp
+*.log

@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Própons IA</title>
+<style>
+:root{
+  --bg:#ffffff; --side:#f7f7f9; --surface:#ffffff; --hover:#efeff3; --ink:#111114; --muted:#6b6b76; --faint:#a1a1ab; --line:#e6e6eb;
+  --accent:#7c5cff; --accent-hover:#6a48f5; --accent-ink:#ffffff; --accent-soft:#f1edff;
+  --user:#f1f1f4; --code:#f6f6f8; --ok:#1f8a4c; --ok-soft:#e7f5ec; --danger:#d93f3f;
+  --shadow:0 1px 2px rgba(17,17,20,.04),0 4px 16px rgba(17,17,20,.06);
+  --mono:"Cascadia Code","Cascadia Mono",Consolas,"JetBrains Mono","DejaVu Sans Mono","Ubuntu Mono","Noto Sans Mono",monospace;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,"Inter","Cantarell","Ubuntu","Noto Sans","DejaVu Sans",sans-serif;
+  --logo:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%237c5cff'/%3E%3Cpath d='M24 50V24.5' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3Ccircle cx='34.5' cy='30' r='9.5' fill='none' stroke='%23fff' stroke-width='7'/%3E%3Ccircle cx='47' cy='47' r='3.6' fill='%23fff'/%3E%3C/svg%3E");
+  color-scheme:light;
+}
+:root[data-tema="escuro"]{
+  --bg:#17171b; --side:#111114; --surface:#1f1f24; --hover:#26262c; --ink:#ececf1; --muted:#9d9daa; --faint:#6c6c78; --line:#2b2b32;
+  --accent:#8f76ff; --accent-hover:#a18cff; --accent-ink:#ffffff; --accent-soft:#2a2442;
+  --user:#26262c; --code:#121215; --ok:#5fd08a; --ok-soft:#18291f; --danger:#ff6b6b;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--sans);display:flex;overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+::selection{background:var(--accent-soft)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;border:3px solid var(--bg)}
+.icone{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;color:var(--muted);transition:background .15s,color .15s}
+.icone:hover{background:var(--hover);color:var(--ink)}
+.icone:focus-visible,.item:focus-visible,.nova:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* ---------- barra lateral (histórico) ---------- */
+#lateral{width:264px;flex:0 0 264px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;transition:margin-left .22s ease}
+#lateral.fechada{margin-left:-265px}
+.lat-topo{display:flex;align-items:center;gap:10px;padding:12px 10px 8px 14px;height:56px}
+.marca{width:26px;height:26px;border-radius:8px;background:var(--logo) center/cover;flex:none}
+.lat-topo b{font-size:15px;font-weight:600;flex:1;letter-spacing:-.1px}
+.nova{display:flex;align-items:center;gap:10px;margin:4px 10px 10px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:14px;font-weight:500;transition:background .15s,border-color .15s}
+.nova:hover{background:var(--hover)}
+.rotulo{font-size:12px;font-weight:600;color:var(--faint);padding:10px 20px 6px;letter-spacing:.2px}
+#lista{flex:1;overflow-y:auto;padding:0 8px 10px}
+.item{display:flex;align-items:center;gap:6px;width:100%;padding:8px 8px 8px 12px;border-radius:9px;font-size:14px;color:var(--ink);text-align:left;transition:background .12s}
+.item:hover{background:var(--hover)}
+.item.atual{background:var(--hover);font-weight:500}
+.item span{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.item .apagar{opacity:0;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--muted)}
+.item:hover .apagar,.item.atual .apagar{opacity:1}
+.item .apagar:hover{color:var(--danger);background:var(--bg)}
+.item .apagar svg{width:15px;height:15px}
+.vazio{color:var(--faint);font-size:13px;padding:6px 12px}
+.lat-pe{padding:10px;border-top:1px solid var(--line)}
+.lat-pe button{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:9px;font-size:13.5px;color:var(--muted)}
+.lat-pe button:hover{background:var(--hover);color:var(--ink)}
+#fundo{display:none}
+.acoes{display:flex;gap:2px;margin-top:6px;margin-left:-6px}
+.acao{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--faint);transition:background .15s,color .15s}
+.acao:hover{background:var(--hover);color:var(--ink)}
+.acao svg{width:16px;height:16px}
+.acao.feito{color:var(--ok)}
+.sol{display:none} :root[data-tema="escuro"] .sol{display:block} :root[data-tema="escuro"] .lua{display:none}
+
+/* ---------- área principal ---------- */
+main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+header{height:56px;flex:none;display:flex;align-items:center;gap:6px;padding:0 10px}
+header .titulo{flex:1;min-width:0;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;padding-left:4px}
+header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#estado{font-size:12px;font-weight:400;font-style:normal;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+#estado::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pisca 1.2s ease-in-out infinite}
+#estado[hidden]{display:none}
+@keyframes pisca{50%{opacity:.25}}
+
+#conversa{flex:1;overflow-y:auto;scroll-behavior:smooth}
+.col{max-width:740px;margin:0 auto;padding:8px 20px 24px}
+#boasvindas{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center}
+#boasvindas .marca{width:44px;height:44px;border-radius:13px}
+#boasvindas h1{font-size:21px;font-weight:600;letter-spacing:-.3px;margin:0;line-height:1.3;max-width:320px}
+.msg{margin:18px 0;animation:entra .2s ease}
+@keyframes entra{from{opacity:0;transform:translateY(4px)}}
+.msg.eu{display:flex;justify-content:flex-end}
+.msg.eu .txt{background:var(--user);padding:9px 15px;border-radius:18px;max-width:85%;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.ia .txt{overflow-wrap:anywhere}
+.txt p{margin:.45em 0}
+.txt>:first-child{margin-top:0} .txt>:last-child{margin-bottom:0}
+.txt h2,.txt h3,.txt h4{font-size:15.5px;margin:1em 0 .35em}
+.txt ul,.txt ol{margin:.4em 0;padding-left:1.4em}
+.txt li{margin:.2em 0}
+.txt code{font-family:var(--mono);font-size:.88em}
+.txt :not(pre)>code{background:var(--code);border:1px solid var(--line);padding:1px 5px;border-radius:5px;white-space:nowrap}
+.txt pre{position:relative;background:var(--code);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.55;margin:.7em 0}
+.copiar{position:absolute;top:8px;right:8px;font:12px var(--sans);color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 9px;opacity:0;transition:opacity .15s}
+.txt pre:hover .copiar{opacity:1}
+.txt table{border-collapse:collapse;margin:.7em 0;font-size:14px;width:100%}
+.txt th,.txt td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+.txt th{font-weight:600;color:var(--muted);font-size:13px}
+.passos{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin:0 0 12px;overflow:hidden}
+.passos summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13.5px;font-weight:500}
+.passos summary::-webkit-details-marker{display:none}
+.passos summary::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.passos summary small{color:var(--muted);font-weight:400;margin-left:auto}
+.passos ol{margin:0;padding:10px 16px 12px 42px;border-top:1px solid var(--line);font:12.5px/1.75 var(--mono);max-height:320px;overflow-y:auto}
+.passos li::marker{color:var(--faint)}
+.digitando::after{content:"";display:inline-block;width:7px;height:15px;margin-left:2px;background:var(--accent);border-radius:2px;vertical-align:-2px;animation:pisca 1s steps(1) infinite}
+.aviso{font-size:12px;color:var(--faint);margin-top:6px}
+
+/* ---------- caixa de mensagem ---------- */
+.compor{flex:none;padding:6px 16px 16px}
+.caixa{max-width:740px;margin:0 auto;display:flex;align-items:flex-end;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:7px 7px 7px 16px;box-shadow:var(--shadow);transition:border-color .15s}
+.caixa:focus-within{border-color:var(--faint)}
+#entrada{flex:1;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:15px/1.5 var(--sans);padding:7px 0;min-height:36px;max-height:200px}
+#entrada::placeholder{color:var(--faint)}
+#entrada:focus,#entrada:focus-visible{outline:none;box-shadow:none}
+#enviar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);flex:none;transition:background .15s,opacity .15s,transform .1s}
+#enviar:hover{background:var(--accent-hover)}
+#enviar:active{transform:scale(.94)}
+#enviar:disabled{background:var(--line);color:var(--faint);cursor:default}
+#enviar svg{width:17px;height:17px;stroke-width:2.4}
+#enviar .parar{display:none;width:12px;height:12px;background:currentColor;border-radius:3px}
+#enviar.gerando .parar{display:block} #enviar.gerando svg{display:none}
+.rodape{text-align:center;font-size:11.5px;color:var(--faint);margin-top:8px}
+
+/* janela estreita: histórico vira gaveta por cima */
+@media (max-width:760px){
+  #lateral{position:fixed;left:0;top:0;bottom:0;z-index:20;margin-left:0;transform:translateX(0);transition:transform .22s ease;box-shadow:var(--shadow)}
+  #lateral.fechada{margin-left:0;transform:translateX(-105%)}
+  #fundo{display:block;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:15;opacity:1;transition:opacity .2s}
+  #lateral.fechada+#fundo{opacity:0;pointer-events:none}
+  .col{padding:4px 16px 20px}
+}
+</style>
+</head>
+<body>
+<aside id="lateral" class="fechada">
+  <div class="lat-topo">
+    <div class="marca" aria-hidden="true"></div><b>Própons IA</b>
+  </div>
+  <button class="nova" id="novaLat"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Nova conversa</button>
+  <div class="rotulo">Conversas</div>
+  <div id="lista"></div>
+  <div class="lat-pe"><button id="tema"><svg class="lua" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Tema escuro</span></button></div>
+</aside>
+<div id="fundo"></div>
+<main>
+  <header>
+    <button class="icone" id="abrirLat" title="Histórico de conversas" aria-label="Abrir histórico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+    <div class="titulo"><span id="tituloAtual">Própons IA</span><em id="estado" hidden>carregando</em></div>
+    <button class="icone" id="nova" title="Nova conversa" aria-label="Nova conversa"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+  </header>
+  <div id="conversa"><div id="boasvindas"><div class="marca" aria-hidden="true"></div><h1>Como posso ajudar nos estudos?</h1></div></div>
+  <div class="compor">
+    <div class="caixa">
+      <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa"></textarea>
+      <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>
+    </div>
+    <div class="rodape">A IA pode errar. Confira informações importantes.</div>
+  </div>
+</main>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = a => '[' + a.join(', ') + ']';
+const API = location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:8765';
+const host = (window.chrome && window.chrome.webview) || null;   // ponte com o app (.exe)
+
+{{ALGO}}
+{{MD}}
+{{DETECT}}
+
+/* LaTeX simples → texto legível (o modelo às vezes escreve $x^2$, \frac{a}{b}, \rightarrow...) */
+function semLatex(src){
+  const SUB = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','+':'₊','-':'₋','(':'₍',')':'₎','n':'ₙ','i':'ᵢ','x':'ₓ'};
+  const SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻','(':'⁽',')':'⁾','n':'ⁿ','i':'ⁱ'};
+  const mapa = (t, M) => [...t].every(c => M[c]) ? [...t].map(c => M[c]).join('') : null;
+  const CMD = {rightarrow:'→',to:'→',leftarrow:'←',Rightarrow:'⇒',leftrightarrow:'↔',times:'×',cdot:'·',div:'÷',pm:'±',leq:'≤',le:'≤',geq:'≥',ge:'≥',neq:'≠',ne:'≠',approx:'≈',infty:'∞',
+    pi:'π',alpha:'α',beta:'β',gamma:'γ',delta:'δ',Delta:'Δ',theta:'θ',lambda:'λ',mu:'μ',sigma:'σ',Sigma:'Σ',omega:'ω',Omega:'Ω',sum:'Σ',int:'∫',in:'∈',log:'log',ln:'ln',sin:'sen',cos:'cos',tan:'tg',quad:' ',qquad:'  ',",":' ',";":' '};
+  const conv = m => {
+    let t = m;
+    for (let k = 0; k < 4; k++){
+      t = t.replace(/\\(?:text|mathrm|mathbf|operatorname|textbf)\{([^{}]*)\}/g, '$1')
+           .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, (a, x, y) => `(${x})/(${y})`)
+           .replace(/\\sqrt\{([^{}]*)\}/g, '√($1)');
+    }
+    t = t.replace(/\\([a-zA-Z]+|[,;])/g, (a, c) => CMD[c] !== undefined ? CMD[c] : c)
+         .replace(/_\{([^{}]*)\}|_([0-9a-z+\-])/g, (a, x, y) => mapa(x || y, SUB) || '_' + (x || y))
+         .replace(/\^\{([^{}]*)\}|\^([0-9a-z+\-])/g, (a, x, y) => mapa(x || y, SUP) || '^' + (x || y))
+         .replace(/[{}]/g, '');
+    return t;
+  };
+  return src.split('```').map((p, i) => i % 2 ? p : p.split(/(`[^`]*`)/).map(q => q.startsWith('`') ? q :
+    q.replace(/\$\$([\s\S]+?)\$\$/g, (a, m) => '\n\n' + conv(m).trim() + '\n\n').replace(/\\\[([\s\S]+?)\\\]/g, (a, m) => conv(m)).replace(/\\\(([\s\S]+?)\\\)/g, (a, m) => conv(m))
+     .replace(/\$([^$\n]+?)\$/g, (a, m) => /\\|[_^]/.test(m) ? conv(m) : a)).join('')).join('```');
+}
+const mdBase = md; md = s => mdBase(semLatex(s));
+
+/* ================= CONVERSAS (histórico) ================= */
+let conversas = [], atual = null, SYSTEM = '', online = false, ctrl = null;
+const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+function salvar(){
+  const dados = JSON.stringify(conversas.slice(0, 200));
+  if (host) host.postMessage({ t: 'salvar', dados });
+  else try { localStorage.setItem('conversas', dados); } catch(e){}
+}
+function carregarLocal(){ try { return JSON.parse(localStorage.getItem('conversas') || '[]'); } catch(e){ return []; } }
+
+function desenharLista(){
+  const l = $('#lista');
+  if (!conversas.length){ l.innerHTML = '<div class="vazio">Nenhuma conversa ainda.</div>'; return; }
+  l.innerHTML = conversas.map(c => `<button class="item${atual && c.id===atual.id?' atual':''}" data-id="${c.id}" title="${esc(c.titulo)}"><span>${esc(c.titulo)}</span><i class="apagar" data-apagar="${c.id}" title="Apagar conversa" role="button"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></i></button>`).join('');
+  l.querySelectorAll('.item').forEach(b => b.onclick = e => {
+    const ap = e.target.closest('[data-apagar]');
+    if (ap){ apagar(ap.dataset.apagar); e.stopPropagation(); return; }
+    abrir(b.dataset.id); if (estreita()) fecharLateral();
+  });
+}
+function apagar(id){
+  conversas = conversas.filter(c => c.id !== id);
+  if (atual && atual.id === id) nova();
+  salvar(); desenharLista();
+}
+function nova(){
+  if (ctrl) ctrl.abort();
+  atual = null; $('#tituloAtual').textContent = 'Própons IA';
+  $('#conversa').innerHTML = '<div id="boasvindas"><div class="marca" aria-hidden="true"></div><h1>Como posso ajudar nos estudos?</h1></div>';
+  desenharLista(); $('#entrada').focus();
+}
+function abrir(id){
+  if (ctrl) ctrl.abort();
+  atual = conversas.find(c => c.id === id); if (!atual) return nova();
+  $('#tituloAtual').textContent = atual.titulo;
+  const col = document.createElement('div'); col.className = 'col';
+  $('#conversa').innerHTML = ''; $('#conversa').appendChild(col);
+  for (const m of atual.msgs){
+    if (m.role === 'user') addEu(m.texto);
+    else { if (m.passos) addPassos(m.passos.titulo, m.passos.lista); addIa(m.texto, m.nota, m); }
+  }
+  rolar(); desenharLista();
+}
+function coluna(){
+  let col = $('#conversa .col');
+  if (!col){ $('#conversa').innerHTML = ''; col = document.createElement('div'); col.className = 'col'; $('#conversa').appendChild(col); }
+  return col;
+}
+function rolar(){ const c = $('#conversa'); c.scrollTop = c.scrollHeight; }
+function addEu(t){ const d = document.createElement('div'); d.className = 'msg eu'; d.innerHTML = `<div class="txt">${esc(t)}</div>`; coluna().appendChild(d); rolar(); }
+function addIa(t, nota, msg){
+  const d = document.createElement('div'); d.className = 'msg ia';
+  d.innerHTML = `<div class="txt">${md(t)}</div>` + (nota ? `<div class="aviso">${esc(nota)}</div>` : '');
+  if (msg) acoes(d, msg);
+  coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
+}
+const ICO_COPIAR = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+const ICO_OK = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
+const ICO_RECARREGAR = '<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+function acoes(d, msg){
+  document.querySelectorAll('.acoes .recarregar').forEach(b => b.remove());   // só a última resposta pode ser recarregada
+  const a = document.createElement('div'); a.className = 'acoes';
+  a.innerHTML = `<button class="acao copiar-tudo" title="Copiar resposta" aria-label="Copiar resposta">${ICO_COPIAR}</button><button class="acao recarregar" title="Gerar de novo" aria-label="Gerar de novo">${ICO_RECARREGAR}</button>`;
+  const bc = a.querySelector('.copiar-tudo');
+  bc.onclick = () => navigator.clipboard.writeText(msg.texto).then(() => { bc.innerHTML = ICO_OK; bc.classList.add('feito'); setTimeout(() => { bc.innerHTML = ICO_COPIAR; bc.classList.remove('feito'); }, 1400); });
+  a.querySelector('.recarregar').onclick = regenerar;
+  d.appendChild(a);
+}
+function addPassos(titulo, lista){
+  const d = document.createElement('details'); d.className = 'passos'; d.open = false;
+  d.innerHTML = `<summary>${esc(titulo)}<small>ver ${lista.length} passos</small></summary><ol>${lista.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`;
+  const w = document.createElement('div'); w.className = 'msg ia'; w.appendChild(d); coluna().appendChild(w); rolar();
+}
+function enfeitar(el){
+  el.querySelectorAll('pre').forEach(p => {
+    if (p.querySelector('.copiar')) return;
+    const b = document.createElement('button'); b.className = 'copiar'; b.textContent = 'Copiar';
+    b.onclick = () => { navigator.clipboard.writeText(p.innerText.replace(/Copiar$|Copiado$/, '').trim()).then(() => { b.textContent = 'Copiado'; setTimeout(() => b.textContent = 'Copiar', 1200); }); };
+    p.appendChild(b);
+  });
+}
+
+/* Resumo exato do algoritmo (gerado por código a partir dos passos — não passa pelo modelo) */
+function resumo(alg, lista, val){
+  const st = trace(alg, lista, val), f = a => "`" + fmt(a) + "`", ord = st[st.length - 1].l;
+  const L = [];
+  if (alg === 'bubble'){
+    L.push('No **bubble sort**, cada passada compara vizinhos e empurra o **maior valor restante** para o fim.', '');
+    const fins = st.filter(s => s.pass);
+    for (const s of fins){
+      if (s.end) L.push(`- **Passada ${s.pass}:** nenhuma troca, então a lista já está ordenada e o algoritmo para.`);
+      else { const i = s.fixed[s.fixed.length - 1]; L.push(`- **Passada ${s.pass}:** o **${s.l[i]}** foi para a posição final (índice ${i}) → ${f(s.l)}`); }
+    }
+    const trocas = st.filter(s => s.sw).length;
+    L.push('', `Resultado: **${f(ord)}**, com ${trocas} ${trocas === 1 ? 'troca' : 'trocas'}.`);
+  } else if (alg === 'selection'){
+    L.push('No **selection sort**, cada passo procura o **menor valor restante** e o coloca na posição atual.', '');
+    for (const s of st.filter(s => s.pass)){
+      const i = s.pass - 1;
+      L.push(s.sw ? `- **Passo ${s.pass}:** o **${s.l[i]}** foi para o índice ${i} → ${f(s.l)}` : `- **Passo ${s.pass}:** o **${s.l[i]}** já estava no índice ${i}.`);
+    }
+    L.push('', `Resultado: **${f(ord)}**.`);
+  } else if (alg === 'quick'){
+    L.push('No **quick sort**, o pivô é o **elemento central**; os menores vão para a esquerda, os maiores para a direita, e cada lado é ordenado de novo.', '');
+    const chamadas = st.filter(s => s.pass), fins = st.filter(s => s.mark);
+    chamadas.forEach((s, k) => {
+      const [a, b] = s.range, depois = fins[k] ? fins[k].l.slice(a, b + 1) : null;
+      L.push(`- **Chamada ${s.pass}:** ${f(s.l.slice(a, b + 1))}, pivô **${s.l[s.pv[0]]}**` + (depois ? ` → ${f(depois)}` : ''));
+    });
+    L.push('', `Resultado: **${f(ord)}**.`);
+  } else {
+    const it = st.filter(s => s.pv), ult = st[st.length - 1], achou = /ENCONTROU/.test(ult.t);
+    L.push(`Na **busca binária**, a lista precisa estar ordenada e, a cada passo, olhamos o **elemento do meio** e descartamos metade.`, '');
+    if (st[0].t.startsWith('A lista precisa')) L.push(`- A lista foi ordenada antes: ${f(st[0].l)}`);
+    it.forEach((s, k) => L.push(`- **Passo ${k + 1}:** meio = **${s.l[s.pv[0]]}** (índice ${s.pv[0]})`));
+    L.push('', achou ? `Resultado: **${val}** encontrado no índice **${it[it.length - 1].pv[0]}**, com ${it.length} ${it.length === 1 ? 'comparação' : 'comparações'}.` : `Resultado: **${val}** não está na lista (retorna -1).`);
+  }
+  return L.join('\n');
+}
+
+/* modelo começando a inventar uma lista de números ao explicar algoritmo sem dados */
+const INVENTA = /[\[(]\s*-?\d+\s*,\s*-?\d+\s*,/;
+
+// pedido de código: nunca vira "passo a passo" nem sofre a trava de listas inventadas
+const PEDE_CODIGO = /c[oó]digo|codigo|program(a|e|ar)|implement|script|fun[cç][aã]o|classe|algoritmo em|python|java(script)?|\bc\+\+|\bc#|\bhtml\b|\bcss\b|\bsql\b|typescript|\bjs\b|\bts\b|\bgo\b|rust|kotlin|php|ruby|\bc\b(?= |$)/i;
+
+async function enviar(texto){
+  texto = texto.trim(); if (!texto || ctrl) return;
+  $('#entrada').value = ''; ajustar();
+  if (!atual){
+    atual = { id: novoId(), titulo: texto.replace(/\s+/g, ' ').slice(0, 48), criada: Date.now(), msgs: [] };
+    conversas.unshift(atual); $('#tituloAtual').textContent = atual.titulo;
+  } else { conversas = [atual, ...conversas.filter(c => c !== atual)]; }
+  addEu(texto);
+  atual.msgs.push({ role: 'user', texto, llm: texto });
+  desenharLista(); salvar();
+  await responder(texto);
+}
+
+// gera de novo a última resposta
+async function regenerar(){
+  if (ctrl || !atual || !atual.msgs.length) return;
+  if (atual.msgs[atual.msgs.length - 1].role === 'assistant') atual.msgs.pop();
+  const ultimaPergunta = atual.msgs[atual.msgs.length - 1];
+  if (!ultimaPergunta || ultimaPergunta.role !== 'user') return;
+  // remove da tela tudo o que veio depois da última pergunta
+  const col = coluna(), eus = col.querySelectorAll('.msg.eu'), ref = eus[eus.length - 1];
+  while (ref && ref.nextSibling) ref.nextSibling.remove();
+  await responder(ultimaPergunta.texto);
+}
+
+async function responder(texto){
+  const pedeCodigo = PEDE_CODIGO.test(texto);
+
+  // algoritmo com lista de números: passo a passo e resumo calculados por código (exatos e instantâneos)
+  const tr = pedeCodigo ? null : detectTrace(texto);
+  if (tr){
+    const titulo = NOMES[tr.alg] + (tr.alg === 'binaria' ? ` · procurando ${tr.val} em ${fmt(tr.lista)}` : ` · ${fmt(tr.lista)}`);
+    const passos = { titulo, lista: tr.steps };
+    addPassos(titulo, tr.steps);
+    const r = resumo(tr.alg, tr.lista, tr.val);
+    const msg = { role: 'assistant', texto: r, llm: r, passos };
+    atual.msgs.push(msg); addIa(r, null, msg);
+    salvar(); desenharLista(); return;
+  }
+  if (!online){
+    const t = 'A IA ainda está carregando. Tente de novo em alguns segundos.';
+    const msg = { role: 'assistant', texto: t, llm: t };
+    atual.msgs.push(msg); addIa(t, null, msg); salvar(); return;
+  }
+  const historico = atual.msgs.slice(-7).map(m => ({ role: m.role, content: m.llm }));
+  const alvo = addIa(''); alvo.classList.add('digitando');
+  $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
+  ctrl = new AbortController(); let out = '', cortou = false;
+  const sobreAlgoritmo = !pedeCodigo && /bubble|bolha|sele[cç][aã]o|selection|quick|busca bin|ordena/i.test(texto);
+  const foraDeCodigo = s => s.split('```').filter((_, i) => i % 2 === 0).join('\n');
+  try{
+    const r = await fetch(API + '/v1/chat/completions', { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'system', content: SYSTEM }, ...historico], stream: true,
+        temperature: pedeCodigo ? 0.2 : 0.3, top_p: 0.85, top_k: 20, repeat_penalty: pedeCodigo ? 1.0 : 1.05,
+        max_tokens: pedeCodigo ? 3000 : 1200, cache_prompt: true, chat_template_kwargs: { enable_thinking: false } }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    while (true){
+      const { value, done } = await rd.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const linhas = buf.split('\n'); buf = linhas.pop();
+      for (const ln of linhas){
+        if (!ln.startsWith('data:')) continue;
+        const d = ln.slice(5).trim(); if (d === '[DONE]') continue;
+        try{
+          const c = JSON.parse(d).choices?.[0]?.delta?.content;
+          if (c){
+            out += c;
+            if (sobreAlgoritmo && INVENTA.test(foraDeCodigo(out))){ cortou = true; ctrl.abort(); break; }
+            alvo.innerHTML = md(out.replace(/<think>[\s\S]*?(<\/think>|$)/g, '')); rolar();
+          }
+        }catch(e){}
+      }
+    }
+  }catch(e){ if (e.name !== 'AbortError') out += `\n\n*(não foi possível responder: ${e.message})*`; }
+  out = out.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
+  if (cortou){
+    const m = INVENTA.exec(out); if (m) out = out.slice(0, out.lastIndexOf('\n', m.index) + 1).trim();
+    out += '\n\nPara ver um exemplo com números exatos, me mande a lista. Por exemplo: **bubble sort em [5, 2, 8, 1]**.';
+  }
+  const msg = { role: 'assistant', texto: out, llm: out };
+  atual.msgs.push(msg);
+  alvo.parentNode.remove(); addIa(out || '*(sem resposta)*', null, msg);
+  $('#enviar').classList.remove('gerando'); $('#enviar').title = 'Enviar'; ctrl = null; ajustar();
+  salvar(); desenharLista();
+}
+
+/* ================= interface ================= */
+function ajustar(){ const t = $('#entrada'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 200) + 'px'; if (!ctrl) $('#enviar').disabled = !t.value.trim(); }
+$('#entrada').addEventListener('input', ajustar);
+$('#entrada').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); enviar($('#entrada').value); } });
+$('#enviar').onclick = () => { if (ctrl) ctrl.abort(); else enviar($('#entrada').value); };
+$('#nova').onclick = nova; $('#novaLat').onclick = () => { nova(); if (estreita()) fecharLateral(); };
+const estreita = () => innerWidth <= 760;
+function abrirLateral(){ $('#lateral').classList.remove('fechada'); }
+function fecharLateral(){ $('#lateral').classList.add('fechada'); }
+$('#abrirLat').onclick = () => $('#lateral').classList.toggle('fechada');
+$('#fundo').onclick = fecharLateral;
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && (e.key === 'b' || e.key === 'B')){ e.preventDefault(); $('#lateral').classList.toggle('fechada'); }
+  if (e.ctrlKey && e.shiftKey && (e.key === 'o' || e.key === 'O')){ e.preventDefault(); nova(); }
+  if (e.key === 'Escape' && estreita()) fecharLateral();
+});
+// tema: segue o Windows, com opção de trocar (lembrada)
+(function(){
+  const root = document.documentElement;
+  let escolha = null; try { escolha = localStorage.getItem('tema'); } catch(e){}
+  const aplicar = t => {
+    root.dataset.tema = t;
+    $('#tema span').textContent = t === 'escuro' ? 'Tema claro' : 'Tema escuro';
+    if (host) host.postMessage({ t: 'tema', v: t });
+  };
+  aplicar(escolha || (matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'));
+  $('#tema').onclick = () => { const t = root.dataset.tema === 'escuro' ? 'claro' : 'escuro'; try { localStorage.setItem('tema', t); } catch(e){} aplicar(t); };
+})();
+// janela larga: histórico aberto por padrão
+if (!estreita()) abrirLateral();
+
+/* ================= inicialização ================= */
+function estado(txt){ const e = $('#estado'); if (txt){ e.textContent = txt; e.hidden = false; } else e.hidden = true; }
+async function carregarSistema(){
+  try { const r = await fetch('conhecimento.md', { cache: 'no-store' }); if (r.ok) SYSTEM = await r.text(); } catch(e){}
+  if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
+}
+async function verificar(){
+  try{
+    const r = await fetch(API + '/health', { cache: 'no-store' });
+    if (r.ok){ if (!online){ online = true; aquecer(); } return; }
+    estado('carregando');
+  }catch(e){ estado(location.protocol.startsWith('http') ? 'desconectada' : 'offline'); online = false; }
+  setTimeout(verificar, 1500);
+}
+async function aquecer(){
+  estado('preparando');
+  try{ await fetch(API + '/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: 'oi' }], max_tokens: 1, cache_prompt: true, chat_template_kwargs: { enable_thinking: false } }) }); }catch(e){}
+  estado('');
+}
+if (host){
+  host.addEventListener('message', e => {
+    const m = e.data;
+    if (m && m.t === 'historico'){ try { conversas = JSON.parse(m.dados || '[]'); } catch(x){ conversas = []; } desenharLista(); }
+  });
+  host.postMessage({ t: 'carregar' });
+} else { conversas = carregarLocal(); }
+desenharLista();
+carregarSistema().then(verificar);
+$('#entrada').focus();
+</script>
+</body>
+</html>

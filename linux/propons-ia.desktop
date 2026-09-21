@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Própons IA
+GenericName=Assistente de estudos
+Comment=IA de estudos que roda no seu computador
+Exec=propons-ia
+Icon=propons-ia
+Terminal=false
+Categories=Education;Utility;
+Keywords=IA;AI;estudos;chat;assistente;
+StartupWMClass=propons-ia
