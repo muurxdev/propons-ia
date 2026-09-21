@@ -24,6 +24,7 @@ const ICO = {
   diagnostico: '<svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
   sobre: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
   camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
+  biblioteca: '<svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h3v18H6a2 2 0 0 1-2-2zM9 3h4v18H9zM14.5 4.2l3.9-1 3 16.5-3.9 1z"/></svg>',
   microfone: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
   foto: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>',
   compartilhar: '<svg viewBox="0 0 24 24"><path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
@@ -402,6 +403,7 @@ async function adicionarArquivos(lista) {
         const { dataUrl, miniatura } = await prepararFoto(f);
         let nome = f.name || 'foto.jpg'; if (anexos.some(a => a.nome === nome)) nome = nome.replace(/(\.\w+)?$/, '-' + (anexos.length + 1) + '$1');
         anexos.push({ tipo: 'imagem', nome, tam: f.size, dataUrl, miniatura });
+        guardarNaBiblioteca({ tipo: 'imagem', nome, tam: f.size, dataUrl, miniatura });
       } catch (e) { toast(`Não consegui abrir "${f.name}"${/heic|heif/i.test(f.name) ? ' (formato HEIC: tire a foto em JPEG ou use "Mais compatível" na câmera)' : ''}.`, 4500); }
       continue;
     }
@@ -415,6 +417,7 @@ async function adicionarArquivos(lista) {
     if (/\u0000/.test(texto) || (!TEXTO_OK.test(f.name) && /[\u0001-\u0008\u000e-\u001f]/.test(texto.slice(0, 2000)))) { toast(`"${f.name}" não parece ser um arquivo de texto.`); continue; }
     if (anexos.some(a => a.nome === f.name)) continue;
     anexos.push({ nome: f.name, tam: f.size, lang: langDoArquivo(f.name), conteudo: texto });
+    guardarNaBiblioteca({ tipo: 'arquivo', nome: f.name, tam: f.size, lang: langDoArquivo(f.name), conteudo: texto });
   }
   desenharChips();
 }
@@ -533,6 +536,7 @@ async function transcreverAudio(blob) {
     if (!texto) { toast('Não entendi nenhuma fala neste áudio.', 3500); return; }
     const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
     toast('Pronto! Confira o texto e envie.', 2500);
+    guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto });
   } catch (e) {
     toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : 'Não foi possível transcrever: ' + e.message, 4500);
   } finally { transcrevendo = false; barraGravacao(null); }
@@ -542,6 +546,64 @@ $('#falar').onclick = () => iniciarGravacao();
 $('#pararGrav').onclick = () => pararGravacao(true);
 $('#cancelarGrav').onclick = () => { pararGravacao(false); toast('Gravação descartada.'); };
 $('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { if (f.size > 200 * 1048576) toast('Arquivo de áudio grande demais.'); else transcreverAudio(f); } };
+
+/* ---------------- biblioteca da sessão ----------------
+   Tudo o que você manda para a IA (fotos, arquivos e áudios transcritos) fica aqui para ver, usar de novo,
+   copiar ou apagar. Fica só na memória: ao fechar a Própons IA, some (ainda não há banco de dados). */
+let biblioteca = [], filtroBib = 'todos';
+function guardarNaBiblioteca(item) {
+  if (biblioteca.some(x => x.tipo === item.tipo && x.nome === item.nome && x.tam === item.tam)) return;
+  biblioteca.unshift(Object.assign({ id: novoId(), quando: Date.now() }, item));
+  if (biblioteca.length > 60) biblioteca.length = 60;       // limite para não pesar na memória
+  const fb = document.querySelector('.dlg.biblioteca'); if (fb) desenharBiblioteca(fb);
+}
+const iconeBib = i => i.tipo === 'imagem' ? ICO.foto : i.tipo === 'audio' ? ICO.microfone : ICO.arquivo;
+const descBib = i => (i.tipo === 'imagem' ? 'Foto' : i.tipo === 'audio' ? 'Áudio transcrito' : 'Arquivo') + ' · ' + tamanhoBonito(i.tam || 0) + ' · ' + new Date(i.quando).toTimeString().slice(0, 5);
+function abrirBiblioteca() {
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg biblioteca">${topoFolha('Biblioteca desta sessão')}<div class="bib-corpo"></div></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = sair;
+  f.onclick = e => { if (e.target === f) sair(); };
+  folha.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, folha, sair);
+  pausarDesenho();
+  document.body.appendChild(f);
+  desenharBiblioteca(folha);
+}
+function desenharBiblioteca(folha) {
+  const c = folha.querySelector('.bib-corpo'); if (!c) return;
+  const n = t => biblioteca.filter(i => t === 'todos' || i.tipo === t).length;
+  const lista = biblioteca.filter(i => filtroBib === 'todos' || i.tipo === filtroBib);
+  const fotos = lista.filter(i => i.tipo === 'imagem'), outros = lista.filter(i => i.tipo !== 'imagem');
+  c.innerHTML = `<p class="info" style="margin:0 0 12px">Fotos, arquivos e áudios que você mandou nesta sessão. <b>Ao fechar a Própons IA, tudo aqui é apagado.</b></p>
+    ${biblioteca.length ? `<div class="seg bib-filtro" style="margin-bottom:12px">${[['todos', 'Tudo'], ['imagem', 'Fotos'], ['arquivo', 'Arquivos'], ['audio', 'Áudios']].map(([k, r]) => `<button data-f="${k}" class="${filtroBib === k ? 'on' : ''}">${r} ${n(k)}</button>`).join('')}</div>` : ''}
+    ${!lista.length ? `<div class="bib-vazio">${ICO.biblioteca}<p>${biblioteca.length ? 'Nada deste tipo por aqui.' : 'Ainda vazia. Mande uma foto, um arquivo ou grave um áudio pelo "+" ou pelo 🎤.'}</p></div>` : ''}
+    ${fotos.length ? `<div class="bib-fotos">${fotos.map(i => `<button class="bib-foto" data-i="${i.id}" title="${esc(i.nome)}"><img src="${esc(i.miniatura)}" alt="${esc(i.nome)}"></button>`).join('')}</div>` : ''}
+    ${outros.length ? `<div class="lista-modelos" style="margin:${fotos.length ? '12px' : '0'} 0 0">${outros.map(i => `<button class="lm" data-i="${i.id}"><span class="mico">${iconeBib(i)}</span><span class="pt"><b>${esc(i.nome)}</b><small>${esc(descBib(i))}</small></span></button>`).join('')}</div>` : ''}
+    ${biblioteca.length ? `<div class="botoes" style="margin-top:14px"><button class="btn perigo" data-apagar-tudo>${ICO.apagar}Apagar tudo</button></div>` : ''}`;
+  c.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filtroBib = b.dataset.f; desenharBiblioteca(folha); });
+  c.querySelectorAll('[data-i]').forEach(b => b.onclick = () => verItemBiblioteca(biblioteca.find(i => i.id === b.dataset.i), folha));
+  const at = c.querySelector('[data-apagar-tudo]');
+  if (at) at.onclick = async () => { if (await confirmar('Apagar a biblioteca?', 'Apaga todas as fotos, arquivos e transcrições desta sessão. As conversas continuam.', 'Apagar tudo', true)) { biblioteca = []; desenharBiblioteca(folha); toast('Biblioteca apagada.'); } };
+}
+async function verItemBiblioteca(i, folha) {
+  if (!i) return;
+  const previa = i.tipo === 'imagem' ? `<img src="${esc(i.dataUrl || i.miniatura)}" alt="" style="width:100%;max-height:52vh;object-fit:contain;border-radius:14px;background:var(--code);display:block">`
+    : `<pre style="max-height:40vh;overflow:auto;white-space:pre-wrap;font:12.5px var(--mono);background:var(--code);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0">${esc((i.tipo === 'audio' ? i.texto : i.conteudo || '').slice(0, 20000))}</pre>`;
+  const acao = await perguntar(i.nome, `<p style="margin:0 0 10px">${esc(descBib(i))}</p>${previa}`,
+    [['Apagar', 'apagar', 'perigo'], ...(i.tipo === 'imagem' ? [] : [['Copiar', 'copiar', '']]), ['Usar na mensagem', 'usar', 'primario']]);
+  if (acao === 'apagar') { biblioteca = biblioteca.filter(x => x !== i); desenharBiblioteca(folha); toast('Apagado da biblioteca.'); }
+  else if (acao === 'copiar') copiarTexto(i.tipo === 'audio' ? i.texto : i.conteudo).then(() => toast('Copiado.'));
+  else if (acao === 'usar') {
+    if (i.tipo === 'audio') { const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + i.texto; ajustar(); }
+    else if (anexos.some(a => a.nome === i.nome)) toast('Já está na mensagem.');
+    else if (i.tipo === 'imagem' && anexos.filter(a => a.tipo === 'imagem').length >= MAX_FOTOS) { toast(`Até ${MAX_FOTOS} fotos por mensagem.`); return; }
+    else if (i.tipo === 'arquivo' && anexos.filter(a => a.tipo !== 'imagem').length >= MAX_ANEXOS) { toast(`Até ${MAX_ANEXOS} arquivos por mensagem.`); return; }
+    else anexos.push(i.tipo === 'imagem' ? { tipo: 'imagem', nome: i.nome, tam: i.tam, dataUrl: i.dataUrl, miniatura: i.miniatura } : { nome: i.nome, tam: i.tam, lang: i.lang, conteudo: i.conteudo });
+    desenharChips(); fecharDialogo(); $('#entrada').focus();
+  }
+}
 
 /* ---------------- "+": câmera, fotos, arquivos e modelo ---------------- */
 function abrirMais() {
@@ -553,6 +615,7 @@ function abrirMais() {
       <button data-op="fotos"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.foto}</span>Fotos</button>
       <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos<small>texto e código</small></button>
       <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span>Áudio<small>até 10 min</small></button>
+      <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span>Biblioteca<small>${biblioteca.length ? biblioteca.length + (biblioteca.length === 1 ? ' item' : ' itens') : 'desta sessão'}</small></button>
       <button data-op="modelos"><span class="oi">${ICO.chip}</span>Modelos</button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:4px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}
@@ -570,6 +633,7 @@ function abrirMais() {
     else if (op === 'fotos') $('#fotos').click();
     else if (op === 'arquivos') $('#arquivo').click();
     else if (op === 'audio') garantirVoz().then(ok => ok && $('#audio').click());
+    else if (op === 'biblioteca') abrirBiblioteca();
     else abrirConfig('modelo');
   });
   pausarDesenho();

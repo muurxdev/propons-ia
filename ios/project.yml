@@ -9,8 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "1.6.0"
-    CURRENT_PROJECT_VERSION: "10600"
+    MARKETING_VERSION: "1.7.0"
+    CURRENT_PROJECT_VERSION: "10700"
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual
 targets:

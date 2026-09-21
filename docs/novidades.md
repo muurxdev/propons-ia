@@ -1,18 +1,13 @@
-## Novidades da 1.6.0
+## Novidades da 1.7.0
 
-**Agora também no Mac.**
+**Biblioteca da sessão.**
 
-- **Própons IA para Mac** (macOS 12+, Apple Silicon e Intel) — [passo a passo](https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-mac.md)
-  - O app é nativo, com tudo das outras versões:
-    - chat e código com cores;
-    - botão "+" (câmera, fotos, arquivos, modelos), leitura de fotos e 🎤 transcrição até 10 min;
-    - Modelos de IA, Diagnóstico e atualização automática (troca o app e abre de novo).
-  - Nos Macs com Apple Silicon a IA usa a GPU (Metal).
-  - Na primeira vez, abra com o **botão direito → Abrir** (o app não é da App Store).
+- **"+" → Biblioteca** junta tudo o que você mandou para a IA nesta sessão: **fotos**, **arquivos** de texto e código e **áudios transcritos** (com o texto).
+  - Filtros: Tudo, Fotos, Arquivos e Áudios.
+  - Toque num item para ver (a foto grande, o arquivo ou a transcrição) e escolha **Usar na mensagem**, **Copiar** ou **Apagar**. Também dá para **Apagar tudo**.
+  - Fica **só na memória**: ao fechar a Própons IA, a biblioteca é apagada. As conversas continuam salvas como antes.
 
-Da 1.5: 🎤 **transcrição de áudio** até 10 minutos, no próprio aparelho.
-Da 1.4: botão **"+"** e a IA **lê fotos**.
-Da 1.3: interface fluida e folhas que sobem de baixo.
+Da 1.6: versão para **Mac**. Da 1.5: 🎤 **transcrição** até 10 minutos. Da 1.4: botão **"+"** e a IA **lê fotos**.
 
 ## Instalar
 
