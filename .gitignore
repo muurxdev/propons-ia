@@ -43,3 +43,4 @@ ios/TesteMotor/.build/
 ios/TesteMotor/Sources/TesteMotor/Motor.swift
 Payload/
 *.ipa
+vendor-whisper/

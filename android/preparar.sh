@@ -30,6 +30,11 @@ done
 chmod 755 "$LIBS"/*.so
 echo "motor: $(ls "$LIBS" | wc -l) arquivos, $(du -sh "$LIBS" | cut -f1) (strip: $STRIP)"
 
+# transcrição de áudio: whisper-cli estático (compilado com o NDK; ver ferramentas/compilar-whisper.sh)
+W="$RAIZ/linux/vendor/android-arm64-whisper/whisper-cli"
+[ -f "$W" ] || bash "$AQUI/ferramentas/compilar-whisper.sh" arm64-v8a
+cp "$W" "$LIBS/libwhisper_cli.so"; chmod 755 "$LIBS/libwhisper_cli.so"
+
 # motor x86_64 (só para o emulador de testes)
 X="$AQUI/app/src/main/jniLibs/x86_64"; rm -rf "$X"
 if [ "${PROPONS_X86_64:-0}" = 1 ]; then
@@ -38,6 +43,9 @@ if [ "${PROPONS_X86_64:-0}" = 1 ]; then
   mkdir -p "$X"; cp "$O/llama-server" "$X/libllama_server.so"; cp "$O"/*.so "$X/"
   STRIPX="$(ls "${ANDROID_HOME:-/opt/android-sdk}"/ndk/*/toolchains/llvm/prebuilt/*/bin/llvm-strip 2>/dev/null | head -1)"
   [ -n "$STRIPX" ] && "$STRIPX" --strip-unneeded "$X"/*.so
+  WX="$RAIZ/linux/vendor/android-x86_64-whisper/whisper-cli"
+  [ -f "$WX" ] || bash "$AQUI/ferramentas/compilar-whisper.sh" x86_64
+  cp "$WX" "$X/libwhisper_cli.so"
   chmod 755 "$X"/*.so; echo "motor x86_64 (teste): $(ls "$X" | wc -l) arquivos"
 fi
 

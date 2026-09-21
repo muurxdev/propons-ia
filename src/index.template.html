@@ -166,6 +166,19 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #entrada::placeholder{color:var(--faint)}
 #anexar{width:36px;height:36px;border-radius:50%;transition:transform .2s,background .15s}
 #anexar[aria-expanded="true"]{transform:rotate(45deg)}
+#falar{width:36px;height:36px;border-radius:50%}
+.caixa{position:relative}
+.gravando{position:absolute;inset:0;z-index:2;display:flex;align-items:center;gap:10px;padding:0 8px 0 16px;border-radius:inherit;background:var(--surface);animation:aparece .15s ease}
+.gravando b{font-variant-numeric:tabular-nums;font-weight:600;font-size:14.5px}
+.gravando .limite{color:var(--faint);font-size:12.5px;white-space:nowrap}
+.pontinho{width:10px;height:10px;border-radius:50%;background:var(--danger);flex:none;animation:pisca 1.1s ease-in-out infinite}
+.pontinho.parado{background:var(--accent);animation:none}
+.onda{flex:1;display:flex;align-items:center;justify-content:center;gap:3px;height:28px;min-width:0}
+.onda i{width:4px;height:24px;border-radius:3px;background:var(--accent);opacity:.75;transform:scaleY(.12);transition:transform .08s linear}
+.prog-grav{flex:1;min-width:0}
+.prog-grav .barra{margin:0}
+.gravando .btn{min-height:34px;padding:6px 14px;border-radius:99px}
+.gravando .btn:disabled{opacity:.6}
 #enviar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);flex:none;transition:background .15s,opacity .15s,transform .1s}
 #enviar:hover{background:var(--accent-hover)}
 #enviar:active{transform:scale(.94)}
@@ -294,7 +307,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:13.5px;box-shadow:var(--shadow);animation:aparece .15s ease;max-width:min(90vw,420px);text-align:center}
 
 /* "+": câmera, fotos, arquivos, modelo */
-.opcoes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:4px 4px 6px}
+.opcoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:10px;padding:4px 4px 6px}
 .opcoes button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px 12px;border-radius:16px;background:var(--hover);font-size:13px;font-weight:500;transition:background .15s,transform .1s}
 .opcoes button:active{transform:scale(.96)}
 .opcoes button:hover{background:var(--line)}
@@ -341,7 +354,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .compor{padding-left:10px;padding-right:10px}
   .caixa{border-radius:24px}
   #entrada{font-size:16px}
-  #anexar,#enviar{width:40px;height:40px}
+  #anexar,#enviar,#falar{width:40px;height:40px}
   .opcoes{gap:8px} .opcoes button{padding:12px 4px 10px;font-size:12.5px}
   .acao{height:36px;min-width:36px}
   .item{padding:11px 6px 11px 12px;font-size:15px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -411,15 +424,24 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
     <div class="editando" id="editando" hidden>Editando a pergunta <button id="cancelarEdicao">Cancelar</button></div>
     <div class="caixa" id="caixa">
       <div id="chips" hidden></div>
+      <div class="gravando" id="gravando" hidden>
+        <span class="pontinho" id="pontoGrav"></span><b id="tempoGrav">0:00</b><span class="limite" id="limiteGrav">/ 10:00</span>
+        <span class="onda" id="onda"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="prog-grav" id="progGrav" hidden><span class="barra"><i></i></span></span>
+        <button class="icone" id="cancelarGrav" title="Cancelar" aria-label="Cancelar gravação"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        <button class="btn primario" id="pararGrav">Transcrever</button>
+      </div>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos e modelo" aria-label="Adicionar: câmera, fotos, arquivos e modelo" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
         <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
+        <button class="icone" id="falar" title="Falar e transcrever (até 10 min)" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>
       </div>
     </div>
     <input type="file" id="arquivo" multiple hidden>
     <input type="file" id="fotos" accept="image/*" multiple hidden>
     <input type="file" id="camera" accept="image/*" capture="environment" hidden>
+    <input type="file" id="audio" accept="audio/*,.mp3,.m4a,.wav,.ogg,.opus,.webm,.aac,.flac" hidden>
     <input type="file" id="importar" accept=".json,application/json" hidden>
     <div class="rodape">A IA pode errar. Confira informações importantes.</div>
   </div>

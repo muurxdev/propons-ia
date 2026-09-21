@@ -23,6 +23,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -67,6 +68,14 @@ class MainActivity : Activity() {
             668227264, "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"),
         Modelo("avancado", "Avançado (4B)", "respostas melhores, precisa de celular forte", "Qwen3.5-4B-Q4_K_M.gguf", 2740937888, "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4", 8,
             672423616, "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"),
+    )
+
+    // vozes para transcrever áudio (whisper.cpp), baixadas no primeiro uso
+    private val vozes = listOf(
+        Modelo("voz-base", "Voz Base", "rápida", "ggml-base-q5_1.bin", 59707625, "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898", 0,
+            urlFixa = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin"),
+        Modelo("voz-small", "Voz Small", "mais precisa, mais lenta", "ggml-small-q5_1.bin", 190085487, "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb", 0,
+            urlFixa = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin"),
     )
 
     private lateinit var web: WebView
@@ -120,6 +129,13 @@ class MainActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String?) { if (cssMargens.isNotEmpty()) view.evaluateJavascript(cssMargens, null) }
         }
         web.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(req: PermissionRequest) {
+                val audio = PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                if (req.origin?.host != "127.0.0.1" || !req.resources.contains(audio)) { req.deny(); return }
+                if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) { req.grant(arrayOf(audio)); return }
+                pedidoMicrofone = req
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), PEDIDO_MICROFONE)
+            }
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 escolhaArquivos?.onReceiveValue(null)
                 escolhaArquivos = cb
@@ -443,6 +459,31 @@ class MainActivity : Activity() {
                             }
                             "cancelarDownload" -> { cancelarBaixar = true; true }
                             "apagarModelo" -> apagarModelo(modeloDe(args))
+                            "baixarVoz" -> {
+                                val v = vozes.firstOrNull { it.id == args.optString("id") } ?: throw Exception("voz desconhecida")
+                                if (baixandoId != null) throw Exception("já há um download em andamento")
+                                if (acharModelo(v) == null) soBaixar(v) else evento("download-fim", JSONObject().put("id", v.id).put("ok", true)); true
+                            }
+                            "usarVoz" -> { val v = vozes.firstOrNull { it.id == args.optString("id") } ?: throw Exception("voz desconhecida"); prefs.edit().putString("voz", v.id).apply(); true }
+                            "apagarVoz" -> {
+                                val v = vozes.firstOrNull { it.id == args.optString("id") } ?: throw Exception("voz desconhecida")
+                                if (baixandoId == v.id) throw Exception("cancele o download antes de apagar")
+                                File(pastaModelos, v.arquivo).delete(); File(pastaModelos, v.arquivo + ".baixando").delete(); true
+                            }
+                            "audioInicio" -> {
+                                val ext = args.optString("ext").takeIf { Regex("^(wav|mp3|m4a|ogg|flac)$").matches(it) } ?: "wav"
+                                val id = java.util.UUID.randomUUID().toString().replace("-", "")
+                                val f = File(cacheDir, "audio-$id.$ext"); f.writeBytes(ByteArray(0)); audios[id] = f; id
+                            }
+                            "audioParte" -> {
+                                val f = audios[args.optString("id")] ?: throw Exception("áudio desconhecido")
+                                java.io.FileOutputStream(f, true).use { it.write(android.util.Base64.decode(args.optString("dados"), android.util.Base64.DEFAULT)) }
+                                if (f.length() > 200L shl 20) throw Exception("áudio grande demais"); true
+                            }
+                            "transcrever" -> {
+                                val f = audios.remove(args.optString("id")) ?: throw Exception("áudio desconhecido")
+                                try { transcrever(f) } finally { f.delete() }
+                            }
                             "visao" -> {
                                 if (baixandoId != null || trocando) throw Exception("espere o download ou a troca atual terminar")
                                 ligarVisao(args.optBoolean("ligar")); true
@@ -494,6 +535,7 @@ class MainActivity : Activity() {
         return JSONObject().put("ramTotal", mi.totalMem).put("ramLivre", mi.availMem).put("cpu", soc.trim()).put("nucleos", Runtime.getRuntime().availableProcessors())
             .put("discoLivre", filesDir.usableSpace).put("pastaDados", "armazenamento interno do app").put("pastaModelos", "armazenamento interno do app")
             .put("visaoLigada", prefs.getBoolean("visao", false)).put("visaoAtiva", visaoAtiva).put("temVisao", true)
+            .put("temTranscricao", File(applicationInfo.nativeLibraryDir, "libwhisper_cli.so").exists()).put("vozes", listaVozes())
             .put("so", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
             .put("versao", packageManager.getPackageInfo(packageName, 0).versionName).put("modelos", lista)
     }
@@ -701,6 +743,50 @@ class MainActivity : Activity() {
     }
     override fun onPause() { super.onPause(); emPrimeiroPlano = false }
 
+    private var pedidoMicrofone: PermissionRequest? = null
+    override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
+        super.onRequestPermissionsResult(codigo, permissoes, resultados)
+        if (codigo != PEDIDO_MICROFONE) return
+        val r = pedidoMicrofone; pedidoMicrofone = null
+        if (resultados.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) r?.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else r?.deny()
+    }
+
+    // ---------------- transcrição de áudio (whisper-cli) ----------------
+    private val audios = java.util.concurrent.ConcurrentHashMap<String, File>()
+    private fun vozAtual() = vozes.firstOrNull { it.id == prefs.getString("voz", null) } ?: vozes[0]
+    private fun listaVozes(): JSONArray = JSONArray().apply {
+        val atual = vozAtual()
+        for (v in vozes) put(JSONObject().put("id", v.id).put("nome", v.nome).put("descricao", v.descricao).put("tamanho", v.tamanho)
+            .put("baixado", acharModelo(v) != null).put("atual", v.id == atual.id))
+    }
+    private fun transcrever(arq: File): JSONObject {
+        val voz = vozAtual()
+        val modeloVoz = acharModelo(voz) ?: throw Exception("a voz ${voz.nome} não está baixada")
+        val exe = File(applicationInfo.nativeLibraryDir, "libwhisper_cli.so")
+        if (!exe.exists()) throw Exception("transcrição não disponível nesta versão")
+        val nucleos = Runtime.getRuntime().availableProcessors()
+        val threads = if (nucleos >= 8) 4 else (nucleos / 2).coerceAtLeast(1)
+        val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
+        val pb = ProcessBuilder(*nice, exe.path, "-m", modeloVoz.path, "-f", arq.path, "-l", "pt", "-nt", "-pp", "-mc", "0", "-t", "$threads", "-otxt", "-of", arq.path)
+        pb.directory(cacheDir); pb.redirectErrorStream(true)
+        val t0 = System.currentTimeMillis()
+        ocupado(true)
+        try {
+            val p = pb.start()
+            val re = Regex("""progress\s*=\s*(\d+)%""")
+            val log = StringBuilder()
+            p.inputStream.bufferedReader().forEachLine { l ->
+                val m = re.find(l)
+                if (m != null) evento("transcricao", JSONObject().put("pct", m.groupValues[1].toInt() / 100.0)) else if (log.length < 4000) log.appendLine(l)
+            }
+            p.waitFor()
+            val txt = File(arq.path + ".txt")
+            if (!txt.exists()) throw Exception("não foi possível transcrever este áudio")
+            val texto = txt.readText().replace("\r", "").trim().replace(Regex("""\s*\n\s*"""), " ")
+            return JSONObject().put("texto", texto).put("segundos", (System.currentTimeMillis() - t0) / 1000.0)
+        } finally { ocupado(false); File(arq.path + ".txt").delete() }
+    }
+
     override fun onResume() {
         super.onResume()
         emPrimeiroPlano = true
@@ -724,6 +810,7 @@ class MainActivity : Activity() {
         const val PEDIDO_ARQUIVOS = 1
         const val PEDIDO_SALVAR = 2
         const val PEDIDO_CAMERA = 4
+        const val PEDIDO_MICROFONE = 5
         const val ACAO_INSTALACAO = "io.github.muurxdev.proponsia.INSTALACAO"
     }
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import CryptoKit
+import Speech
 import os
 
 @main
@@ -246,6 +247,18 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         case "verificarModelos": DispatchQueue.global(qos: .userInitiated).async { self.responder(id, self.verificarModelos()) }
         case "abrirLoja": abrirLoja(id)
         case "compartilhar": compartilharTexto(id: id, texto: args["texto"] as? String ?? "")
+        // transcrição: a página manda o áudio em partes; o reconhecimento de fala do iOS (no aparelho) faz o texto
+        case "audioInicio":
+            let ext = ["wav", "m4a", "mp3", "ogg", "flac"].contains(args["ext"] as? String ?? "") ? args["ext"] as! String : "wav"
+            let ida = UUID().uuidString
+            let u = fm.temporaryDirectory.appendingPathComponent("audio-\(ida).\(ext)")
+            fm.createFile(atPath: u.path, contents: nil); audios[ida] = u; responder(id, ida)
+        case "audioParte":
+            guard let ida = args["id"] as? String, let u = audios[ida], let d = Data(base64Encoded: args["dados"] as? String ?? ""), let h = try? FileHandle(forWritingTo: u) else { erro(id, "áudio desconhecido"); return }
+            h.seekToEndOfFile(); h.write(d); h.closeFile(); responder(id, true)
+        case "transcrever":
+            guard let ida = args["id"] as? String, let u = audios.removeValue(forKey: ida) else { erro(id, "áudio desconhecido"); return }
+            transcrever(id: id, arquivo: u)
         default: erro(id, "ação desconhecida: \(acao)")
         }
     }
@@ -285,6 +298,28 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         await esperarAtivo()
         do { try await carregarMotor(); evento("motor", ["estado": "pronto", "nome": novo.nome]) }
         catch { modelo = antigo; try? await carregarMotor(); evento("motor", ["estado": "erro", "mensagem": error.localizedDescription]) }
+    }
+
+    // MARK: transcrição (reconhecimento de fala do iOS, no aparelho quando disponível)
+    private var audios: [String: URL] = [:]
+    private var tarefaFala: SFSpeechRecognitionTask?
+    private func transcrever(id: Any?, arquivo: URL) {
+        SFSpeechRecognizer.requestAuthorization { st in
+            let limpar = { try? self.fm.removeItem(at: arquivo); self.tarefaFala = nil }
+            guard st == .authorized else { limpar(); self.erro(id, "permita o reconhecimento de fala em Ajustes → Própons IA"); return }
+            guard let rec = SFSpeechRecognizer(locale: Locale(identifier: "pt-BR")), rec.isAvailable else { limpar(); self.erro(id, "reconhecimento de fala em português indisponível neste iPhone"); return }
+            let req = SFSpeechURLRecognitionRequest(url: arquivo)
+            if rec.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = true }
+            req.shouldReportPartialResults = false
+            if #available(iOS 16, *) { req.addsPunctuation = true }
+            let t0 = Date()
+            DispatchQueue.main.async {
+                self.tarefaFala = rec.recognitionTask(with: req) { r, e in
+                    if let r = r, r.isFinal { limpar(); self.responder(id, ["texto": r.bestTranscription.formattedString, "segundos": Date().timeIntervalSince(t0)]) }
+                    else if let e = e { limpar(); self.erro(id, e.localizedDescription) }
+                }
+            }
+        }
     }
 
     // MARK: gerenciar modelos
@@ -367,7 +402,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         }
         return ["ramTotal": Int64(ram), "ramLivre": Int64(os_proc_available_memory()), "cpu": maquina, "nucleos": ProcessInfo.processInfo.activeProcessorCount,
                 "discoLivre": livre == Int64.max ? 0 : livre, "pastaDados": "armazenamento do app", "pastaModelos": "armazenamento do app", "so": "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion) · \(maquina)",
-                "versao": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?", "modelos": modelos]
+                "versao": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?", "modelos": modelos, "temTranscricao": true, "temVisao": false]
     }
 
     private func compartilhar(id: Any?, nome: String, conteudo: String) {
@@ -408,6 +443,11 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     }
     func webView(_ w: WKWebView, runJavaScriptAlertPanelWithMessage m: String, initiatedByFrame f: WKFrameInfo, completionHandler: @escaping () -> Void) {
         alerta(m, cancelar: false) { _ in completionHandler() }
+    }
+    // microfone (🎤 falar): só para a página do próprio app
+    @available(iOS 15.0, *)
+    func webView(_ w: WKWebView, requestMediaCapturePermissionFor origem: WKSecurityOrigin, initiatedByFrame f: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        decisionHandler(type == .microphone ? .grant : .deny)
     }
     func webView(_ w: WKWebView, runJavaScriptConfirmPanelWithMessage m: String, initiatedByFrame f: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         alerta(m, cancelar: true, completionHandler)

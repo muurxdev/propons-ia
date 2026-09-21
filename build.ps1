@@ -16,6 +16,16 @@ if (-not (Test-Path "$R\payload\motor\llama-server.exe")) {
   New-Item -ItemType Directory -Force "$R\payload\motor" | Out-Null
   Get-ChildItem $x | Where-Object { $_.Name -eq 'llama-server.exe' -or ($_.Extension -eq '.dll' -and ($_.Name -notmatch '-impl\.dll$' -or $_.Name -eq 'llama-server-impl.dll')) } | Copy-Item -Destination "$R\payload\motor\"
 }
+$whisper = 'b5130'
+if (-not (Test-Path "$R\payload\voz\whisper-cli.exe")) {
+  # transcrição de áudio (whisper.cpp) em pasta própria: as DLLs ggml dele são de outra versão que as do motor
+  Write-Host 'baixando o whisper.cpp (transcrição) para Windows...'
+  $z = "$env:TEMP\whisper-win.zip"; $x = "$env:TEMP\whisper-win"
+  Invoke-WebRequest "https://github.com/ggml-org/whisper.cpp/releases/download/$whisper/whisper-bin-x64.zip" -OutFile $z
+  Expand-Archive $z $x -Force
+  New-Item -ItemType Directory -Force "$R\payload\voz" | Out-Null
+  Get-ChildItem "$x\Release" | Where-Object { $_.Name -eq 'whisper-cli.exe' -or $_.Name -eq 'whisper.dll' -or $_.Name -like 'ggml*.dll' } | Copy-Item -Destination "$R\payload\voz\"
+}
 if (-not (Test-Path "$R\app\Microsoft.Web.WebView2.Core.dll") -or -not (Test-Path "$R\payload\WebView2Loader.dll")) {
   Write-Host 'baixando o WebView2 SDK...'
   $z = "$env:TEMP\wv2.zip"; $x = "$env:TEMP\wv2"

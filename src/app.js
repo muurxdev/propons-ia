@@ -24,6 +24,7 @@ const ICO = {
   diagnostico: '<svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
   sobre: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
   camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
+  microfone: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
   foto: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>',
   compartilhar: '<svg viewBox="0 0 24 24"><path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
 };
@@ -420,6 +421,128 @@ async function adicionarArquivos(lista) {
 $('#anexar').onclick = () => abrirMais();
 ['arquivo', 'fotos', 'camera'].forEach(id => $('#' + id).onchange = e => { adicionarArquivos([...e.target.files]); e.target.value = ''; });
 
+/* ---------------- falar: gravar e transcrever (até 10 minutos) ---------------- */
+const LIMITE_AUDIO = 600;   // segundos
+let gravacao = null, transcrevendo = false, esperaVoz = null;
+const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+function barraGravacao(modo, texto, pct) {
+  const g = $('#gravando');
+  if (!modo) { g.hidden = true; return; }
+  g.hidden = false;
+  $('#pontoGrav').classList.toggle('parado', modo !== 'gravando');
+  $('#onda').hidden = modo !== 'gravando'; $('#limiteGrav').hidden = modo !== 'gravando';
+  $('#progGrav').hidden = modo === 'gravando';
+  $('#pararGrav').hidden = modo !== 'gravando'; $('#cancelarGrav').hidden = modo !== 'gravando';
+  if (texto !== undefined) $('#tempoGrav').textContent = texto;
+  if (pct !== undefined) $('#progGrav i').style.width = (pct * 100).toFixed(1) + '%';
+}
+// a voz (whisper) é baixada uma vez: pede confirmação e espera o download
+async function garantirVoz() {
+  if (!PLATAFORMA.temTranscricao) { toast('Neste aparelho a transcrição ainda não está disponível.'); return false; }
+  const s = await lerSistema();
+  if (!s || !s.vozes) return true;                       // iPhone: reconhecimento de voz do próprio iOS
+  if (s.temTranscricao === false) { toast('Transcrição não disponível nesta versão.'); return false; }
+  const v = s.vozes.find(x => x.atual) || s.vozes[0];
+  if (PLATAFORMA.tipo === 'web') {
+    if (s.transcricaoUrl) { PLATAFORMA.urlTranscricao = s.transcricaoUrl; return true; }
+    await perguntar('Transcrever áudio no Linux', `<p>Para transformar fala em texto, ligue a transcrição pelo terminal (baixa a voz de ${gbBonito(v.tamanho)} uma vez) e abra de novo:</p><div class="cmd"><code id="cmdVoz">propons-ia --voz</code><button class="icone" data-copiar="cmdVoz">${ICO.copiar}</button></div><p class="info" style="margin-top:8px">Voz mais precisa (190 MB): <code>propons-ia --voz small</code></p>`, [['Entendi', true, 'primario']]);
+    return false;
+  }
+  if (v.baixado) return true;
+  if (!await confirmar('Transcrever áudio', `<p>Para transformar fala em texto, a IA usa a <b>${esc(v.nome)}</b> (${gbBonito(v.tamanho)}), baixada uma vez só. Depois funciona sem internet.</p><p>Dá para trocar pela voz mais precisa em Ajustes → Modelos de IA.</p>`, 'Baixar')) return false;
+  try { baixando[v.id] = { pct: 0, feito: 0, total: v.tamanho }; await PLATAFORMA.baixarVoz(v.id); }
+  catch (e) { delete baixando[v.id]; toast('Não foi possível: ' + e.message, 4000); return false; }
+  toast('Baixando a voz…', 2500);
+  return new Promise(res => { esperaVoz = { id: v.id, res }; });
+}
+async function iniciarGravacao() {
+  if (gravacao || transcrevendo || geracao) return;
+  if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Este aparelho não permite gravar aqui. Use "+" → Áudio para mandar um arquivo.', 4500); return; }
+  if (!(await garantirVoz())) return;
+  let fluxo;
+  try { fluxo = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } }); }
+  catch (e) { toast('Não foi possível usar o microfone: ' + (e.name === 'NotAllowedError' ? 'permissão negada.' : e.name === 'NotFoundError' ? 'nenhum microfone encontrado.' : e.message), 4500); return; }
+  const tipo = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(fluxo, tipo ? { mimeType: tipo, audioBitsPerSecond: 32000 } : undefined);
+  const partes = []; rec.ondataavailable = e => { if (e.data && e.data.size) partes.push(e.data); };
+  rec.start(1000);
+  // nível do som (barrinhas), leve: ~20 quadros por segundo
+  let ctx = null, analisador = null, dadosNivel = null;
+  try { ctx = new (window.AudioContext || window.webkitAudioContext)(); analisador = ctx.createAnalyser(); analisador.fftSize = 256; ctx.createMediaStreamSource(fluxo).connect(analisador); dadosNivel = new Uint8Array(analisador.fftSize); } catch (e) {}
+  const barras = [...document.querySelectorAll('#onda i')], hist = barras.map(() => 0.12);
+  const t0 = Date.now();
+  gravacao = { rec, fluxo, partes, tipo, ctx };
+  barraGravacao('gravando', '0:00');
+  gravacao.timer = setInterval(() => {
+    const s = (Date.now() - t0) / 1000;
+    $('#tempoGrav').textContent = mmss(s);
+    if (analisador) {
+      analisador.getByteTimeDomainData(dadosNivel);
+      let pico = 0; for (let i = 0; i < dadosNivel.length; i++) pico = Math.max(pico, Math.abs(dadosNivel[i] - 128));
+      hist.shift(); hist.push(Math.max(0.12, Math.min(1, pico / 64)));
+      barras.forEach((b, i) => b.style.transform = `scaleY(${hist[i].toFixed(2)})`);
+    }
+    if (s >= LIMITE_AUDIO) { toast('Chegou a 10 minutos: transcrevendo.'); pararGravacao(true); }
+  }, 50);
+}
+function pararGravacao(transcreverDepois) {
+  const g = gravacao; if (!g) return;
+  gravacao = null; clearInterval(g.timer);
+  g.rec.onstop = () => {
+    g.fluxo.getTracks().forEach(t => t.stop()); try { g.ctx && g.ctx.close(); } catch (e) {}
+    if (!transcreverDepois) { barraGravacao(null); return; }
+    transcreverAudio(new Blob(g.partes, { type: g.rec.mimeType || g.tipo || 'audio/webm' }));
+  };
+  try { g.rec.stop(); } catch (e) { g.rec.onstop(); }
+}
+// qualquer áudio → WAV 16 kHz mono (o formato do whisper), no máximo 10 minutos
+async function audioParaWav16k(blob) {
+  const buf = await blob.arrayBuffer();
+  let ctx; try { ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 }); } catch (e) { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+  let audio; try { audio = await ctx.decodeAudioData(buf); } finally { try { ctx.close(); } catch (e) {} }
+  const taxa = audio.sampleRate, n = Math.min(audio.length, Math.floor(LIMITE_AUDIO * taxa));
+  const canais = []; for (let c = 0; c < audio.numberOfChannels; c++) canais.push(audio.getChannelData(c));
+  const saida = Math.floor(n * 16000 / taxa);
+  const wav = new Uint8Array(44 + saida * 2), v = new DataView(wav.buffer);
+  const txt = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  txt(0, 'RIFF'); v.setUint32(4, 36 + saida * 2, true); txt(8, 'WAVE'); txt(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); txt(36, 'data'); v.setUint32(40, saida * 2, true);
+  for (let i = 0; i < saida; i++) {
+    const k = Math.min(n - 1, Math.floor(i * taxa / 16000));
+    let x = 0; for (const c of canais) x += c[k]; x /= canais.length;
+    x = Math.max(-1, Math.min(1, x)); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+  }
+  return { wav, duracao: audio.duration, cortado: audio.duration > LIMITE_AUDIO + 0.5 };
+}
+async function transcreverAudio(blob) {
+  if (transcrevendo) return;
+  transcrevendo = true;
+  barraGravacao('transcrevendo', 'Preparando o áudio…', 0);
+  try {
+    let bytes, ext = 'wav';
+    if (PLATAFORMA.tipo === 'ios' && !/webm/.test(blob.type)) { bytes = new Uint8Array(await blob.arrayBuffer()); ext = /mp4|m4a|aac/.test(blob.type) ? 'm4a' : /mpeg|mp3/.test(blob.type) ? 'mp3' : 'wav'; }
+    else {
+      const r = await audioParaWav16k(blob);
+      if (r.duracao < 0.5) { toast('O áudio ficou curto demais.'); return; }
+      if (r.cortado) toast(`O áudio tem ${Math.round(r.duracao / 60)} min: vou transcrever só os primeiros 10 minutos.`, 4500);
+      bytes = r.wav;
+    }
+    barraGravacao('transcrevendo', 'Enviando…', 0);
+    const r = await PLATAFORMA.transcrever(bytes, ext, p => barraGravacao('transcrevendo', 'Enviando… ' + Math.floor(p * 100) + '%', p * 0.1));
+    const texto = String((r && r.texto) || '').trim();
+    if (!texto) { toast('Não entendi nenhuma fala neste áudio.', 3500); return; }
+    const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
+    toast('Pronto! Confira o texto e envie.', 2500);
+  } catch (e) {
+    toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : 'Não foi possível transcrever: ' + e.message, 4500);
+  } finally { transcrevendo = false; barraGravacao(null); }
+}
+PLATAFORMA.ao('transcricao', d => { if (transcrevendo) barraGravacao('transcrevendo', 'Transcrevendo… ' + Math.floor((d.pct || 0) * 100) + '%', 0.1 + (d.pct || 0) * 0.9); });
+$('#falar').onclick = () => iniciarGravacao();
+$('#pararGrav').onclick = () => pararGravacao(true);
+$('#cancelarGrav').onclick = () => { pararGravacao(false); toast('Gravação descartada.'); };
+$('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { if (f.size > 200 * 1048576) toast('Arquivo de áudio grande demais.'); else transcreverAudio(f); } };
+
 /* ---------------- "+": câmera, fotos, arquivos e modelo ---------------- */
 function abrirMais() {
   const temVisao = PLATAFORMA.temVisao;
@@ -429,6 +552,7 @@ function abrirMais() {
       <button data-op="camera"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.camera}</span>Câmera</button>
       <button data-op="fotos"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.foto}</span>Fotos</button>
       <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos<small>texto e código</small></button>
+      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span>Áudio<small>até 10 min</small></button>
       <button data-op="modelos"><span class="oi">${ICO.chip}</span>Modelos</button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:4px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}
@@ -445,6 +569,7 @@ function abrirMais() {
     if (op === 'camera') (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam();
     else if (op === 'fotos') $('#fotos').click();
     else if (op === 'arquivos') $('#arquivo').click();
+    else if (op === 'audio') garantirVoz().then(ok => ok && $('#audio').click());
     else abrirConfig('modelo');
   });
   pausarDesenho();
@@ -912,11 +1037,17 @@ async function abaModelo(c) {
   if (!modelos.length) { c.innerHTML = '<p class="info">Não foi possível ler os modelos deste aparelho.</p>'; return; }
   const ram = s.ramTotal || 0, web = PLATAFORMA.tipo === 'web';
   const rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
-  const usado = modelos.reduce((t, m) => t + (m.baixado ? m.tamanho : 0) + (m.visaoBaixada ? m.visaoTamanho : 0), 0), livre = s.discoLivre || 0;
+  const usado = modelos.reduce((t, m) => t + (m.baixado ? m.tamanho : 0) + (m.visaoBaixada ? m.visaoTamanho : 0), 0) + (s.vozes || []).reduce((t, v) => t + (v.baixado ? v.tamanho : 0), 0), livre = s.discoLivre || 0;
   const rolagem = c.scrollTop;
   c.innerHTML = `<p class="info">Os modelos ficam guardados neste aparelho e funcionam sem internet. Os maiores respondem melhor (principalmente código), mas são mais lentos e usam mais memória.</p>
     ${modelos.map(m => cartaoModelo(m, ram, rec)).join('')}
     ${PLATAFORMA.temVisao && !web ? `<div class="secao" style="margin-top:18px"><h4>Fotos</h4><div class="cartao"><button class="interruptor" id="swVisao" role="switch" aria-checked="${!!s.visaoLigada}"><span class="pt"><b>Ler fotos (visão)</b><small>${s.visaoAtiva ? 'Ligada: a IA entende fotos e prints' : 'Desligada: liga sozinha quando você manda uma foto'}</small></span><span class="chave"></span></button></div></div>` : ''}
+    ${s.vozes ? `<div class="secao" style="margin-top:18px"><h4>Transcrição de áudio</h4><div class="lista-modelos" style="margin:0">${s.vozes.map(v => {
+      const b = baixando[v.id];
+      const st = b ? Math.floor(b.pct * 100) + '%' : v.atual ? (v.baixado ? 'Em uso' : 'Escolhida') : v.baixado ? 'Baixada' : gbBonito(v.tamanho);
+      const botoes = b ? '' : (!v.atual && v.baixado ? `<button class="btn" data-voz="usar" data-id="${v.id}">Usar</button>` : '') + (!v.baixado ? `<button class="btn" data-voz="baixar" data-id="${v.id}">Baixar</button>` : `<button class="btn link" data-voz="apagar" data-id="${v.id}">Apagar</button>`);
+      return `<div class="lm${v.atual ? ' on' : ''}"><span class="mico">${ICO.microfone}</span><span class="pt"><b>${esc(v.nome)}</b><small>${esc(v.descricao)} · ${gbBonito(v.tamanho)}</small></span><span class="st">${st}</span>${botoes}</div>`;
+    }).join('')}</div><p class="info" style="margin-top:8px">Grave com o 🎤 ao lado de enviar ou mande um arquivo pelo "+" → Áudio (até 10 min). O texto aparece na caixa para você conferir.</p></div>` : ''}
     <div class="secao" style="margin-top:18px"><h4>Armazenamento</h4><div class="cartao">
       ${livre ? `<div class="uso"><i style="width:${Math.max(usado ? 1.5 : 0, Math.min(100, usado / (usado + livre) * 100)).toFixed(1)}%"></i></div>` : ''}
       <div class="linha-info"><span>Modelos baixados</span><b>${usado ? gbBonito(usado) : 'nenhum'}</b></div>
@@ -930,6 +1061,15 @@ async function abaModelo(c) {
   c.scrollTop = rolagem;
   ligarCopiar(c);
   c.querySelectorAll('[data-acao]').forEach(b => b.onclick = () => acaoModelo(b.dataset.acao, modelos.find(x => x.id === b.dataset.id), ram));
+  c.querySelectorAll('[data-voz]').forEach(b => b.onclick = async () => {
+    const v = s.vozes.find(x => x.id === b.dataset.id); if (!v) return;
+    try {
+      if (b.dataset.voz === 'usar') { await PLATAFORMA.usarVoz(v.id); toast(v.nome + ' em uso.'); }
+      else if (b.dataset.voz === 'baixar') { if (Object.keys(baixando).length) { toast('Espere o download atual terminar.'); return; } baixando[v.id] = { pct: 0, feito: 0, total: v.tamanho }; await PLATAFORMA.baixarVoz(v.id); await PLATAFORMA.usarVoz(v.id); }
+      else if (await confirmar('Apagar a voz?', `Libera ${gbBonito(v.tamanho)}. Ela é baixada de novo se você transcrever com ela.`, 'Apagar', true)) { await PLATAFORMA.apagarVoz(v.id); toast('Voz apagada.'); }
+    } catch (e) { delete baixando[v.id]; toast(e.message, 4000); }
+    desenharAba();
+  });
   const sw = c.querySelector('#swVisao');
   if (sw) sw.onclick = async () => {
     if (sw.getAttribute('aria-checked') === 'true') {
@@ -979,6 +1119,7 @@ PLATAFORMA.ao('download', d => {
 PLATAFORMA.ao('download-fim', d => {
   delete baixando[d.id]; if (online) estado('');
   if (String(d.id).startsWith('visao-') && !d.ok) fimEsperaVisao(false);
+  if (esperaVoz && d.id === esperaVoz.id) { const r = esperaVoz.res; esperaVoz = null; r(!!d.ok); }
   if (d.ok) toast('Download concluído. O modelo já pode ser usado.', 3000);
   else if (d.erro === 'cancelado') toast('Download cancelado.');
   else if (d.erro) toast(d.erro, 5000);
@@ -1322,6 +1463,8 @@ if (!estreita()) abrirLateral();
   if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
   await carregarHistorico();
   verificar();
+  // Linux: a transcrição existe se o pacote trouxe o whisper (sistema.json)
+  if (PLATAFORMA.tipo === 'web') lerSistema().then(s => { if (s && s.temTranscricao) { PLATAFORMA.temTranscricao = true; PLATAFORMA.urlTranscricao = s.transcricaoUrl || ''; } });
   setTimeout(aquecerFolhas, 2500);
   setTimeout(avisoAutomatico, 4000);
   setInterval(avisoAutomatico, 6 * 3600 * 1000);

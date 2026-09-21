@@ -4,7 +4,7 @@
 # numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.4.0"
+VERSAO="1.5.0"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"
@@ -20,12 +20,17 @@ MODELOS_LISTA=(
   "normal|Qwen3.5-2B-Q4_K_M.gguf|1280835840|aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223|6|Normal (2B)|equilíbrio entre velocidade e qualidade|668227264|7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
   "avancado|Qwen3.5-4B-Q4_K_M.gguf|2740937888|00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4|8|Avançado (4B)|respostas e códigos melhores, mais lento|672423616|cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"
 )
+# vozes para transcrever áudio (whisper.cpp): id | arquivo | bytes | sha256 | nome | descrição
+VOZES_LISTA=(
+  "base|ggml-base-q5_1.bin|59707625|422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898|Voz Base|rápida"
+  "small|ggml-small-q5_1.bin|190085487|ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb|Voz Small|mais precisa, mais lenta"
+)
 URL_BASE="https://huggingface.co/unsloth"
 url_modelo() { local a="$1"; local repo="${a%-Q4_K_M.gguf}-GGUF"; echo "$URL_BASE/$repo/resolve/main/$a"; }
 
 mkdir -p "$MODELOS" "$INTERFACE"
 tem() { command -v "$1" >/dev/null 2>&1; }
-ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"; APAGAR_ID=""; VISAO_ARG=""
+ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"; APAGAR_ID=""; VISAO_ARG=""; VOZ_ARG=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --leve) MODELO_ARG=leve ;;
@@ -39,6 +44,7 @@ while [ $# -gt 0 ]; do
     --atualizar) ACAO=atualizar ;;
     --visao|--visão) VISAO_ARG=1 ;;
     --sem-visao|--sem-visão) VISAO_ARG=0 ;;
+    --voz) VOZ_ARG=base; case "${2:-}" in base|small) VOZ_ARG="$2"; shift ;; esac ;;
     --apagar-modelo) shift; ACAO=apagar; APAGAR_ID="${1:-}" ;;
     -h|--ajuda|--help)
       cat <<EOF
@@ -54,6 +60,7 @@ Própons IA $VERSAO — assistente de estudos que roda no seu computador.
   propons-ia --apagar-modelo NOME  apaga um modelo baixado para liberar espaço
   propons-ia --visao               liga a leitura de fotos (baixa o módulo de visão uma vez) e abre
   propons-ia --sem-visao           desliga a leitura de fotos (usa menos memória)
+  propons-ia --voz [base|small]    liga a transcrição de áudio (baixa a voz uma vez: base 57 MB, small 190 MB) e abre
 EOF
       exit 0 ;;
   esac
@@ -75,12 +82,13 @@ campo() { local id="$1" n="$2" l; for l in "${MODELOS_LISTA[@]}"; do [ "${l%%|*}
 ram_bytes() { awk '/MemTotal/ {printf "%d", $2*1024}' /proc/meminfo 2>/dev/null || echo 0; }
 # config: MODELO=id e VISAO=0|1
 ler_config() { [ -f "$CONFIG" ] && sed -n "s/^$1=//p" "$CONFIG" | head -1; }
-gravar_config() { local m v; m="$(ler_config MODELO)"; v="$(ler_config VISAO)"; [ "$1" = MODELO ] && m="$2"; [ "$1" = VISAO ] && v="$2"; printf 'MODELO=%s\nVISAO=%s\n' "$m" "${v:-0}" >"$CONFIG"; }
+gravar_config() { local m v z; m="$(ler_config MODELO)"; v="$(ler_config VISAO)"; z="$(ler_config VOZ)"; [ "$1" = MODELO ] && m="$2"; [ "$1" = VISAO ] && v="$2"; [ "$1" = VOZ ] && z="$2"; printf 'MODELO=%s\nVISAO=%s\nVOZ=%s\n' "$m" "${v:-0}" "$z" >"$CONFIG"; }
 if [ -n "$MODELO_ARG" ]; then
   [ -n "$(campo "$MODELO_ARG" 1)" ] || { echo "Modelo desconhecido: $MODELO_ARG (use: leve, normal ou avancado)"; exit 2; }
   gravar_config MODELO "$MODELO_ARG"
 fi
 [ -n "$VISAO_ARG" ] && gravar_config VISAO "$VISAO_ARG"
+[ -n "$VOZ_ARG" ] && gravar_config VOZ "$VOZ_ARG"
 MODELO_ID="$(ler_config MODELO)"
 if [ -z "$MODELO_ID" ] || [ -z "$(campo "$MODELO_ID" 1)" ]; then
   [ "$(ram_bytes)" -lt $((6*1024*1024*1024)) ] && MODELO_ID=leve || MODELO_ID=normal
@@ -89,6 +97,9 @@ ARQ="$MODELOS/$(campo "$MODELO_ID" 2)"; TAM="$(campo "$MODELO_ID" 3)"; SHA="$(ca
 # módulo de visão (ler fotos) do modelo escolhido
 visao_nome() { local a; a="$(campo "$1" 2)"; a="${a#Qwen3.5-}"; echo "mmproj-Qwen3.5-${a%-Q4_K_M.gguf}-F16.gguf"; }
 visao_url() { local a; a="$(campo "$1" 2)"; echo "$URL_BASE/${a%-Q4_K_M.gguf}-GGUF/resolve/main/mmproj-F16.gguf"; }
+vcampo() { local id="$1" n="$2" l; for l in "${VOZES_LISTA[@]}"; do [ "${l%%|*}" = "$id" ] && { echo "$l" | cut -d'|' -f"$n"; return; }; done; }
+VOZ_ID="$(ler_config VOZ)"; [ -n "$(vcampo "$VOZ_ID" 1)" ] || VOZ_ID=""
+VOZ_EXE="$APP_DIR/voz/whisper-server"; VOZ_PORTA=""; VOZ_CAMINHO=""; VOZ_PID=""
 VISAO="$(ler_config VISAO)"; VISAO_ARQ="$MODELOS/$(visao_nome "$MODELO_ID")"; VISAO_TAM="$(campo "$MODELO_ID" 8)"; VISAO_SHA="$(campo "$MODELO_ID" 9)"
 tamanho() { stat -c %s "$1" 2>/dev/null || echo 0; }
 
@@ -101,8 +112,15 @@ pid_e_motor() { [ -n "${1:-}" ] && [ -r "/proc/$1/comm" ] && grep -q "llama-serv
 
 case "$ACAO" in
   parar)
+    # encerra o inicializador (e com ele o vigia, o motor e a voz); depois confere o que sobrou
+    parou=0; a="$(cat "$DADOS/app.pid" 2>/dev/null)"
+    if [ -n "$a" ] && [ -r "/proc/$a/cmdline" ] && tr "\0" " " <"/proc/$a/cmdline" | grep -q propons-ia; then kill "$a" 2>/dev/null && parou=1; sleep 1; fi
+    rm -f "$DADOS/app.pid"
     p="$(cat "$PIDFILE" 2>/dev/null)"
-    if pid_e_motor "$p"; then kill "$p" && echo "Própons IA desligada."; else echo "A Própons IA não estava aberta."; fi
+    pid_e_motor "$p" && kill "$p" && parou=1
+    [ "$parou" = 1 ] && echo "Própons IA desligada." || echo "A Própons IA não estava aberta."
+    v="$(cat "$DADOS/voz.pid" 2>/dev/null)"; [ -n "$v" ] && [ -r "/proc/$v/comm" ] && grep -q whisper-server "/proc/$v/comm" && kill "$v"
+    rm -f "$DADOS/voz.pid"
     rm -f "$PIDFILE" "$PORTAFILE"; exit 0 ;;
   atualizar)
     tem curl || { echo "Instale o curl para atualizar."; exit 1; }
@@ -152,6 +170,26 @@ achar_navegador() {
   fi
 }
 
+json_vozes() {
+  local l id arq tb _s nome desc out="" atual="${VOZ_ID:-base}"
+  for l in "${VOZES_LISTA[@]}"; do
+    IFS='|' read -r id arq tb _s nome desc <<<"$l"
+    out+="${out:+,}{\"id\":\"voz-$id\",\"nome\":\"$nome\",\"descricao\":\"$desc\",\"tamanho\":$tb,\"baixado\":$([ "$(tamanho "$MODELOS/$arq")" = "$tb" ] && echo true || echo false),\"atual\":$([ "$id" = "$atual" ] && echo true || echo false)}"
+  done
+  echo "$out"
+}
+# transcrição: whisper-server local num endereço secreto (só a nossa página recebe o caminho)
+preparar_voz() {
+  [ -n "$VOZ_ID" ] && [ -x "$VOZ_EXE" ] || return 0
+  local arq; arq="$MODELOS/$(vcampo "$VOZ_ID" 2)"
+  [ "$(tamanho "$arq")" = "$(vcampo "$VOZ_ID" 3)" ] || return 0
+  VOZ_PORTA="$(shuf -i 20000-60000 -n 1 2>/dev/null || echo $((20000 + RANDOM)))"
+  VOZ_CAMINHO="/$(head -c 18 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')"
+  mkdir -p "$DADOS/vazio"
+  LD_LIBRARY_PATH="$APP_DIR/voz" nice -n 5 "$VOZ_EXE" -m "$arq" --host 127.0.0.1 --port "$VOZ_PORTA" -l pt -mc 0 -t "$(( $(nproc 2>/dev/null || echo 2) / 2 > 0 ? $(nproc 2>/dev/null || echo 2) / 2 : 1 ))" \
+    --inference-path "$VOZ_CAMINHO" --public "$DADOS/vazio" >>"$DADOS/voz.log" 2>&1 &
+  VOZ_PID=$!; echo "$VOZ_PID" >"$DADOS/voz.pid"
+}
 visao_ativa() { [ "$VISAO" = 1 ] && [ "$(tamanho "$VISAO_ARQ")" = "$VISAO_TAM" ]; }
 
 # ---------- sistema.json (lido pela tela de Diagnóstico e de Modelo) ----------
@@ -169,8 +207,8 @@ escrever_sistema() {
     modelos+="${modelos:+,}{\"id\":\"$id\",\"nome\":\"$nome\",\"descricao\":\"$desc\",\"arquivo\":\"$arq\",\"tamanho\":$tb,\"ramMin\":$ram_min,\"baixado\":$baixado,\"atual\":$([ "$id" = "$MODELO_ID" ] && echo true || echo false),\"visaoTamanho\":${vt:-0},\"visaoBaixada\":$vb}"
   done
   esc_json() { sed 's/\\/\\\\/g; s/"/\\"/g'; }
-  printf '{"versao":"%s","so":"%s","cpu":"%s","nucleos":%s,"ramTotal":%s,"ramLivre":%s,"discoLivre":%s,"pastaDados":"%s","pastaModelos":"%s","navegador":"%s","visaoLigada":%s,"visaoAtiva":%s,"temVisao":true,"modelos":[%s]}\n' \
-    "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "$MODELOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$([ "$VISAO" = 1 ] && echo true || echo false)" "$(visao_ativa && echo true || echo false)" "$modelos" \
+  printf '{"versao":"%s","so":"%s","cpu":"%s","nucleos":%s,"ramTotal":%s,"ramLivre":%s,"discoLivre":%s,"pastaDados":"%s","pastaModelos":"%s","navegador":"%s","visaoLigada":%s,"visaoAtiva":%s,"temVisao":true,"temTranscricao":%s,"transcricaoUrl":"%s","vozes":[%s],"modelos":[%s]}\n' \
+    "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "$MODELOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$([ "$VISAO" = 1 ] && echo true || echo false)" "$(visao_ativa && echo true || echo false)" "$([ -x "$VOZ_EXE" ] && echo true || echo false)" "${VOZ_PORTA:+http://127.0.0.1:$VOZ_PORTA$VOZ_CAMINHO}" "$(json_vozes)" "$modelos" \
     >"$INTERFACE/sistema.json"
 }
 preparar_interface() {
@@ -280,7 +318,8 @@ if [ "$ACAO" = diagnostico ]; then
           else av "Velocidade: $(printf '%.1f' "$tps") tokens/s (lenta; experimente --modelo leve)"; fi
         else er "Teste de geração falhou: $(echo "$resp" | head -c 200)"; fi
       else er "O motor não carregou o modelo (veja $LOG)"; fi
-      kill "$MOTOR_PID" 2>/dev/null; wait "$MOTOR_PID" 2>/dev/null; rm -f "$PIDFILE" "$PORTAFILE"
+      kill "$MOTOR_PID" 2>/dev/null; wait "$MOTOR_PID" 2>/dev/null
+  [ -n "$VOZ_PID" ] && kill "$VOZ_PID" 2>/dev/null; rm -f "$PIDFILE" "$PORTAFILE"
     fi
   else av "Modelo $(campo "$MODELO_ID" 6) ainda não baixado (será baixado ao abrir: $((TAM/1048576)) MB)"; fi
   curl -sf --max-time 5 -o /dev/null "https://api.github.com/repos/muurxdev/propons-ia/releases/latest" && ok "Internet: ok" || av "Sem internet (a IA funciona offline depois de baixada)"
@@ -345,6 +384,14 @@ if [ "$(tamanho "$ARQ")" != "$TAM" ]; then
     aviso "Não foi possível baixar a IA" "Na primeira vez é preciso internet. Verifique a conexão e abra a Própons IA de novo."; exit 1
   fi
 fi
+if [ -n "$VOZ_ID" ] && [ -x "$VOZ_EXE" ] && [ "$(tamanho "$MODELOS/$(vcampo "$VOZ_ID" 2)")" != "$(vcampo "$VOZ_ID" 3)" ]; then
+  no_terminal && echo "  Baixando a $(vcampo "$VOZ_ID" 5) (transcrição) — $(( $(vcampo "$VOZ_ID" 3) / 1048576 )) MB, uma vez só"
+  if ! ( ARQ="$MODELOS/$(vcampo "$VOZ_ID" 2)"; TAM="$(vcampo "$VOZ_ID" 3)"; SHA="$(vcampo "$VOZ_ID" 4)"; URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$(vcampo "$VOZ_ID" 2)"; baixar_modelo ); then
+    aviso "Não foi possível baixar a voz" "A Própons IA vai abrir sem transcrever áudio. Tente de novo com: propons-ia --voz"
+  fi
+elif [ -n "$VOZ_ARG" ] && [ ! -x "$VOZ_EXE" ]; then
+  aviso "Transcrição indisponível" "Neste computador ($(uname -m)) a transcrição de áudio ainda não está disponível."
+fi
 if [ "$VISAO" = 1 ] && [ "$(tamanho "$VISAO_ARQ")" != "$VISAO_TAM" ]; then
   no_terminal && echo "  Baixando o módulo de visão (ler fotos) — $((VISAO_TAM/1048576)) MB, uma vez só"
   if ! ( ARQ="$VISAO_ARQ"; TAM="$VISAO_TAM"; SHA="$VISAO_SHA"; URL="$(visao_url "$MODELO_ID")"; baixar_modelo ); then
@@ -352,12 +399,14 @@ if [ "$VISAO" = 1 ] && [ "$(tamanho "$VISAO_ARQ")" != "$VISAO_TAM" ]; then
   fi
 fi
 
+preparar_voz
 preparar_interface
 PORTA=$(porta_livre)
 CHAVE="$(head -c 18 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')"
 ( umask 077; echo "$CHAVE" >"$CHAVEFILE" )
 : >"$LOG"
 ligar_motor
+echo $$ >"$DADOS/app.pid"
 flock -u 9 2>/dev/null; exec 9>&-
 VIGIA_PID=""
 desligar() {

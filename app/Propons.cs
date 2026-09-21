@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.4.0";
+    public const string Versao = "1.5.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -101,6 +101,17 @@ class Modelo
         Normal.VisaoTamanho = 668227264; Normal.VisaoSha = "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7";
         Avancado.VisaoTamanho = 672423616; Avancado.VisaoSha = "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864";
     }
+}
+
+// ---------- vozes para transcrever áudio (whisper.cpp), baixadas no primeiro uso ----------
+static class Vozes
+{
+    public static readonly Modelo Base = new Modelo { Id = "voz-base", Nome = "Voz Base", Descricao = "rápida", Arquivo = "ggml-base-q5_1.bin", Tamanho = 59707625,
+        Url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin", Sha256 = "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898" };
+    public static readonly Modelo Small = new Modelo { Id = "voz-small", Nome = "Voz Small", Descricao = "mais precisa, mais lenta", Arquivo = "ggml-small-q5_1.bin", Tamanho = 190085487,
+        Url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin", Sha256 = "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb" };
+    public static readonly Modelo[] Todas = { Base, Small };
+    public static Modelo PorId(string id) { foreach (Modelo m in Todas) if (m.Id == id) return m; return null; }
 }
 
 // ---------- pacote anexado ao .exe ----------
@@ -336,7 +347,7 @@ class Janela : Form
             Controls.Add(web);
             CoreWebView2Environment.SetLoaderDllFolderPath(pasta);
             string args = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --renderer-process-limit=1";
-            if (Environment.GetEnvironmentVariable("PROPONS_DEPURAR") == "1") args += " --remote-debugging-port=9333"; // só para testes
+            if (Environment.GetEnvironmentVariable("PROPONS_DEPURAR") == "1") args += " --remote-debugging-port=9333 " + (Environment.GetEnvironmentVariable("PROPONS_TESTE_ARGS") ?? ""); // só para testes
             CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Raiz(), "webview"), new CoreWebView2EnvironmentOptions(args));
             await web.EnsureCoreWebView2Async(env);
             CoreWebView2Settings s = web.CoreWebView2.Settings;
@@ -352,7 +363,7 @@ class Janela : Form
             web.CoreWebView2.WebMessageReceived += Mensagem;
             web.CoreWebView2.PermissionRequested += delegate (object o, CoreWebView2PermissionRequestedEventArgs a)
             {   // a webcam só é liberada para a página da própria Própons IA (quando a pessoa toca em Câmera)
-                if (a.PermissionKind == CoreWebView2PermissionKind.Camera && a.Uri.StartsWith("http://127.0.0.1:" + porta + "/")) a.State = CoreWebView2PermissionState.Allow;
+                if ((a.PermissionKind == CoreWebView2PermissionKind.Camera || a.PermissionKind == CoreWebView2PermissionKind.Microphone) && a.Uri.StartsWith("http://127.0.0.1:" + porta + "/")) a.State = CoreWebView2PermissionState.Allow;
             };
             await Navegar(Splash());
         }
@@ -720,6 +731,44 @@ class Janela : Form
                 case "cancelarDownload": cancelarBaixar = true; dados = true; break;
                 case "ocupado": ManterAcordado(args.ContainsKey("sim") && args["sim"] is bool && (bool)args["sim"], true); dados = true; break;
                 case "apagarModelo": dados = ApagarModelo(Modelo.PorId(Arg(args, "id"))); break;
+                case "baixarVoz":
+                    Modelo vb = Vozes.PorId(Arg(args, "id"));
+                    if (vb == null) throw new Exception("voz desconhecida");
+                    if (baixandoId != null) throw new Exception("já há um download em andamento");
+                    if (AcharModelo(vb) == null) { var _vb = SoBaixar(vb); } else Evento("download-fim", Dic("id", vb.Id, "ok", true));
+                    dados = true; break;
+                case "usarVoz":
+                    if (Vozes.PorId(Arg(args, "id")) == null) throw new Exception("voz desconhecida");
+                    { Dictionary<string, object> cv = LerConfig(); cv["voz"] = Arg(args, "id"); SalvarConfig(cv); }
+                    dados = true; break;
+                case "apagarVoz":
+                    Modelo va = Vozes.PorId(Arg(args, "id"));
+                    if (va == null) throw new Exception("voz desconhecida");
+                    if (baixandoId == va.Id) throw new Exception("cancele o download antes de apagar");
+                    foreach (string a in new[] { Path.Combine(Raiz(), @"modelos\" + va.Arquivo), Path.Combine(Raiz(), @"modelos\" + va.Arquivo + ".baixando") }) try { if (File.Exists(a)) File.Delete(a); } catch { }
+                    dados = true; break;
+                case "audioInicio":
+                    { string ida = Guid.NewGuid().ToString("N"); File.WriteAllBytes(ArquivoAudio(ida, Arg(args, "ext")), new byte[0]); audios[ida] = ArquivoAudio(ida, Arg(args, "ext")); dados = ida; }
+                    break;
+                case "audioParte":
+                    {
+                        string ida = Arg(args, "id"), arqA;
+                        if (ida == null || !audios.TryGetValue(ida, out arqA)) throw new Exception("áudio desconhecido");
+                        byte[] parte = Convert.FromBase64String(Arg(args, "dados") ?? "");
+                        await Task.Run(delegate { using (FileStream fa = new FileStream(arqA, FileMode.Append, FileAccess.Write)) fa.Write(parte, 0, parte.Length); });
+                        if (new FileInfo(arqA).Length > 200L << 20) throw new Exception("áudio grande demais");
+                        dados = true;
+                    }
+                    break;
+                case "transcrever":
+                    {
+                        string ida = Arg(args, "id"), arqA;
+                        if (ida == null || !audios.TryGetValue(ida, out arqA)) throw new Exception("áudio desconhecido");
+                        audios.Remove(ida);
+                        try { dados = await Transcrever(arqA); }
+                        finally { try { File.Delete(arqA); File.Delete(arqA + ".txt"); } catch { } }
+                    }
+                    break;
                 case "visao":
                     if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
                     { var _v = LigarVisao(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); }
@@ -777,7 +826,67 @@ class Janela : Form
                 "baixado", AcharModelo(m) != null, "atual", m.Id == modelo.Id, "visaoTamanho", m.VisaoTamanho, "visaoBaixada", AcharModelo(m.Visao()) != null));
         string wv = "?"; try { wv = CoreWebView2Environment.GetAvailableBrowserVersionString(); } catch { }
         return Dic("ramTotal", (long)ms.total, "ramLivre", (long)ms.avail, "cpu", cpu, "nucleos", Environment.ProcessorCount, "discoLivre", disco,
-            "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"), "visaoLigada", VisaoLigada(), "visaoAtiva", visaoAtiva, "temVisao", true);
+            "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"), "visaoLigada", VisaoLigada(), "visaoAtiva", visaoAtiva, "temVisao", true,
+            "temTranscricao", File.Exists(Path.Combine(pasta, @"voz\whisper-cli.exe")), "vozes", ListaVozes());
+    }
+
+    // ---------- transcrição de áudio (whisper.cpp) ----------
+    readonly Dictionary<string, string> audios = new Dictionary<string, string>();
+    static string ArquivoAudio(string id, string ext)
+    {
+        if (ext == null || !Regex.IsMatch(ext, "^(wav|mp3|m4a|ogg|flac)$")) ext = "wav";
+        return Path.Combine(Path.GetTempPath(), "propons-audio-" + id + "." + ext);
+    }
+    Modelo VozAtual() { object v; Dictionary<string, object> c = LerConfig(); return (c.TryGetValue("voz", out v) ? Vozes.PorId(v as string) : null) ?? Vozes.Base; }
+    List<object> ListaVozes()
+    {
+        List<object> l = new List<object>(); Modelo atual = VozAtual();
+        foreach (Modelo v in Vozes.Todas) l.Add(Dic("id", v.Id, "nome", v.Nome, "descricao", v.Descricao, "tamanho", v.Tamanho, "baixado", AcharModelo(v) != null, "atual", v.Id == atual.Id));
+        return l;
+    }
+
+    // roda o whisper-cli (prioridade baixa) e devolve o texto; o progresso vai para a página
+    async Task<object> Transcrever(string arquivo)
+    {
+        Modelo voz = VozAtual(); string modeloVoz = AcharModelo(voz);
+        if (modeloVoz == null) throw new Exception("a voz " + voz.Nome + " não está baixada");
+        string exe = Path.Combine(pasta, @"voz\whisper-cli.exe");
+        if (!File.Exists(exe)) throw new Exception("transcrição não disponível nesta versão");
+        int threads = Math.Max(1, Math.Min(8, Environment.ProcessorCount / 2));
+        ProcessStartInfo psi = new ProcessStartInfo(exe, "-m \"" + modeloVoz + "\" -f \"" + arquivo + "\" -l pt -nt -pp -mc 0 -t " + threads + " -otxt -of \"" + arquivo + "\"");
+        psi.WorkingDirectory = Path.Combine(pasta, "voz"); psi.UseShellExecute = false; psi.CreateNoWindow = true;
+        psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
+        ManterAcordado(true);
+        DateTime t0 = DateTime.Now;
+        try
+        {
+            string erro = await Task.Run(delegate
+            {
+                StringBuilder err = new StringBuilder();
+                using (Process p = new Process { StartInfo = psi })
+                {
+                    p.ErrorDataReceived += delegate (object o, DataReceivedEventArgs a)
+                    {
+                        if (a.Data == null) return;
+                        Match mm = Regex.Match(a.Data, @"progress\s*=\s*(\d+)%");
+                        if (mm.Success) { double v = int.Parse(mm.Groups[1].Value) / 100.0; BeginInvoke((Action)delegate { Evento("transcricao", Dic("pct", v)); }); }
+                        else lock (err) err.AppendLine(a.Data);
+                    };
+                    p.OutputDataReceived += delegate { };
+                    p.Start(); p.BeginErrorReadLine(); p.BeginOutputReadLine();
+                    Job.Prender(p);
+                    try { p.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
+                    p.WaitForExit();
+                    return p.ExitCode == 0 ? null : err.ToString();
+                }
+            });
+            string txt = arquivo + ".txt";
+            if (!File.Exists(txt)) throw new Exception("não foi possível transcrever este áudio" + (erro != null && erro.Contains("failed to read") ? " (formato não reconhecido)" : ""));
+            string texto = File.ReadAllText(txt, Encoding.UTF8).Replace("\r", "").Trim();
+            texto = Regex.Replace(texto, @"\s*\n\s*", " ").Trim();
+            return Dic("texto", texto, "segundos", (DateTime.Now - t0).TotalSeconds);
+        }
+        finally { ManterAcordado(false); }
     }
 
     // ---------- gerenciar modelos ----------

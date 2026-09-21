@@ -9,8 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "1.4.0"
-    CURRENT_PROJECT_VERSION: "10400"
+    MARKETING_VERSION: "1.5.0"
+    CURRENT_PROJECT_VERSION: "10500"
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual
 targets:
@@ -50,6 +50,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
         UIFileSharingEnabled: true
+        NSMicrophoneUsageDescription: A Própons IA usa o microfone quando você toca em 🎤 para transformar sua fala em texto.
+        NSSpeechRecognitionUsageDescription: A Própons IA transforma sua fala em texto no próprio iPhone para você mandar perguntas por voz.
         LSSupportsOpeningDocumentsInPlace: true
     settings:
       base:

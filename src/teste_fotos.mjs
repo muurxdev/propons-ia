@@ -17,7 +17,7 @@ for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 const plat = await js('PLATAFORMA.tipo');
 // 1) o "+"
 await js('nova(); $("#anexar").click(); 1'); await espera(700);
-ok('"+" abre a folha com câmera, fotos, arquivos e modelos', (await js(`[...document.querySelectorAll('.opcoes [data-op]')].map(b=>b.dataset.op).join(',')`)) === 'camera,fotos,arquivos,modelos');
+ok('"+" abre a folha com câmera, fotos, arquivos, áudio e modelos', (await js(`[...document.querySelectorAll('.opcoes [data-op]')].map(b=>b.dataset.op).join(',')`)) === 'camera,fotos,arquivos,audio,modelos');
 await espera(600);
 ok('"+" mostra os modelos para trocar', (await js(`document.querySelectorAll('#maisModelos .lm').length`)) >= 2, await js(`[...document.querySelectorAll('#maisModelos .lm')].map(b=>b.innerText.replace(/\\s+/g,' ')).join(' | ')`));
 await foto('f1-mais');

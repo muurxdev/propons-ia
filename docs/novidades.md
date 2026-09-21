@@ -1,20 +1,20 @@
-## Novidades da 1.4.0
+## Novidades da 1.5.0
 
-**Botão "+" e a IA lê fotos.**
+**Fale em vez de digitar: transcrição de áudio até 10 minutos.**
 
-- **"+" na caixa de mensagem** abre uma folha com:
-  - **Câmera:** no celular abre a câmera; no PC, a webcam;
-  - **Fotos:** escolhe da galeria;
-  - **Arquivos:** textos e códigos;
-  - **Modelos:** troca ou baixa o modelo ali mesmo.
-- **A IA entende fotos e prints:** exercício do caderno, conta no quadro, gráfico, print de código…
-  - Na primeira foto ela pede para ligar o **módulo de visão**. Ele é baixado uma vez só: 205 MB no Leve, cerca de 670 MB no Normal e no Avançado.
-  - As fotos são reduzidas antes de ir para a IA (mais rápido). No histórico fica só uma miniatura.
-  - A visão liga e desliga em **Ajustes → Modelos de IA**, onde também dá para apagar o módulo.
-  - **Linux:** `propons-ia --visao` liga a visão e `propons-ia --sem-visao` desliga.
-  - **iPhone:** ler fotos ainda não está disponível.
+- **Botão 🎤** ao lado de enviar: grave sua pergunta ou uma explicação do professor.
+  - Enquanto grava, aparecem o tempo, o limite de 10:00, o nível do som e os botões cancelar e **Transcrever**.
+  - O texto cai na caixa para você conferir antes de enviar.
+- **"+" → Áudio:** transcreve um arquivo (mp3, m4a, wav, ogg…) de até 10 minutos. Se for mais longo, avisa e transcreve os primeiros 10.
+- Tudo roda **no aparelho**, sem internet depois de baixar a voz:
+  - **Voz Base** (57 MB, rápida, padrão) ou **Voz Small** (190 MB, mais precisa), em Ajustes → Modelos de IA;
+  - no PC, 10 minutos de áudio levam uns 30 segundos;
+  - **Linux:** `propons-ia --voz` (ou `--voz small`) liga a transcrição. Disponível no x86_64;
+  - **iPhone:** usa o reconhecimento de fala do próprio iOS.
+- Com a tela apagada, a transcrição continua (Android).
+- **Linux:** `propons-ia --parar` agora desliga tudo (antes o vigia religava o motor).
 
-Da 1.3: interface fluida e folhas que sobem de baixo (arraste para fechar).
+Da 1.4: botão **"+"** com câmera, fotos, arquivos e modelos, e a IA **lê fotos**.
 
 ## Instalar
 

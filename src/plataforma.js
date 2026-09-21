@@ -158,6 +158,32 @@ const PLATAFORMA = (() => {
     // IA respondendo: o app mantém o aparelho acordado (tela apagada no celular, suspensão no PC)
     ocupado(sim) { if (tipo === 'android' || tipo === 'windows') pedir('ocupado', { sim: !!sim }, 3000).catch(() => {}); },
     podeCompartilhar: tipo === 'android' || tipo === 'ios',
+    // transcrever áudio: a página manda o áudio em partes (base64) e o app roda o whisper (no iPhone, o reconhecimento de voz do iOS)
+    temTranscricao: tipo === 'windows' || tipo === 'android' || tipo === 'ios',
+    urlTranscricao: '',
+    async transcrever(bytes, ext, aoEnviar) {
+      if (tipo === 'web') {   // Linux: whisper-server local num endereço secreto (vem no sistema.json)
+        if (!this.urlTranscricao) throw new Error('transcrição desligada: rode propons-ia --voz');
+        const f = new FormData();
+        f.append('file', new Blob([bytes], { type: 'audio/wav' }), 'audio.wav'); f.append('response_format', 'json'); f.append('language', 'pt');
+        if (aoEnviar) aoEnviar(1);
+        const r = await fetch(this.urlTranscricao, { method: 'POST', body: f });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json(); return { texto: String(j.text || '').replace(/\s*\n\s*/g, ' ').trim() };
+      }
+      const id = await pedir('audioInicio', { ext: ext || 'wav' }, 10000);
+      const PARTE = 768 * 1024;
+      for (let i = 0; i < bytes.length; i += PARTE) {
+        const pedaco = bytes.subarray(i, i + PARTE);
+        let bin = ''; for (let j = 0; j < pedaco.length; j += 0x8000) bin += String.fromCharCode.apply(null, pedaco.subarray(j, j + 0x8000));
+        await pedir('audioParte', { id, dados: btoa(bin) }, 60000);
+        if (aoEnviar) aoEnviar(Math.min(1, (i + PARTE) / bytes.length));
+      }
+      return pedir('transcrever', { id }, 60 * 60000);
+    },
+    baixarVoz(id) { return pedir('baixarVoz', { id }, 10000); },
+    usarVoz(id) { return pedir('usarVoz', { id }, 5000); },
+    apagarVoz(id) { return pedir('apagarVoz', { id }, 15000); },
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },
     abrirLink(url) { if (tipo === 'web' || tipo === 'windows') window.open(url, '_blank', 'noopener'); else pedir('link', { url }, 3000).catch(() => {}); },
