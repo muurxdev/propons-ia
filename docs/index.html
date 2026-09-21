@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Própons IA — Baixar</title>
-<meta name="description" content="IA de estudos que roda no seu aparelho. Baixe para Android, iPhone, Windows e Linux.">
+<meta name="description" content="IA de estudos que roda no seu aparelho. Baixe para Android, iPhone, Windows, Mac e Linux.">
 <link rel="icon" href="logo.png">
 <style>
 :root{--fundo:#f7f6fb;--cartao:#fff;--texto:#1d1b26;--suave:#6b6878;--borda:#e6e3ef;--roxo:#7c5cff;--roxo2:#6a48f5;--claro:#efeaff}
@@ -79,6 +79,13 @@ footer a{color:var(--roxo)}
   <ol><li>Abra o arquivo. Se o Windows avisar, toque em <b>Mais informações → Executar assim mesmo</b>. Funciona também direto do pendrive.</li></ol>
 </section>
 
+<section class="cartao" data-so="mac">
+  <div class="topo"><h2>Mac</h2><span class="req">macOS 12+ · Apple Silicon e Intel</span></div>
+  <a class="botao" href="https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Mac.zip" download>Baixar para Mac <span id="tam-mac"></span></a>
+  <ol><li>Abra o .zip e arraste a <b>Própons IA</b> para <b>Aplicativos</b>.</li><li>Na primeira vez: botão direito → <b>Abrir</b> → <b>Abrir</b> (ou Ajustes do Sistema → Privacidade e Segurança → <b>Abrir Mesmo Assim</b>).</li></ol>
+  <a class="botao sec" href="https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-mac.md">Passo a passo do Mac</a>
+</section>
+
 <section class="cartao" data-so="linux">
   <div class="topo"><h2>Linux</h2><span class="req">Ubuntu, Debian, Kali, Fedora, Arch…</span></div>
   <p class="req" style="margin:10px 0 0">Cole no terminal:</p>
@@ -90,7 +97,7 @@ footer a{color:var(--roxo)}
 </main>
 <script>
 (function () {
-  var ua = navigator.userAgent, so = /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1) ? 'ios' : /windows/i.test(ua) ? 'windows' : /linux|x11/i.test(ua) ? 'linux' : '';
+  var ua = navigator.userAgent, so = /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1) ? 'ios' : /macintosh|mac os x/i.test(ua) ? 'mac' : /windows/i.test(ua) ? 'windows' : /linux|x11/i.test(ua) ? 'linux' : '';
   var seu = so && document.querySelector('[data-so="' + so + '"]');
   if (seu) { seu.classList.add('seu'); seu.querySelector('.topo').insertAdjacentHTML('beforeend', '<span class="selo">seu aparelho</span>'); document.querySelector('header').after(seu); }
   document.getElementById('baixarApk').addEventListener('click', function () { document.getElementById('dicaApk').hidden = false; });
@@ -104,7 +111,7 @@ footer a{color:var(--roxo)}
     if (!r) return;
     document.getElementById('versao').textContent = 'versão ' + r.tag_name.replace(/^v/, '');
     (r.assets || []).forEach(function (a) {
-      var id = a.name === 'Propons-IA-Android.apk' ? 'tam-apk' : a.name === 'Propons-IA-Windows.exe' ? 'tam-exe' : '';
+      var id = a.name === 'Propons-IA-Android.apk' ? 'tam-apk' : a.name === 'Propons-IA-Windows.exe' ? 'tam-exe' : a.name === 'Propons-IA-Mac.zip' ? 'tam-mac' : '';
       if (id) document.getElementById(id).textContent = '(' + Math.round(a.size / 1048576) + ' MB)';
     });
   }).catch(function () {});

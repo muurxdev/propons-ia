@@ -2,7 +2,7 @@
 
 <h1 align="center">Própons IA</h1>
 
-<p align="center">IA de estudos que roda no seu aparelho — Windows, Linux, Android e iPhone.<br>
+<p align="center">IA de estudos que roda no seu aparelho — Windows, Mac, Linux, Android e iPhone.<br>
 Chat com histórico, código completo com cores, anexar arquivos e cálculo exato de algoritmos. Funciona offline.</p>
 
 ---
@@ -14,6 +14,7 @@ Chat com histórico, código completo com cores, anexar arquivos e cálculo exat
 | | |
 |---|---|
 | **Windows 10/11** | baixe **[Propons-IA-Windows.exe](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Windows.exe)** e abra — funciona direto do pendrive, sem instalar |
+| **Mac (macOS 12+)** | baixe **[Propons-IA-Mac.zip](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Mac.zip)**, arraste para Aplicativos e abra com botão direito → Abrir — [passo a passo](docs/instalar-mac.md) |
 | **Android 9+** | abra **[muurxdev.github.io/propons-ia/](https://muurxdev.github.io/propons-ia/)** no celular e toque em **Baixar APK** — [passo a passo](docs/instalar-android.md) |
 | **iPhone / iPad (iOS 16+)** | pelo **SideStore** ou **AltStore** — [passo a passo](docs/instalar-ios.md) |
 | **Linux** | um comando (abaixo) ou `.deb` / `.rpm` |
@@ -90,6 +91,7 @@ Na **primeira vez** em cada aparelho ela baixa o modelo (~0,5 / 1,2 / 2,7 GB) co
 | `app/` | Windows: programa C#/WebView2 e o empacotador do `.exe` único |
 | `linux/` | Inicializador, `install.sh`, geração de `.deb/.rpm/.tar.gz`, `PKGBUILD`, testes em 10 distros |
 | `android/` | App Kotlin (WebView + llama-server como processo), scripts de preparo, compilação e teste no emulador |
+| `mac/` | App do Mac (Swift/AppKit + WKWebView + llama-server), montagem do .app e autoteste no CI |
 | `ios/` | App SwiftUI (WKWebView + llama.cpp dentro do app via `llama.xcframework`), projeto XcodeGen e teste do motor |
 | `.github/workflows/` | Compila todas as plataformas e publica a release ao criar uma tag `v*` |
 
