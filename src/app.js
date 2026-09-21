@@ -457,6 +457,7 @@ async function responder(conv, continuacao) {
   if (alvo) alvo.classList.add('digitando');
   const ctrl = new AbortController();
   geracao = { conv, ctrl, el: alvo };
+  PLATAFORMA.ocupado(true);
   $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
 
   const inicio = msg.texto || '';
@@ -481,6 +482,7 @@ async function responder(conv, continuacao) {
   } finally {
     clearTimeout(tRender);
     geracao = null;
+    PLATAFORMA.ocupado(false);
     $('#enviar').classList.remove('gerando'); $('#enviar').title = 'Enviar'; ajustar();
   }
   novo = novo.replace(/<think>[\s\S]*?(<\/think>|$)/g, '');

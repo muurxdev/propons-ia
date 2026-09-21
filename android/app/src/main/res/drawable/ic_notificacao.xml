@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ícone da notificação (monocromático): o "p." da logo -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="64" android:viewportHeight="64">
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="7" android:strokeLineCap="round"
+        android:pathData="M24,50V24.5" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="7"
+        android:pathData="M34.5,20.5a9.5,9.5 0,1 1,0 19a9.5,9.5 0,1 1,0 -19z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M47,43.4a3.6,3.6 0,1 1,0 7.2a3.6,3.6 0,1 1,0 -7.2z" />
+</vector>

@@ -4,7 +4,7 @@
 # numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.2.0"
+VERSAO="1.2.1"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"
@@ -166,7 +166,24 @@ preparar_interface() {
 }
 
 # ---------- download do modelo ----------
+# enquanto baixa, o computador não entra em suspensão (a tela pode apagar normalmente)
+acordado_pid=""
+manter_acordado() {
+  tem systemd-inhibit || return 0
+  systemd-inhibit --what=sleep:idle --who="Própons IA" --why="Baixando a IA" --mode=block tail --pid=$$ -f /dev/null >/dev/null 2>&1 &
+  acordado_pid=$!
+}
+soltar_acordado() { [ -n "$acordado_pid" ] && kill "$acordado_pid" 2>/dev/null; acordado_pid=""; }
+
 baixar_modelo() {
+  manter_acordado
+  baixar_modelo_dentro; local r=$?
+  soltar_acordado
+  if [ $r = 0 ]; then tem notify-send && notify-send -i propons-ia "Própons IA" "IA baixada: $(campo "$MODELO_ID" 6) está pronta para usar." 2>/dev/null
+  else tem notify-send && notify-send -i propons-ia "Própons IA" "O download parou. Abra a Própons IA de novo para continuar de onde parou." 2>/dev/null; fi
+  return $r
+}
+baixar_modelo_dentro() {
   local parcial="$ARQ.baixando" livre tent=0 cod
   livre=$(df -PB1 "$MODELOS" | awk 'NR==2 {print $4}')
   if [ -n "$livre" ] && [ "$livre" -lt $((TAM - $(tamanho "$parcial") + 400*1024*1024)) ]; then
@@ -189,8 +206,9 @@ baixar_modelo() {
     fi
     [ "${cod:-0}" = 33 ] && rm -f "$parcial"          # servidor não aceitou continuar: recomeça do zero
     if [ "$(tamanho "$parcial")" -gt "$antes" ]; then tent=0; else tent=$((tent+1)); fi
-    [ $tent -ge 4 ] && return 1
-    [ "${cod:-0}" != 0 ] && sleep 2
+    # rede caiu ou mudou: espera voltar (até ~4 min sem nenhum progresso)
+    [ $tent -ge 9 ] && return 1
+    [ "${cod:-0}" != 0 ] && sleep $(( tent * 3 > 30 ? 30 : tent * 3 + 2 ))
   done
   no_terminal && echo "  Conferindo o download…"
   if [ "$(sha256sum "$parcial" | cut -d' ' -f1)" != "$SHA" ]; then

@@ -5,6 +5,7 @@ import os
 
 @main
 struct ProponsIAApp: App {
+    @UIApplicationDelegateAdaptor(Delegado.self) var delegado   // downloads de fundo terminados com o app fechado
     var body: some Scene {
         WindowGroup {
             // tela cheia: a página usa env(safe-area-inset-*) para o notch e a barra de início; só o teclado encolhe a tela
@@ -43,7 +44,6 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     private var trocando = false
     private var cancelarBaixar = false
     private var baixandoId: String?
-    private var baixadorAtual: Baixador?
     private let fm = FileManager.default
 
     private lazy var suporte: URL = {
@@ -76,6 +76,11 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         if #available(iOS 16.4, *) { web.isInspectable = true }
         let id = UserDefaults.standard.string(forKey: "modelo")
         modelo = ModeloIA.todos.first { $0.id == id && $0.id != "avancado" } ?? (ram < 5_500_000_000 ? ModeloIA.todos[0] : ModeloIA.todos[1])
+        // a GPU não pode ser usada com o app fora da tela: se sair no meio de uma resposta, ela é interrompida
+        // (e o botão "Continuar" segue de onde parou quando voltar)
+        NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.motor.pedirParada()
+        }
         mostrarSplash()
         Task { await iniciar() }
         return web
@@ -100,6 +105,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
                 do { _ = try await baixar(modelo, naTela: true) }
                 catch { await mostrarFalha(titulo: "Sem conexão para baixar a IA", texto: mensagem(erro: error)); continue }
             }
+            await esperarAtivo()
             splash(-1, "Iniciando", "")
             do {
                 try await carregarMotor()
@@ -115,6 +121,12 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             }
         }
     }
+    /// o download pode terminar com a tela apagada; a IA só é carregada (GPU) com o app na tela
+    private func esperarAtivo() async {
+        while !(await MainActor.run { UIApplication.shared.applicationState == .active }) {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+    }
     private func mostrarFalha(titulo: String, texto: String) async {
         splash(-2, titulo, texto)
         await withCheckedContinuation { c in aoTentar = c }
@@ -125,7 +137,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         if s == "sem espaço" { return "Libere cerca de \((modelo.tamanho >> 20) + 400) MB no iPhone e tente de novo." }
         if s == "corrompido" { return "O arquivo veio com defeito e foi descartado. Tente de novo." }
         if s == "cancelado" { return "Download cancelado." }
-        return "Na primeira vez é preciso internet (de preferência Wi-Fi). Mantenha o app aberto durante o download."
+        return "Na primeira vez é preciso internet (de preferência Wi-Fi). O download continua mesmo com a tela apagada."
     }
 
     private func carregarMotor() async throws {
@@ -150,32 +162,37 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     private func tamanho(_ u: URL) -> Int64 { ((try? fm.attributesOfItem(atPath: u.path))?[.size] as? NSNumber)?.int64Value ?? 0 }
     private func espacoLivre(_ u: URL) -> Int64 { ((try? u.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage) ?? Int64.max }
 
-    // download com retomada + SHA-256
+    // download pelo iOS em segundo plano (continua com a tela apagada) + retomada + SHA-256
     private func baixar(_ m: ModeloIA, naTela: Bool) async throws -> URL {
         let final = pastaModelos.appendingPathComponent(m.arquivo), parcial = pastaModelos.appendingPathComponent(m.arquivo + ".baixando")
-        if espacoLivre(pastaModelos) < m.tamanho - tamanho(parcial) + (400 << 20) {
+        let completo = tamanho(parcial) == m.tamanho
+        if !completo && espacoLivre(pastaModelos) < m.tamanho + (400 << 20) {
             throw NSError(domain: "propons", code: 1, userInfo: [NSLocalizedDescriptionKey: "sem espaço"])
         }
+        cancelarBaixar = false
+        Baixador.pedirPermissao()
+        let cancelado = NSError(domain: "propons", code: 3, userInfo: [NSLocalizedDescriptionKey: "cancelado"])
         var falhas = 0
         var ultimo = Date.distantPast
-        let b = Baixador { [weak self] feito in
-            guard let self = self, Date().timeIntervalSince(ultimo) > 0.25 else { return }
-            ultimo = Date(); let v = Double(feito) / Double(m.tamanho)
-            if naTela { self.splash(v, "Baixando a IA", "Só na primeira vez · (feito >> 20) de (m.tamanho >> 20) MB") }
-            else { self.evento("download", ["id": m.id, "pct": v, "feito": feito, "total": m.tamanho, "nome": m.nome]) }
-        }
-        baixadorAtual = b
-        defer { baixadorAtual = nil }
-        let cancelado = NSError(domain: "propons", code: 3, userInfo: [NSLocalizedDescriptionKey: "cancelado"])
-        while tamanho(parcial) < m.tamanho {
-            if cancelarBaixar { throw cancelado }
-            let ja = tamanho(parcial)
-            do { try await b.baixar(m.url, para: parcial, desde: ja); falhas = 0 }
-            catch {
+        if !completo {
+            if tamanho(parcial) > 0 { try? fm.removeItem(at: parcial) }   // sobra do jeito antigo (não serve para a retomada do iOS)
+            while true {
                 if cancelarBaixar { throw cancelado }
-                falhas = tamanho(parcial) > ja ? 0 : falhas + 1
-                if falhas >= 4 { throw error }
-                try? await Task.sleep(nanoseconds: UInt64(2_000_000_000 * (falhas + 1)))
+                do {
+                    try await Baixador.compartilhado.baixar(m.url, para: parcial) { [weak self] feito, _ in
+                        guard let self = self, Date().timeIntervalSince(ultimo) > 0.25 else { return }
+                        ultimo = Date(); let v = Double(feito) / Double(m.tamanho)
+                        if naTela { self.splash(v, "Baixando a IA", "Só na primeira vez · \(feito >> 20) de \(m.tamanho >> 20) MB · pode apagar a tela") }
+                        else { self.evento("download", ["id": m.id, "pct": v, "feito": feito, "total": m.tamanho, "nome": m.nome]) }
+                    }
+                    if tamanho(parcial) == m.tamanho { break }
+                    throw URLError(.cannotDecodeContentData)
+                } catch {
+                    if cancelarBaixar { throw cancelado }
+                    falhas += 1
+                    if falhas >= 6 { throw error }
+                    try? await Task.sleep(nanoseconds: UInt64(3_000_000_000 * falhas))
+                }
             }
         }
         if naTela { splash(-1, "Verificando o download", "") }
@@ -218,12 +235,13 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             if baixandoId != nil || trocando { erro(id, "já há um download em andamento"); return }
             responder(id, true)
             if acharModelo(m) != nil { evento("download-fim", ["id": m.id, "ok": true]) } else { Task { await soBaixar(m) } }
-        case "cancelarDownload": cancelarBaixar = true; baixadorAtual?.cancelar(); responder(id, true)
+        case "cancelarDownload": cancelarBaixar = true; Baixador.compartilhado.cancelar(); responder(id, true)
         case "apagarModelo":
             guard let m = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }) else { erro(id, "modelo desconhecido"); return }
             if m.id == modelo.id { erro(id, "este modelo está em uso; troque de modelo antes de apagar"); return }
             if baixandoId == m.id { erro(id, "cancele o download antes de apagar"); return }
             try? fm.removeItem(at: pastaModelos.appendingPathComponent(m.arquivo)); try? fm.removeItem(at: pastaModelos.appendingPathComponent(m.arquivo + ".baixando"))
+            Baixador.compartilhado.esquecerRetomada(pastaModelos.appendingPathComponent(m.arquivo + ".baixando"))
             if acharModelo(m) == nil { responder(id, true) } else { erro(id, "não foi possível apagar o arquivo") }
         case "verificarModelos": DispatchQueue.global(qos: .userInitiated).async { self.responder(id, self.verificarModelos()) }
         case "abrirLoja": abrirLoja(id)
@@ -264,6 +282,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             }
         }
         evento("motor", ["estado": "trocando"])
+        await esperarAtivo()
         do { try await carregarMotor(); evento("motor", ["estado": "pronto", "nome": novo.nome]) }
         catch { modelo = antigo; try? await carregarMotor(); evento("motor", ["estado": "erro", "mensagem": error.localizedDescription]) }
     }

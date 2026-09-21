@@ -151,6 +151,8 @@ const PLATAFORMA = (() => {
     podeAtualizarSozinho: tipo === 'windows' || tipo === 'android',
     atualizar(versao) { return pedir('atualizar', { versao }, 60 * 60000); },
     abrirLoja() { return pedir('abrirLoja', {}, 5000); },
+    // IA respondendo: o app mantém o aparelho acordado (tela apagada no celular, suspensão no PC)
+    ocupado(sim) { if (tipo === 'android' || tipo === 'windows') pedir('ocupado', { sim: !!sim }, 3000).catch(() => {}); },
     podeCompartilhar: tipo === 'android' || tipo === 'ios',
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },

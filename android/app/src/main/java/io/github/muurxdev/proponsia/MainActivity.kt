@@ -192,6 +192,7 @@ class MainActivity : Activity() {
                     splash(-2.0, tituloFalha(f), mensagemFalha(f)); esperarTentar(); continue
                 }
             }
+            if (desligando) return
             splash(-1.0, "Iniciando", "")
             val erro = ligarMotor(arq)
             if (erro == null) { naSplash = false; ui.post { web.loadUrl("http://127.0.0.1:$porta/#k=$chave") }; return }
@@ -206,7 +207,7 @@ class MainActivity : Activity() {
         splash(-1.0, "Tentando de novo", "")
     }
 
-    private fun tituloFalha(f: String) = when (f) { "sem espaço" -> "Pouco espaço no celular"; "corrompido" -> "Download com defeito"; else -> "Sem conexão para baixar a IA" }
+    private fun tituloFalha(f: String) = when (f) { "sem espaço" -> "Pouco espaço no celular"; "corrompido" -> "Download com defeito"; "cancelado" -> "Download cancelado"; else -> "Sem conexão para baixar a IA" }
     private fun mensagemFalha(f: String, m: Modelo = modelo) = when (f) {
         "cancelado" -> "Download cancelado."
         "sem espaço" -> "A IA precisa de cerca de ${(m.tamanho shr 20) + 400} MB livres no celular."
@@ -220,6 +221,20 @@ class MainActivity : Activity() {
     private fun baixar(m: Modelo, splash: Boolean): File {
         val final = File(pastaModelos, m.arquivo); val parcial = File(pastaModelos, m.arquivo + ".baixando")
         if (pastaModelos.usableSpace < m.tamanho - parcial.length() + (400L shl 20)) throw Exception("sem espaço")
+        cancelarBaixar = false
+        pedirNotificacoes()
+        val titulo = if (splash) "Baixando a IA" else "Baixando ${m.nome}"
+        ServicoDownload.aoCancelar = { cancelarBaixar = true }
+        ServicoDownload.iniciar(this, titulo, "Preparando…", parcial.length().toDouble() / m.tamanho)
+        var sucesso = false
+        try { return baixarComServico(m, splash, final, parcial, titulo).also { sucesso = true } }
+        finally {
+            if (sucesso) ServicoDownload.terminar(this, if (emPrimeiroPlano) null else "IA baixada", "${m.nome} está pronto para usar.")
+            else ServicoDownload.terminar(this, if (emPrimeiroPlano || cancelarBaixar) null else "O download parou", "Abra a Própons IA para continuar de onde parou.")
+        }
+    }
+
+    private fun baixarComServico(m: Modelo, splash: Boolean, final: File, parcial: File, titulo: String): File {
         var falhas = 0; var ultimo = 0L
         while (parcial.length() < m.tamanho) {
             val antes = parcial.length()
@@ -240,6 +255,7 @@ class MainActivity : Activity() {
                             val agora = System.currentTimeMillis()
                             if (agora - ultimo > 250) {
                                 ultimo = agora; val v = ja.toDouble() / m.tamanho
+                                ServicoDownload.progresso(this, titulo, "${ja shr 20} de ${m.tamanho shr 20} MB · ${(v * 100).toInt()}%", v)
                                 if (splash) splash(v, "Baixando a IA", "Só na primeira vez · ${ja shr 20} de ${m.tamanho shr 20} MB")
                                 else evento("download", JSONObject().put("id", m.id).put("pct", v).put("feito", ja).put("total", m.tamanho).put("nome", m.nome))
                             }
@@ -250,10 +266,13 @@ class MainActivity : Activity() {
                 if (e.message == "cancelado") throw e
                 if (pastaModelos.usableSpace < (64L shl 20)) throw Exception("sem espaço")
                 if (parcial.length() > antes) falhas = 0 else falhas++
-                if (falhas >= 4) throw Exception("sem conexão")
-                Thread.sleep(2000L * (falhas + 1))
+                // tela apagada ou troca de rede: espera a conexão voltar (até ~4 min sem nenhum progresso)
+                if (falhas >= 9) throw Exception("sem conexão")
+                ServicoDownload.progresso(this, titulo, "Esperando a internet voltar…", parcial.length().toDouble() / m.tamanho)
+                for (i in 0 until (3 * (falhas + 1)).coerceAtMost(30)) { if (cancelarBaixar) throw Exception("cancelado"); Thread.sleep(1000) }
             }
         }
+        ServicoDownload.progresso(this, titulo, "Conferindo o arquivo…", -1.0)
         if (splash) splash(-1.0, "Verificando o download", "")
         else evento("download", JSONObject().put("id", m.id).put("pct", 1.0).put("feito", m.tamanho).put("total", m.tamanho).put("nome", m.nome).put("fase", "verificando"))
         if (sha256(parcial) != m.sha256) { parcial.delete(); throw Exception("corrompido") }
@@ -359,6 +378,7 @@ class MainActivity : Activity() {
                             "apagarModelo" -> apagarModelo(modeloDe(args))
                             "verificarModelos" -> verificarModelos()
                             "atualizar" -> atualizar(args.optString("versao"))
+                            "ocupado" -> { ocupado(args.optBoolean("sim")); true }
                             "compartilhar" -> { val t = args.optString("texto"); ui.post { compartilhar(t) }; true }
                             else -> throw Exception("ação desconhecida: $acao")
                         }
@@ -371,7 +391,7 @@ class MainActivity : Activity() {
 
     private fun enviarParaPagina(obj: JSONObject) {
         val js = "window.__proponsMsg && window.__proponsMsg(" + JSONObject.quote(obj.toString()) + ")"
-        ui.post { web.evaluateJavascript(js, null) }
+        ui.post { if (!isDestroyed) web.evaluateJavascript(js, null) }
     }
     private fun responder(id: Any?, dados: Any?) = enviarParaPagina(JSONObject().put("t", "resposta").put("id", id).put("ok", true).put("dados", dados ?: JSONObject.NULL))
     private fun responderErro(id: Any?, erro: String) = enviarParaPagina(JSONObject().put("t", "resposta").put("id", id).put("ok", false).put("erro", erro))
@@ -460,15 +480,22 @@ class MainActivity : Activity() {
             c.setRequestProperty("User-Agent", "ProponsIA-Android")
             if (c.responseCode !in 200..299) throw Exception("HTTP ${c.responseCode} ao baixar a versão nova")
             val total = c.contentLengthLong
-            c.inputStream.use { ins -> FileOutputStream(apk).use { out ->
+            pedirNotificacoes()
+            ServicoDownload.aoCancelar = null
+            ServicoDownload.iniciar(this, "Baixando a Própons IA $versao", "Preparando…")
+            try { c.inputStream.use { ins -> FileOutputStream(apk).use { out ->
                 val buf = ByteArray(1 shl 18); var ja = 0L; var ultimo = 0L
                 while (true) {
                     val n = ins.read(buf); if (n < 0) break
                     out.write(buf, 0, n); ja += n
                     val agora = System.currentTimeMillis()
-                    if (agora - ultimo > 250) { ultimo = agora; evento("atualizacao", JSONObject().put("fase", "baixando").put("pct", if (total > 0) ja.toDouble() / total else 0.0).put("feito", ja).put("total", total)) }
+                    if (agora - ultimo > 250) {
+                        ultimo = agora; val v = if (total > 0) ja.toDouble() / total else 0.0
+                        evento("atualizacao", JSONObject().put("fase", "baixando").put("pct", v).put("feito", ja).put("total", total))
+                        ServicoDownload.progresso(this, "Baixando a Própons IA $versao", "${ja shr 20} de ${total shr 20} MB · ${(v * 100).toInt()}%", v)
+                    }
                 }
-            } }
+            } } } finally { ServicoDownload.terminar(this, if (emPrimeiroPlano) null else "Atualização baixada", "Abra a Própons IA para instalar a versão $versao.") }
             evento("atualizacao", JSONObject().put("fase", "verificando").put("pct", 1.0))
             if (sha256(apk) != esperado) { apk.delete(); throw Exception("o arquivo baixado veio com defeito. Tente de novo.") }
         }
@@ -572,8 +599,27 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------------- segundo plano ----------------
+    @Volatile private var emPrimeiroPlano = true
+    private var travaResposta: android.os.PowerManager.WakeLock? = null
+    // enquanto a IA responde, a CPU continua acordada mesmo com a tela apagada (máx. 10 min por resposta)
+    private fun ocupado(sim: Boolean) {
+        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+        if (travaResposta == null) travaResposta = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ProponsIA:resposta").apply { setReferenceCounted(false) }
+        try { if (sim) travaResposta?.acquire(10 * 60 * 1000L) else travaResposta?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
+    }
+    // Android 13+: pede uma vez a permissão para mostrar a notificação do download
+    private fun pedirNotificacoes() {
+        if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean("pediuNotificacoes", false)) return
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        prefs.edit().putBoolean("pediuNotificacoes", true).apply()
+        ui.post { try { requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 3) } catch (_: Exception) {} }
+    }
+    override fun onPause() { super.onPause(); emPrimeiroPlano = false }
+
     override fun onResume() {
         super.onResume()
+        emPrimeiroPlano = true
         // voltou para o app e o Android tinha encerrado o motor: o vigia já religa; aqui só garante
         val p = motor
         if (!naSplash && !trocando && p != null && !p.isAlive && !desligando) trabalho.execute {
@@ -585,6 +631,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         if (isFinishing) { desligando = true; pararMotor() }
+        ocupado(false)
         web.destroy()
         super.onDestroy()
     }

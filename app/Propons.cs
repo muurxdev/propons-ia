@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.2.0";
+    public const string Versao = "1.2.1";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -431,7 +431,25 @@ class Janela : Form
         return null;
     }
 
+    // download com o PC acordado (não entra em suspensão) e aviso na bandeja ao terminar com a janela minimizada
     async Task<string> Baixar(Modelo m, bool naSplash)
+    {
+        ManterAcordado(true);
+        try
+        {
+            string r = await BaixarInterno(m, naSplash);
+            Avisar("IA baixada", m.Nome + " está pronto para usar.");
+            return r;
+        }
+        catch (Exception ex)
+        {
+            if (!(ex is OperationCanceledException)) Avisar("O download parou", "Abra a Própons IA para continuar de onde parou.");
+            throw;
+        }
+        finally { ManterAcordado(false); }
+    }
+
+    async Task<string> BaixarInterno(Modelo m, bool naSplash)
     {
         string dir = Path.Combine(Raiz(), "modelos");
         Directory.CreateDirectory(dir);
@@ -491,8 +509,9 @@ class Janela : Form
                     if (ex is IOException) { try { if (new DriveInfo(Path.GetPathRoot(dir)).AvailableFreeSpace < (64L << 20)) throw new IOException("sem espaço"); } catch (IOException) { throw; } catch { } }
                     long agora = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
                     if (agora > antes) falhasSeguidas = 0; else falhasSeguidas++;     // houve progresso: continua tentando
-                    if (falhasSeguidas >= 4) throw new WebException("sem conexão");
-                    Thread.Sleep(2000 * (falhasSeguidas + 1));
+                    // rede caiu ou mudou: espera voltar (até ~4 min sem nenhum progresso)
+                    if (falhasSeguidas >= 9) throw new WebException("sem conexão");
+                    for (int i = 0; i < Math.Min(30, 3 * (falhasSeguidas + 1)); i++) { if (cancelarBaixar) throw new OperationCanceledException("cancelado"); Thread.Sleep(1000); }
                 }
             }
         });
@@ -636,6 +655,7 @@ class Janela : Form
                     else Evento("download-fim", Dic("id", mb.Id, "ok", true));
                     dados = true; break;
                 case "cancelarDownload": cancelarBaixar = true; dados = true; break;
+                case "ocupado": ManterAcordado(args.ContainsKey("sim") && args["sim"] is bool && (bool)args["sim"], true); dados = true; break;
                 case "apagarModelo": dados = ApagarModelo(Modelo.PorId(Arg(args, "id"))); break;
                 case "verificarModelos": dados = await Task.Run(delegate { return VerificarModelos(); }); break;
                 case "atualizar": dados = await Atualizar(Arg(args, "versao")); break;
@@ -754,6 +774,13 @@ class Janela : Form
         string novo = Path.Combine(dir, ".propons-atualizacao.tmp");
         try { File.WriteAllText(novo, ""); } catch { throw new Exception("sem permissão para gravar na pasta do programa. Baixe a versão nova pelo site."); }
 
+        ManterAcordado(true);
+        try { return await AtualizarInterno(versao, Arquivo, exe, baseUrl, novo); }
+        finally { ManterAcordado(false); }
+    }
+
+    async Task<object> AtualizarInterno(string versao, string Arquivo, string exe, string baseUrl, string novo)
+    {
         string somas = await Task.Run(delegate { return BaixarTexto(baseUrl + "SHA256SUMS"); });
         string esperado = null;
         foreach (string l in somas.Split('\n'))
@@ -842,7 +869,41 @@ class Janela : Form
         else { MessageBox.Show(this, m, Program.Titulo, MessageBoxButtons.OK, MessageBoxIcon.Warning); Close(); }
     }
 
-    protected override void OnFormClosing(FormClosingEventArgs e) { desligando = true; PararMotor(); base.OnFormClosing(e); }
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        desligando = true; PararMotor();
+        try { if (aviso != null) { aviso.Visible = false; aviso.Dispose(); } } catch { }
+        base.OnFormClosing(e);
+    }
+
+    // ---------- PC acordado e avisos ----------
+    [DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint f);
+    int acordado; bool respondendo;
+    // enquanto baixa ou responde, o Windows não entra em suspensão (a tela pode apagar normalmente)
+    void ManterAcordado(bool sim, bool resposta = false)
+    {
+        if (InvokeRequired) { BeginInvoke((Action)delegate { ManterAcordado(sim, resposta); }); return; }
+        if (resposta) { if (sim == respondendo) return; respondendo = sim; }
+        acordado = Math.Max(0, acordado + (sim ? 1 : -1));
+        try { SetThreadExecutionState(acordado > 0 ? 0x80000001u : 0x80000000u); } catch { }
+    }
+    NotifyIcon aviso;
+    void Avisar(string titulo, string texto)
+    {
+        if (InvokeRequired) { BeginInvoke((Action)delegate { Avisar(titulo, texto); }); return; }
+        if (ContainsFocus && WindowState != FormWindowState.Minimized) return;
+        try
+        {
+            if (aviso == null)
+            {
+                aviso = new NotifyIcon { Icon = Icon ?? SystemIcons.Information, Text = Program.Titulo, Visible = true };
+                aviso.BalloonTipClicked += delegate { if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal; Activate(); };
+                aviso.Click += delegate { if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal; Activate(); };
+            }
+            aviso.ShowBalloonTip(10000, titulo, texto, ToolTipIcon.Info);
+        }
+        catch (Exception ex) { Program.Log("aviso: " + ex.Message); }
+    }
 
     // ---------- tela de carregamento ----------
     void Splash(double v, string titulo, string sub)

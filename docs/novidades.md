@@ -1,27 +1,28 @@
-## Novidades da 1.2.0
+## Novidades da 1.2.1
 
-**Baixe pelo site:** [muurxdev.github.io/propons-ia](https://muurxdev.github.io/propons-ia/). Ele mostra o download certo para o seu aparelho e funciona direto no celular.
+**Downloads em segundo plano:** pode apagar a tela ou sair do app que o download continua.
 
-- **Visual novo no celular:** usa a tela toda (atrás da barra de status e da barra de navegação), botões maiores e sugestões na tela inicial
-- **Ajustes como um app:** tela cheia no celular, com a lista e as páginas; no PC, menu ao lado
-- **Gestos:** arraste da borda para abrir o histórico, segure uma conversa para abrir o menu dela, e o botão voltar fecha menus e telas
-- **Modelos de IA:** baixar, usar, cancelar download e apagar cada modelo, com o espaço ocupado e o modelo recomendado para o seu aparelho
-- **Atualizações:**
-  - avisa sozinho quando sai versão nova;
-  - tem os botões **Procurar atualizações** e **Atualizar tudo**, que também confere os modelos;
-  - no **Windows** e no **Android** a atualização é instalada pelo próprio app;
-  - no iPhone, abre o SideStore/AltStore;
-  - no Linux, use `propons-ia --atualizar`.
-- **Compartilhar** respostas e conversas no celular
-- Diálogos próprios em vez das caixas do sistema; confirmações sobem de baixo no celular
+- **Android:**
+  - notificação com barra de progresso e botão **Cancelar**, que mantém o celular e o Wi-Fi acordados durante o download. Vale para o primeiro download da IA, para os modelos e para a atualização do app;
+  - quando o download termina com o app fora da tela, aparece o aviso **"IA baixada"**;
+  - se a internet cair (troca de rede ou tela apagada), a Própons IA espera voltar e continua de onde parou;
+  - com a tela apagada, a resposta que a IA estava escrevendo não para no meio.
+- **iPhone:**
+  - o download é feito pelo próprio iOS e continua com a tela apagada ou com o app em segundo plano;
+  - avisa com uma notificação quando termina;
+  - se o download cair, continua de onde parou.
+- **Windows:** durante downloads e respostas o PC não entra em suspensão. Se a janela estiver minimizada, aparece um aviso na bandeja quando o download termina.
+- **Linux:** o computador não entra em suspensão durante o download, e um aviso aparece quando termina.
+
+Da 1.2: visual novo no celular, Ajustes como um app, área de **Modelos de IA** e **atualização automática**.
 
 ## Instalar
 
 | Plataforma | Como |
 |---|---|
 | Qualquer aparelho | abra **[muurxdev.github.io/propons-ia](https://muurxdev.github.io/propons-ia/)** e toque em baixar |
-| Windows 10/11 | `Propons-IA-Windows.exe`: abra (funciona direto do pendrive). Quem tem a 1.1: baixe de novo e substitua o arquivo; a partir da 1.2 a atualização é automática |
-| Linux (qualquer) | `curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh \| bash` (ou `propons-ia --atualizar`) |
-| Ubuntu/Debian/Kali/Mint | `.deb` · Fedora/Nobara/openSUSE: `.rpm` — comandos no README |
+| Já tem a 1.2.0 | Ajustes → Atualizações → **Atualizar agora** (Windows e Android instalam sozinhos) |
+| Windows 10/11 | `Propons-IA-Windows.exe`: abra (funciona direto do pendrive) |
+| Linux (qualquer) | `propons-ia --atualizar` ou `curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh \| bash` |
 | Android 9+ | baixe pelo site acima — [tutorial](https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-android.md) |
 | iPhone/iPad (iOS 16+) | fonte do SideStore/AltStore: `https://github.com/muurxdev/propons-ia/releases/latest/download/altstore-source.json` — [tutorial](https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-ios.md) |
