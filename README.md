@@ -9,10 +9,12 @@ Chat com histórico, código completo com cores, anexar arquivos e cálculo exat
 
 ## Instalar
 
+**Pelo celular ou PC, abra [muurxdev.github.io/propons-ia](https://muurxdev.github.io/propons-ia/)** — a página mostra o download certo para o seu aparelho.
+
 | | |
 |---|---|
 | **Windows 10/11** | baixe **[Propons-IA-Windows.exe](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Windows.exe)** e abra — funciona direto do pendrive, sem instalar |
-| **Android 9+** | baixe **[Propons-IA-Android.apk](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Android.apk)** — [passo a passo](docs/instalar-android.md) |
+| **Android 9+** | abra **[muurxdev.github.io/propons-ia/](https://muurxdev.github.io/propons-ia/)** no celular e toque em **Baixar APK** — [passo a passo](docs/instalar-android.md) |
 | **iPhone / iPad (iOS 16+)** | pelo **SideStore** ou **AltStore** — [passo a passo](docs/instalar-ios.md) |
 | **Linux** | um comando (abaixo) ou `.deb` / `.rpm` |
 

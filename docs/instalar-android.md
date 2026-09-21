@@ -6,7 +6,8 @@
 
 ## Instalar
 
-1. No celular, baixe **[Propons-IA-Android.apk](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Android.apk)**.
+1. No celular, abra **[muurxdev.github.io/propons-ia/](https://muurxdev.github.io/propons-ia/)** e toque em **Baixar APK**.
+   Se o navegador avisar que o arquivo pode ser perigoso, toque em **Baixar mesmo assim**.
 2. Abra o arquivo baixado (pela notificação ou pelo app **Arquivos → Downloads**).
 3. Se aparecer "instalação bloqueada", toque em **Configurações** e ative
    **Permitir desta fonte** (para o navegador ou o app de arquivos que você usou). Volte e toque em **Instalar**.
