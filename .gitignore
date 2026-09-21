@@ -21,3 +21,25 @@ logo/splash-teste.*
 linux/testes/resultado.txt
 *.tmp
 *.log
+
+# Android (gerados por android/preparar.sh / Gradle) e chave de assinatura (NUNCA versionar)
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/jniLibs/
+android/app/src/main/assets/interface/
+android/local.properties
+android/assinatura/
+android/assinatura.properties
+*.jks
+*.keystore
+
+# iOS (gerados por ios/preparar.sh / XcodeGen / Xcode)
+ios/Frameworks/
+ios/Recursos/
+ios/ProponsIA.xcodeproj/
+ios/build/
+ios/TesteMotor/.build/
+ios/TesteMotor/Sources/TesteMotor/Motor.swift
+Payload/
+*.ipa

@@ -1,0 +1,23 @@
+<!doctype html><html data-tema="{{TEMA}}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+:root{--bg:#fff;--ink:#111114;--mu:#6b6b76;--ln:#e6e6eb;--ac:#7c5cff}
+:root[data-tema=escuro]{--bg:#17171b;--ink:#ececf1;--mu:#9d9daa;--ln:#2b2b32;--ac:#8f76ff}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,Roboto,sans-serif;display:grid;place-items:center;user-select:none;-webkit-user-select:none}
+.b{text-align:center;width:280px}
+.logo{width:56px;height:56px;margin:0 auto 18px}
+h1{font-size:18px;font-weight:600;margin:0 0 4px}
+#s{color:var(--mu);margin:0;font-size:13.5px;min-height:18px;line-height:1.4}
+.bar{height:4px;background:var(--ln);border-radius:4px;margin:18px auto 0;overflow:hidden;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ac);border-radius:4px;transition:width .2s}
+.bar.ind i{width:35%;animation:s 1.1s ease-in-out infinite}
+@keyframes s{0%{left:-35%}100%{left:100%}}
+button{margin-top:18px;font:inherit;font-size:15px;font-weight:500;color:#fff;background:var(--ac);border:0;border-radius:12px;padding:10px 20px;display:none}
+</style></head><body><div class="b">
+<svg class="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#7c5cff"/><path d="M24 50V24.5" stroke="#fff" stroke-width="7" stroke-linecap="round"/><circle cx="34.5" cy="30" r="9.5" fill="none" stroke="#fff" stroke-width="7"/><circle cx="47" cy="47" r="3.6" fill="#fff"/></svg>
+<h1 id="t">Própons IA</h1><p id="s">Preparando…</p><div class="bar ind" id="bar"><i id="i"></i></div><button id="r">Tentar novamente</button></div>
+<script>
+document.getElementById('r').onclick=function(){ if(window.ProponsAndroid) ProponsAndroid.tentar(); if(window.webkit&&webkit.messageHandlers.propons) webkit.messageHandlers.propons.postMessage({t:'tentar'}); p(-1,'Tentando de novo',''); };
+function p(v,t,s){document.getElementById('t').textContent=t||'Própons IA';document.getElementById('s').textContent=s||'';
+var b=document.getElementById('bar'),i=document.getElementById('i'),r=document.getElementById('r');
+r.style.display=v<=-2?'inline-block':'none';b.style.display=v<=-2?'none':'block';
+if(v<0){b.className='bar ind';i.style.width='';}else{b.className='bar';i.style.width=(v*100).toFixed(1)+'%';}}
+</script></body></html>

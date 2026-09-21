@@ -5,7 +5,7 @@
 #   propons-ia.x86_64.rpm           propons-ia.aarch64.rpm            (Fedora, Nobara, openSUSE, RHEL…)
 # Requer: bash, tar, curl, dpkg-deb, rpmbuild (Ubuntu: apt install dpkg-dev rpm)
 set -euo pipefail
-VERSAO="1.0.0"
+VERSAO="1.1.0"
 LLAMA="b11070"
 AQUI="$(cd "$(dirname "$0")" && pwd)"
 RAIZ="$(dirname "$AQUI")"
@@ -13,7 +13,7 @@ SAIDA="$RAIZ/dist/linux"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$SAIDA" "$AQUI/vendor"
 
-[ -f "$RAIZ/payload/interface/index.html" ] || node "$RAIZ/src/montar.js" || { echo "Instale o Node.js para montar a interface (node src/montar.js)"; exit 1; }
+node "$RAIZ/src/montar.js" || { echo "Instale o Node.js para montar a interface (node src/montar.js)"; exit 1; }
 
 for par in "x64 x86_64 amd64" "arm64 aarch64 arm64"; do
   set -- $par; LA="$1"; ARCH="$2"; DEBARCH="$3"

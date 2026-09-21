@@ -1,154 +1,291 @@
 #!/usr/bin/env bash
 # Própons IA — inicializador para Linux.
-# Liga o motor (llama.cpp) em segundo plano, baixa o modelo na primeira vez
-# e abre a interface numa janela própria. Ao fechar a janela, tudo é desligado.
-#
-# Uso: propons-ia [--leve] [--terminal] [--parar] [--verificar] [--ajuda]
+# Liga o motor (llama.cpp) em segundo plano, baixa o modelo na primeira vez e abre a interface
+# numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.0.0"
+VERSAO="1.1.0"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"
+INTERFACE="$DADOS/interface"          # cópia gravável da interface (sistema.json, conhecimento.md próprio)
 LOG="$DADOS/motor.log"
-PIDFILE="$DADOS/motor.pid"
-PORTAFILE="$DADOS/motor.porta"
+PIDFILE="$DADOS/motor.pid"; PORTAFILE="$DADOS/motor.porta"; CHAVEFILE="$DADOS/motor.chave"
+CONFIG="$DADOS/config"
+TRAVA="$DADOS/.trava"
 
-MODELO_NORMAL=( "Qwen3.5-2B-Q4_K_M.gguf" 1280835840 "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
-  "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf" )
-MODELO_LEVE=( "Qwen3.5-0.8B-Q4_K_M.gguf" 532517120 "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
-  "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf" )
+# id | arquivo | bytes | sha256 | RAM recomendada (GB) | nome | descrição
+MODELOS_LISTA=(
+  "leve|Qwen3.5-0.8B-Q4_K_M.gguf|532517120|bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517|3|Leve (0.8B)|mais rápido, para PCs com pouca memória"
+  "normal|Qwen3.5-2B-Q4_K_M.gguf|1280835840|aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223|6|Normal (2B)|equilíbrio entre velocidade e qualidade"
+  "avancado|Qwen3.5-4B-Q4_K_M.gguf|2740937888|00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4|8|Avançado (4B)|respostas e códigos melhores, mais lento"
+)
+URL_BASE="https://huggingface.co/unsloth"
+url_modelo() { local a="$1"; local repo="${a%-Q4_K_M.gguf}-GGUF"; echo "$URL_BASE/$repo/resolve/main/$a"; }
 
-LEVE=0; SO_TERMINAL=0
-for a in "$@"; do
-  case "$a" in
-    --leve) LEVE=1 ;;
+mkdir -p "$MODELOS" "$INTERFACE"
+tem() { command -v "$1" >/dev/null 2>&1; }
+ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --leve) MODELO_ARG=leve ;;
+    --modelo) shift; MODELO_ARG="${1:-}" ;;
+    --modelo=*) MODELO_ARG="${1#*=}" ;;
     --terminal|--navegador) SO_TERMINAL=1 ;;
     --versao|--version) echo "Própons IA $VERSAO"; exit 0 ;;
-    --parar) [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null && echo "Própons IA desligada."; rm -f "$PIDFILE" "$PORTAFILE"; exit 0 ;;
-    --verificar) VERIFICAR=1 ;;
+    --parar) ACAO=parar ;;
+    --verificar) ACAO=verificar ;;
+    --diagnostico|--diagnóstico) ACAO=diagnostico ;;
     -h|--ajuda|--help)
       cat <<EOF
 Própons IA $VERSAO — assistente de estudos que roda no seu computador.
 
-  propons-ia             abre a Própons IA
-  propons-ia --leve      usa o modelo menor (para PCs com pouca memória)
-  propons-ia --terminal  abre no navegador padrão e desliga com Ctrl+C
-  propons-ia --parar     desliga a IA se ela ficou aberta
-  propons-ia --verificar confere se o motor funciona neste sistema
+  propons-ia                       abre a Própons IA
+  propons-ia --modelo NOME         escolhe o modelo e abre (fica salvo): leve | normal | avancado
+  propons-ia --terminal            abre no navegador padrão e desliga com Ctrl+C
+  propons-ia --diagnostico         confere sistema, bibliotecas, navegador, modelo e mede a velocidade
+  propons-ia --parar               desliga a IA se ela ficou aberta
+  propons-ia --verificar           confere só se o motor funciona neste sistema
 EOF
       exit 0 ;;
   esac
+  shift
 done
-
-mkdir -p "$MODELOS"
-tem() { command -v "$1" >/dev/null 2>&1; }
 no_terminal() { [ -t 1 ] || [ "$SO_TERMINAL" = 1 ]; }
 
 aviso() {  # mensagem para o usuário: terminal, janela ou notificação
   local titulo="$1" texto="$2"
   if no_terminal; then printf '\n  %s\n  %s\n\n' "$titulo" "$texto" >&2
-  elif tem zenity; then zenity --error --title="Própons IA" --text="<b>$titulo</b>\n\n$texto" --width=360 2>/dev/null
+  elif tem zenity; then zenity --error --title="Própons IA" --text="<b>$titulo</b>\n\n$texto" --width=380 2>/dev/null
   elif tem kdialog; then kdialog --title "Própons IA" --error "$titulo\n\n$texto" 2>/dev/null
   elif tem notify-send; then notify-send -i propons-ia "Própons IA — $titulo" "$texto"
   else printf '%s\n%s\n' "$titulo" "$texto" >&2; fi
 }
 
+# ---------- modelo escolhido ----------
+campo() { local id="$1" n="$2" l; for l in "${MODELOS_LISTA[@]}"; do [ "${l%%|*}" = "$id" ] && { echo "$l" | cut -d'|' -f"$n"; return; }; done; }
+ram_bytes() { awk '/MemTotal/ {printf "%d", $2*1024}' /proc/meminfo 2>/dev/null || echo 0; }
+if [ -n "$MODELO_ARG" ]; then
+  [ -n "$(campo "$MODELO_ARG" 1)" ] || { echo "Modelo desconhecido: $MODELO_ARG (use: leve, normal ou avancado)"; exit 2; }
+  echo "MODELO=$MODELO_ARG" >"$CONFIG"
+fi
+MODELO_ID="$( [ -f "$CONFIG" ] && sed -n 's/^MODELO=//p' "$CONFIG" | head -1)"
+if [ -z "$MODELO_ID" ] || [ -z "$(campo "$MODELO_ID" 1)" ]; then
+  [ "$(ram_bytes)" -lt $((6*1024*1024*1024)) ] && MODELO_ID=leve || MODELO_ID=normal
+fi
+ARQ="$MODELOS/$(campo "$MODELO_ID" 2)"; TAM="$(campo "$MODELO_ID" 3)"; SHA="$(campo "$MODELO_ID" 4)"; URL="$(url_modelo "$(campo "$MODELO_ID" 2)")"
+tamanho() { stat -c %s "$1" 2>/dev/null || echo 0; }
+
 # ---------- motor ----------
 export LD_LIBRARY_PATH="$APP_DIR/motor${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 MOTOR="$APP_DIR/motor/llama-server"
+motor_ok() { "$MOTOR" --version >/dev/null 2>&1; }
+libs_faltando() { ldd "$MOTOR" "$APP_DIR"/motor/*.so* 2>/dev/null | grep "not found" | awk '{print $1}' | sort -u | tr '\n' ' '; }
+pid_e_motor() { [ -n "${1:-}" ] && [ -r "/proc/$1/comm" ] && grep -q "llama-server" "/proc/$1/comm"; }
 
-if [ "${VERIFICAR:-0}" = 1 ]; then
-  if "$MOTOR" --version >/dev/null 2>&1; then echo "OK: o motor da Própons IA funciona neste sistema ($(uname -m))."; exit 0; fi
-  echo "ERRO: o motor não iniciou. Bibliotecas que faltam:"; ldd "$MOTOR" "$APP_DIR"/motor/*.so* 2>/dev/null | grep "not found" | sort -u; exit 1
-fi
-if ! "$MOTOR" --version >/dev/null 2>&1; then
-  falta=$(ldd "$MOTOR" "$APP_DIR"/motor/*.so* 2>/dev/null | grep "not found" | awk '{print $1}' | sort -u | tr '\n' ' ')
-  aviso "O motor da IA não iniciou" "Faltam bibliotecas do sistema: ${falta:-desconhecidas}. Instale 'libgomp' (pacote libgomp1/libgomp/gcc-libs)."
-  exit 1
-fi
+case "$ACAO" in
+  parar)
+    p="$(cat "$PIDFILE" 2>/dev/null)"
+    if pid_e_motor "$p"; then kill "$p" && echo "Própons IA desligada."; else echo "A Própons IA não estava aberta."; fi
+    rm -f "$PIDFILE" "$PORTAFILE"; exit 0 ;;
+  verificar)
+    if motor_ok; then echo "OK: o motor da Própons IA funciona neste sistema ($(uname -m))."; exit 0; fi
+    echo "ERRO: o motor não iniciou. Bibliotecas que faltam: $(libs_faltando)"; exit 1 ;;
+esac
+
+tem curl || { aviso "Falta o programa curl" "Instale o curl (ex.: sudo apt install curl / sudo dnf install curl / sudo pacman -S curl)."; exit 1; }
 
 saudavel() { curl -sf --max-time 2 "http://127.0.0.1:$1/health" >/dev/null 2>&1; }
 porta_livre() { local p; for p in $(seq 8765 8795); do (echo >"/dev/tcp/127.0.0.1/$p") 2>/dev/null || { echo "$p"; return; }; done; echo 8765; }
 
-# ---------- janela ----------
-abrir_janela() {  # abre a interface; bloqueia até a janela fechar (quando possível)
-  local url="$1" nav="" c
-  if [ "$SO_TERMINAL" = 0 ]; then
-    for c in google-chrome-stable google-chrome chromium chromium-browser brave-browser brave microsoft-edge-stable microsoft-edge vivaldi-stable vivaldi; do
-      if tem "$c"; then nav="$c"; break; fi
-    done
-    [ -z "$nav" ] && tem flatpak && for c in org.chromium.Chromium com.google.Chrome com.brave.Browser com.microsoft.Edge; do
-      if flatpak info "$c" >/dev/null 2>&1; then nav="flatpak run $c"; break; fi
+# ---------- navegador ----------
+NAV=""; PERFIL="$DADOS/janela"
+achar_navegador() {
+  local c
+  [ "$SO_TERMINAL" = 1 ] && return
+  for c in google-chrome-stable google-chrome chromium chromium-browser brave-browser brave microsoft-edge-stable microsoft-edge vivaldi-stable vivaldi; do
+    if tem "$c"; then NAV="$c"; break; fi
+  done
+  if [ -z "$NAV" ] && tem flatpak; then
+    for c in org.chromium.Chromium com.google.Chrome com.brave.Browser com.microsoft.Edge com.vivaldi.Vivaldi; do
+      if flatpak info "$c" >/dev/null 2>&1; then NAV="flatpak run $c"; PERFIL="$HOME/.var/app/$c/propons-ia"; return; fi
     done
   fi
-  if [ -n "$nav" ]; then
-    local perfil="$DADOS/janela"
-    case "$(readlink -f "$(command -v "${nav%% *}" 2>/dev/null)" 2>/dev/null)" in
-      /snap/*) perfil="$HOME/snap/${nav%% *}/common/propons-ia" ;;   # snap não enxerga pastas ocultas
+  if [ -n "$NAV" ]; then
+    case "$(command -v "$NAV")" in
+      /snap/*) PERFIL="$HOME/snap/${NAV%%-*}/common/propons-ia" ;;   # snap não enxerga pastas ocultas
     esac
-    [[ "$nav" == flatpak* ]] && perfil="$HOME/.var/app/${nav##* }/propons-ia"
-    mkdir -p "$perfil"
-    $nav --app="$url" --user-data-dir="$perfil" --class=propons-ia --name=propons-ia \
+    case "$(readlink -f "$(command -v "$NAV")")" in */snap) PERFIL="$HOME/snap/chromium/common/propons-ia" ;; esac
+    # Ubuntu: chromium-browser é um script que chama o snap
+    local arq; arq="$(command -v "$NAV")"
+    if [ "$(stat -c %s "$arq" 2>/dev/null || echo 99999)" -lt 20000 ] && grep -qs "snap" "$arq"; then PERFIL="$HOME/snap/chromium/common/propons-ia"; fi
+  fi
+}
+
+# ---------- sistema.json (lido pela tela de Diagnóstico e de Modelo) ----------
+escrever_sistema() {
+  local so cpu nuc ram livre disco modelos="" l id arq tb ram_min nome desc baixado
+  so="$( (. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}") ) · kernel $(uname -r) · $(uname -m)"
+  cpu="$(awk -F: '/model name|Hardware|cpu model/ {gsub(/^[ \t]+/,"",$2); print $2; exit}' /proc/cpuinfo 2>/dev/null)"
+  nuc="$(nproc 2>/dev/null || echo 0)"
+  ram="$(ram_bytes)"; livre="$(awk '/MemAvailable/ {printf "%d", $2*1024}' /proc/meminfo 2>/dev/null || echo 0)"
+  disco="$(df -PB1 "$DADOS" 2>/dev/null | awk 'NR==2 {print $4}')"
+  for l in "${MODELOS_LISTA[@]}"; do
+    IFS='|' read -r id arq tb _ ram_min nome desc <<<"$l"
+    [ "$(tamanho "$MODELOS/$arq")" = "$tb" ] && baixado=true || baixado=false
+    modelos+="${modelos:+,}{\"id\":\"$id\",\"nome\":\"$nome\",\"descricao\":\"$desc\",\"arquivo\":\"$arq\",\"tamanho\":$tb,\"ramMin\":$ram_min,\"baixado\":$baixado,\"atual\":$([ "$id" = "$MODELO_ID" ] && echo true || echo false)}"
+  done
+  esc_json() { sed 's/\\/\\\\/g; s/"/\\"/g'; }
+  printf '{"versao":"%s","so":"%s","cpu":"%s","nucleos":%s,"ramTotal":%s,"ramLivre":%s,"discoLivre":%s,"pastaDados":"%s","navegador":"%s","modelos":[%s]}\n' \
+    "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$modelos" \
+    >"$INTERFACE/sistema.json"
+}
+preparar_interface() {
+  cp -f "$APP_DIR/interface/index.html" "$INTERFACE/index.html"
+  if [ -f "$DADOS/conhecimento.md" ]; then cp -f "$DADOS/conhecimento.md" "$INTERFACE/conhecimento.md"
+  else cp -f "$APP_DIR/interface/conhecimento.md" "$INTERFACE/conhecimento.md"; fi
+  escrever_sistema
+}
+
+# ---------- download do modelo ----------
+baixar_modelo() {
+  local parcial="$ARQ.baixando" livre tent=0 cod
+  livre=$(df -PB1 "$MODELOS" | awk 'NR==2 {print $4}')
+  if [ -n "$livre" ] && [ "$livre" -lt $((TAM - $(tamanho "$parcial") + 400*1024*1024)) ]; then
+    aviso "Pouco espaço em disco" "A Própons IA precisa de cerca de $((TAM/1048576 + 400)) MB livres em $MODELOS."; return 1
+  fi
+  while [ "$(tamanho "$parcial")" -lt "$TAM" ]; do
+    local antes; antes=$(tamanho "$parcial")
+    if no_terminal; then
+      echo "  Baixando a IA ($(campo "$MODELO_ID" 6)) — $((TAM/1048576)) MB, só na primeira vez"
+      curl -L --fail --retry 3 -C - -o "$parcial" --progress-bar "$URL"; cod=$?
+    elif tem zenity; then
+      curl -L --fail --retry 3 -C - -s -o "$parcial" "$URL" & local pid=$!
+      ( while kill -0 $pid 2>/dev/null; do
+          local t; t=$(tamanho "$parcial"); echo $((t*100/TAM)); echo "# Baixando a IA — só na primeira vez neste computador ($((t/1048576)) de $((TAM/1048576)) MB)"; sleep 0.5
+        done ) | zenity --progress --title="Própons IA" --text="Baixando a IA…" --percentage=0 --auto-close --width=440 2>/dev/null || { kill $pid 2>/dev/null; return 1; }
+      wait $pid; cod=$?
+    else
+      tem notify-send && [ $tent = 0 ] && notify-send -i propons-ia "Própons IA" "Baixando a IA ($((TAM/1048576)) MB) — só na primeira vez. Isso pode levar alguns minutos."
+      curl -L --fail --retry 3 -C - -s -o "$parcial" "$URL"; cod=$?
+    fi
+    [ "${cod:-0}" = 33 ] && rm -f "$parcial"          # servidor não aceitou continuar: recomeça do zero
+    if [ "$(tamanho "$parcial")" -gt "$antes" ]; then tent=0; else tent=$((tent+1)); fi
+    [ $tent -ge 4 ] && return 1
+    [ "${cod:-0}" != 0 ] && sleep 2
+  done
+  no_terminal && echo "  Conferindo o download…"
+  if [ "$(sha256sum "$parcial" | cut -d' ' -f1)" != "$SHA" ]; then
+    rm -f "$parcial"; aviso "Download com defeito" "O arquivo veio corrompido e foi descartado. Abra a Própons IA de novo para baixar outra vez."; return 1
+  fi
+  mv -f "$parcial" "$ARQ"
+}
+
+# ---------- motor ----------
+ligar_motor() {  # usa PORTA e CHAVE já definidas
+  "$MOTOR" -m "$ARQ" --host 127.0.0.1 --port "$PORTA" --path "$INTERFACE" \
+    -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key "$CHAVE" >>"$LOG" 2>&1 &
+  MOTOR_PID=$!
+  echo "$MOTOR_PID" >"$PIDFILE"; echo "$PORTA" >"$PORTAFILE"
+}
+esperar_motor() {
+  local _
+  for _ in $(seq 1 600); do
+    saudavel "$PORTA" && return 0
+    kill -0 "$MOTOR_PID" 2>/dev/null || return 1
+    sleep 0.3
+  done
+  return 1
+}
+
+# ---------- diagnóstico no terminal ----------
+if [ "$ACAO" = diagnostico ]; then
+  achar_navegador
+  ok() { printf '  \033[1;32m✔\033[0m %s\n' "$*"; }; av() { printf '  \033[1;33m!\033[0m %s\n' "$*"; }; er() { printf '  \033[1;31m✘\033[0m %s\n' "$*"; }
+  echo; echo "  Diagnóstico — Própons IA $VERSAO"; echo
+  ok "Sistema: $( (. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}") ), kernel $(uname -r), $(uname -m)"
+  ok "Processador: $(awk -F: '/model name|Hardware/ {gsub(/^[ \t]+/,"",$2); print $2; exit}' /proc/cpuinfo 2>/dev/null) ($(nproc) núcleos)"
+  r=$(ram_bytes); l=$(awk '/MemAvailable/ {printf "%d", $2*1024}' /proc/meminfo)
+  [ "$r" -ge $((4*1024*1024*1024)) ] && ok "Memória: $((r/1048576)) MB" || av "Memória: $((r/1048576)) MB — pouca; use --modelo leve"
+  [ "$l" -ge $((1536*1024*1024)) ] && ok "Memória livre agora: $((l/1048576)) MB" || av "Memória livre agora: só $((l/1048576)) MB — feche outros programas (a IA fica bem mais lenta)"
+  d=$(df -PB1 "$DADOS" | awk 'NR==2 {print $4}'); [ "$d" -ge $((2*1024*1024*1024)) ] && ok "Espaço livre: $((d/1048576)) MB em $DADOS" || av "Espaço livre: $((d/1048576)) MB (pouco)"
+  if motor_ok; then ok "Motor: llama.cpp $("$MOTOR" --version 2>&1 | grep -m1 -o "build [0-9]*")"; else er "Motor não inicia. Bibliotecas que faltam: $(libs_faltando)"; fi
+  [ -n "$NAV" ] && ok "Navegador para a janela: $NAV" || av "Nenhum Chrome/Chromium/Brave/Edge/Vivaldi: vai abrir no navegador padrão"
+  tem sha256sum && ok "sha256sum disponível" || er "sha256sum não encontrado (coreutils)"
+  if [ "$(tamanho "$ARQ")" = "$TAM" ]; then
+    ok "Modelo: $(campo "$MODELO_ID" 6) baixado ($((TAM/1048576)) MB)"
+    if motor_ok; then
+      PORTA=$(porta_livre); CHAVE="diag$$"; LOG="$DADOS/diagnostico.log"; : >"$LOG"
+      printf '  … medindo a velocidade (carregando o modelo)\r'
+      ligar_motor
+      if esperar_motor; then
+        resp=$(curl -s "http://127.0.0.1:$PORTA/v1/chat/completions" -H "Authorization: Bearer $CHAVE" -H 'Content-Type: application/json' \
+          -d '{"messages":[{"role":"user","content":"Escreva os números de 1 a 40 separados por vírgula."}],"max_tokens":64,"temperature":0,"chat_template_kwargs":{"enable_thinking":false}}')
+        tps=$(echo "$resp" | grep -o '"predicted_per_second":[0-9.]*' | cut -d: -f2); pps=$(echo "$resp" | grep -o '"prompt_per_second":[0-9.]*' | cut -d: -f2)
+        if [ -n "$tps" ]; then
+          if awk "BEGIN{exit !($tps >= 6)}"; then ok "Velocidade: $(printf '%.1f' "$tps") tokens/s gerando, $(printf '%.0f' "${pps:-0}") tokens/s lendo"
+          else av "Velocidade: $(printf '%.1f' "$tps") tokens/s (lenta; experimente --modelo leve)"; fi
+        else er "Teste de geração falhou: $(echo "$resp" | head -c 200)"; fi
+      else er "O motor não carregou o modelo (veja $LOG)"; fi
+      kill "$MOTOR_PID" 2>/dev/null; wait "$MOTOR_PID" 2>/dev/null; rm -f "$PIDFILE" "$PORTAFILE"
+    fi
+  else av "Modelo $(campo "$MODELO_ID" 6) ainda não baixado (será baixado ao abrir: $((TAM/1048576)) MB)"; fi
+  curl -sf --max-time 5 -o /dev/null "https://api.github.com/repos/muurxdev/propons-ia/releases/latest" && ok "Internet: ok" || av "Sem internet (a IA funciona offline depois de baixada)"
+  echo; exit 0
+fi
+
+# ---------- abrir ----------
+if ! motor_ok; then
+  aviso "O motor da IA não iniciou" "Faltam bibliotecas do sistema: $(libs_faltando). Instale 'libgomp' (pacote libgomp1 / libgomp / gcc-libs)."
+  exit 1
+fi
+achar_navegador
+
+abrir_janela() {  # abre a interface; bloqueia até a janela fechar (quando possível)
+  local url="$1"
+  if [ -n "$NAV" ]; then
+    mkdir -p "$PERFIL"
+    local t0=$SECONDS extra=""
+    [ "${PROPONS_DEPURAR:-0}" = 1 ] && extra="--remote-debugging-port=9333"   # só para testes
+    $NAV --app="$url" --user-data-dir="$PERFIL" --class=propons-ia --name=propons-ia $extra \
       --window-size=460,720 --no-first-run --no-default-browser-check --disable-features=Translate >/dev/null 2>&1
+    # se o navegador repassou a janela para uma instância que já estava aberta, espera ela fechar
+    if [ $((SECONDS - t0)) -lt 3 ]; then
+      sleep 1
+      while pgrep -f -- "--user-data-dir=$PERFIL" >/dev/null 2>&1; do sleep 2; done
+    fi
     return
   fi
   # sem navegador com "modo app": abre no navegador padrão
-  tem xdg-open && xdg-open "$url" >/dev/null 2>&1 &
+  if tem xdg-open; then xdg-open "$url" >/dev/null 2>&1 &
+  else aviso "Abra no navegador" "$url"; fi
   if no_terminal; then
     printf '\n  Própons IA aberta em %s\n  Deixe este terminal aberto. Para desligar: Ctrl+C\n\n' "$url"
-    wait "$MOTOR_PID" 2>/dev/null
+    wait "${MOTOR_PID:-}" 2>/dev/null
   elif tem zenity; then
     zenity --info --title="Própons IA" --text="A Própons IA está aberta no navegador.\n\nClique em <b>Desligar</b> quando terminar de estudar." --ok-label="Desligar" --width=320 2>/dev/null
   elif tem kdialog; then
     kdialog --title "Própons IA" --msgbox "A Própons IA está aberta no navegador.\n\nClique OK para desligar." 2>/dev/null
   else
     tem notify-send && notify-send -i propons-ia "Própons IA" "Aberta no navegador. Para desligar: propons-ia --parar"
-    wait "$MOTOR_PID" 2>/dev/null
+    wait "${MOTOR_PID:-}" 2>/dev/null
   fi
 }
 
-# já está aberta? só mostra a janela de novo
-if [ -f "$PORTAFILE" ] && saudavel "$(cat "$PORTAFILE")"; then
-  abrir_janela "http://127.0.0.1:$(cat "$PORTAFILE")/"; exit 0
+# já está aberta? só mostra a janela de novo (sem desligar a outra)
+if [ -f "$PORTAFILE" ] && [ -f "$CHAVEFILE" ] && saudavel "$(cat "$PORTAFILE")" && pid_e_motor "$(cat "$PIDFILE" 2>/dev/null)"; then
+  URL_APP="http://127.0.0.1:$(cat "$PORTAFILE")/#k=$(cat "$CHAVEFILE")"
+  if [ -n "$NAV" ]; then $NAV --app="$URL_APP" --user-data-dir="$PERFIL" --class=propons-ia >/dev/null 2>&1 &
+  elif tem xdg-open; then xdg-open "$URL_APP" >/dev/null 2>&1 & fi
+  exit 0
 fi
 
-# ---------- modelo (baixado só na primeira vez) ----------
-ram_gb=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo 2>/dev/null || echo 8)
-if [ "$LEVE" = 1 ] || [ "${ram_gb:-8}" -lt 6 ]; then M=("${MODELO_LEVE[@]}"); else M=("${MODELO_NORMAL[@]}"); fi
-ARQ="$MODELOS/${M[0]}"; TAM="${M[1]}"; SHA="${M[2]}"; URL="${M[3]}"
-
-tamanho() { stat -c %s "$1" 2>/dev/null || echo 0; }
-
-baixar_modelo() {
-  local parcial="$ARQ.baixando" livre
-  livre=$(df -PB1 "$MODELOS" | awk 'NR==2 {print $4}')
-  if [ -n "$livre" ] && [ "$livre" -lt $((TAM - $(tamanho "$parcial") + 400*1024*1024)) ]; then
-    aviso "Pouco espaço em disco" "A Própons IA precisa de cerca de $((TAM/1024/1024 + 400)) MB livres em $MODELOS."; return 1
-  fi
-  local tent=0
-  while [ "$(tamanho "$parcial")" -lt "$TAM" ]; do
-    tent=$((tent+1)); [ $tent -gt 5 ] && return 1
-    if no_terminal; then
-      echo "  Baixando a IA (só na primeira vez) — $((TAM/1024/1024)) MB"
-      curl -L --fail --retry 3 -C - -o "$parcial" --progress-bar "$URL" || sleep 2
-    elif tem zenity; then
-      curl -L --fail --retry 3 -C - -s -o "$parcial" "$URL" & local pid=$!
-      ( while kill -0 $pid 2>/dev/null; do
-          local t; t=$(tamanho "$parcial"); echo $((t*100/TAM)); echo "# Baixando a IA — só na primeira vez neste computador ($((t/1048576)) de $((TAM/1048576)) MB)"; sleep 0.5
-        done ) | zenity --progress --title="Própons IA" --text="Baixando a IA…" --percentage=0 --auto-close --width=420 2>/dev/null || { kill $pid 2>/dev/null; return 1; }
-      wait $pid || sleep 2
-    else
-      tem notify-send && [ $tent = 1 ] && notify-send -i propons-ia "Própons IA" "Baixando a IA ($((TAM/1048576)) MB) — só na primeira vez. Isso pode levar alguns minutos."
-      curl -L --fail --retry 3 -C - -s -o "$parcial" "$URL" || sleep 2
-    fi
-  done
-  no_terminal && echo "  Conferindo o download…"
-  if [ "$(sha256sum "$parcial" | cut -d' ' -f1)" != "$SHA" ]; then
-    rm -f "$parcial"; aviso "Download corrompido" "Abra a Própons IA de novo para baixar outra vez."; return 1
-  fi
-  mv -f "$parcial" "$ARQ"
-}
+# uma inicialização por vez (evita dois downloads ou dois motores)
+exec 9>"$TRAVA"
+if tem flock && ! flock -n 9; then
+  no_terminal && echo "  A Própons IA já está abrindo em outra janela…"
+  flock 9; exec "$0" "${ARGS[@]}"
+fi
 
 if [ "$(tamanho "$ARQ")" != "$TAM" ]; then
   if ! baixar_modelo; then
@@ -156,22 +293,38 @@ if [ "$(tamanho "$ARQ")" != "$TAM" ]; then
   fi
 fi
 
-# ---------- liga o motor ----------
+preparar_interface
 PORTA=$(porta_livre)
-"$MOTOR" -m "$ARQ" --host 127.0.0.1 --port "$PORTA" --path "$APP_DIR/interface" \
-  -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 >"$LOG" 2>&1 &
-MOTOR_PID=$!
-echo "$MOTOR_PID" >"$PIDFILE"; echo "$PORTA" >"$PORTAFILE"
-desligar() { kill "$MOTOR_PID" 2>/dev/null; wait "$MOTOR_PID" 2>/dev/null; rm -f "$PIDFILE" "$PORTAFILE"; }
+CHAVE="$(head -c 18 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')"
+( umask 077; echo "$CHAVE" >"$CHAVEFILE" )
+: >"$LOG"
+ligar_motor
+flock -u 9 2>/dev/null; exec 9>&-
+VIGIA_PID=""
+desligar() {
+  [ -n "$VIGIA_PID" ] && kill "$VIGIA_PID" 2>/dev/null
+  local p; p="$(cat "$PIDFILE" 2>/dev/null)"; pid_e_motor "$p" && kill "$p" 2>/dev/null
+  kill "$MOTOR_PID" 2>/dev/null; wait "$MOTOR_PID" 2>/dev/null
+  rm -f "$PIDFILE" "$PORTAFILE" "$CHAVEFILE"
+}
 trap desligar EXIT
 trap 'exit 130' INT TERM HUP
 
-no_terminal && echo "  Iniciando a Própons IA…"
-for _ in $(seq 1 600); do
-  saudavel "$PORTA" && break
-  if ! kill -0 "$MOTOR_PID" 2>/dev/null; then aviso "O motor da IA fechou sozinho" "Veja os detalhes em $LOG"; exit 1; fi
-  sleep 0.3
-done
-saudavel "$PORTA" || { aviso "A IA demorou demais para iniciar" "Veja os detalhes em $LOG"; exit 1; }
+no_terminal && echo "  Iniciando a Própons IA ($(campo "$MODELO_ID" 6))…"
+if ! esperar_motor; then aviso "O motor da IA não iniciou" "Pode ser falta de memória. Veja os detalhes em $LOG ou use: propons-ia --modelo leve"; exit 1; fi
 
-abrir_janela "http://127.0.0.1:$PORTA/"
+# vigia: se o motor cair com a janela aberta, religa na mesma porta e com a mesma chave
+(
+  quedas=0
+  while sleep 3; do
+    p="$(cat "$PIDFILE" 2>/dev/null)"
+    if ! kill -0 "$p" 2>/dev/null; then
+      quedas=$((quedas+1)); [ $quedas -gt 5 ] && exit 0
+      echo "[vigia] motor caiu; religando ($quedas)" >>"$LOG"
+      ligar_motor; esperar_motor || true
+    fi
+  done
+) &
+VIGIA_PID=$!
+
+abrir_janela "http://127.0.0.1:$PORTA/#k=$CHAVE"

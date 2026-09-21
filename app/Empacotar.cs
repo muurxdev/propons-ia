@@ -1,5 +1,7 @@
 // Junta o programa + todos os arquivos da pasta payload em um único .exe.
 // Uso: Empacotar.exe <nucleo.exe> <pasta payload> <saida.exe>
+// Formato: [nucleo][arquivos...][índice UTF-8][int64 tamanho do índice]["PROPONS1"]
+// Índice: "build|<id>" e uma linha por arquivo "caminho|início|tamanho|sha256".
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,27 +18,35 @@ class Empacotar
         StringBuilder idx = new StringBuilder();
         byte[] buf = new byte[4 << 20];
         using (FileStream o = new FileStream(saida, FileMode.Create, FileAccess.Write))
+        using (SHA256 geral = SHA256.Create())
         {
             byte[] n = File.ReadAllBytes(nucleo);
             o.Write(n, 0, n.Length);
+            geral.TransformBlock(n, 0, n.Length, null, 0);
             foreach (string f in arquivos)
             {
                 string rel = f.Substring(raiz.Length);
                 long inicio = o.Position;
-                using (FileStream i = File.OpenRead(f)) { int k; while ((k = i.Read(buf, 0, buf.Length)) > 0) o.Write(buf, 0, k); }
-                idx.Append(rel).Append('|').Append(inicio).Append('|').Append(o.Position - inicio).Append('\n');
-                Console.WriteLine("  + {0,-45} {1,10:N0} KB", rel, (o.Position - inicio) / 1024);
+                string sha;
+                using (SHA256 h = SHA256.Create())
+                using (FileStream i = File.OpenRead(f))
+                {
+                    int k;
+                    while ((k = i.Read(buf, 0, buf.Length)) > 0) { o.Write(buf, 0, k); h.TransformBlock(buf, 0, k, null, 0); }
+                    h.TransformFinalBlock(new byte[0], 0, 0);
+                    sha = BitConverter.ToString(h.Hash).Replace("-", "").ToLowerInvariant();
+                }
+                byte[] linha = Encoding.UTF8.GetBytes(rel + "|" + sha);
+                geral.TransformBlock(linha, 0, linha.Length, null, 0);
+                idx.Append(rel).Append('|').Append(inicio).Append('|').Append(o.Position - inicio).Append('|').Append(sha).Append('\n');
             }
-            string corpo = idx.ToString();
-            string build;
-            using (SHA1 sha = SHA1.Create())
-                build = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(corpo + Convert.ToBase64String(sha.ComputeHash(n))))).Replace("-", "").Substring(0, 12).ToLower();
-            byte[] ib = Encoding.UTF8.GetBytes("build|" + build + "\n" + corpo);
+            geral.TransformFinalBlock(new byte[0], 0, 0);
+            string build = BitConverter.ToString(geral.Hash).Replace("-", "").Substring(0, 12).ToLowerInvariant();
+            byte[] ib = Encoding.UTF8.GetBytes("build|" + build + "\n" + idx);
             o.Write(ib, 0, ib.Length);
             o.Write(BitConverter.GetBytes((long)ib.Length), 0, 8);
-            byte[] magic = Encoding.ASCII.GetBytes("PROPONS1");
-            o.Write(magic, 0, 8);
-            Console.WriteLine("build {0} | {1} arquivos | {2:N0} MB", build, arquivos.Count, o.Length >> 20);
+            o.Write(Encoding.ASCII.GetBytes("PROPONS1"), 0, 8);
+            Console.WriteLine("build {0} | {1} arquivos | {2:N1} MB", build, arquivos.Count, o.Length / 1048576.0);
         }
         return 0;
     }

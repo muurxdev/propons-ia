@@ -1,0 +1,161 @@
+name: Compilar e publicar
+
+# Tag v* (ex.: git tag v1.1.0 && git push --tags) compila todas as plataformas e publica a release.
+# "Run workflow" (manual) só compila e deixa os arquivos para baixar em Artifacts.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      emulador:
+        description: 'Rodar também o teste no emulador Android (demora ~20 min)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  testes:
+    name: Testes da interface
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node src/montar.js
+      - run: node src/teste_algoritmos.js
+      - run: node src/teste_markdown.js
+      - name: Sintaxe do script da página
+        run: node -e "const h=require('fs').readFileSync('payload/interface/index.html','utf8');require('fs').writeFileSync('/tmp/p.js',[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n'))" && node --check /tmp/p.js
+      - uses: actions/upload-artifact@v4
+        with: { name: interface, path: payload/interface/ }
+
+  windows:
+    name: Windows (.exe)
+    needs: testes
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: powershell -ExecutionPolicy Bypass -File build.ps1
+      - run: Copy-Item -LiteralPath "dist\Pr$([char]0xF3)pons IA.exe" -Destination dist\Propons-IA-Windows.exe
+        shell: powershell
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: dist/Propons-IA-Windows.exe }
+
+  linux:
+    name: Linux (.deb/.rpm/.tar.gz)
+    needs: testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm dpkg-dev
+      - run: bash linux/build.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: linux, path: dist/linux/ }
+
+  android:
+    name: Android (.apk)
+    needs: testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.11.1' }
+      - name: Chave de assinatura (segredo do GitHub)
+        env:
+          KS: ${{ secrets.PROPONS_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then echo "$KS" | base64 -d > "$RUNNER_TEMP/propons.jks"; echo "PROPONS_KEYSTORE=$RUNNER_TEMP/propons.jks" >> "$GITHUB_ENV"; fi
+      - name: Compilar APK
+        env:
+          PROPONS_KEYSTORE_SENHA: ${{ secrets.PROPONS_KEYSTORE_SENHA }}
+          PROPONS_KEY_ALIAS: ${{ secrets.PROPONS_KEY_ALIAS }}
+          PROPONS_KEY_SENHA: ${{ secrets.PROPONS_KEY_SENHA }}
+          GRADLE: gradle
+        run: bash android/compilar.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: android, path: dist/android/Propons-IA-Android.apk }
+
+  android-emulador:
+    name: Android no emulador (opcional)
+    needs: testes
+    if: github.event_name == 'workflow_dispatch' && inputs.emulador
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.11.1' }
+      - name: Liberar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - run: bash android/ferramentas/preparar-emulador.sh
+        env: { GRADLE: gradle }
+      - run: bash android/ferramentas/testar-emulador.sh "$PWD/dist/teste-android"
+        env: { GRADLE: gradle }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: teste-android, path: dist/teste-android/ }
+
+  ios:
+    name: iOS (.ipa) + teste do motor
+    needs: testes
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: brew install xcodegen
+      - run: bash ios/preparar.sh
+      - name: Teste do motor (mesmo Motor.swift, no macOS, modelo real)
+        run: |
+          cp ios/ProponsIA/Motor.swift ios/TesteMotor/Sources/TesteMotor/
+          curl -fsSL -o /tmp/modelo.gguf https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf
+          cd ios/TesteMotor && swift run -c release TesteMotor /tmp/modelo.gguf
+      - name: Compilar o app (sem assinatura; o AltStore/SideStore assina no iPhone)
+        run: |
+          cd ios && xcodegen generate
+          xcodebuild -project ProponsIA.xcodeproj -scheme ProponsIA -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -30
+          mkdir -p Payload && cp -R build/Build/Products/Release-iphoneos/ProponsIA.app Payload/
+          zip -qry ../Propons-IA-iOS.ipa Payload
+          ls -la ../Propons-IA-iOS.ipa
+      - run: node ferramentas/gerar-fonte-altstore.js Propons-IA-iOS.ipa altstore-source.json
+      - uses: actions/upload-artifact@v4
+        with: { name: ios, path: "Propons-IA-iOS.ipa\naltstore-source.json" }
+
+  publicar:
+    name: Publicar release
+    needs: [windows, linux, android, ios]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: arte, merge-multiple: true }
+      - name: Conferir e somar
+        run: |
+          cd arte && ls -la
+          for f in Propons-IA-Windows.exe Propons-IA-Android.apk Propons-IA-iOS.ipa altstore-source.json propons-ia_amd64.deb propons-ia.x86_64.rpm propons-ia-linux-x86_64.tar.gz; do test -s "$f" || { echo "faltando: $f"; exit 1; }; done
+          rm -f SHA256SUMS && sha256sum Propons-IA-* propons-ia* > SHA256SUMS
+      - name: Publicar
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          V="${GITHUB_REF_NAME}"
+          gh release create "$V" arte/Propons-IA-* arte/propons-ia* arte/altstore-source.json arte/SHA256SUMS \
+            --title "Própons IA ${V#v}" --notes-file docs/novidades.md --latest

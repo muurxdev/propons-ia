@@ -1,7 +1,8 @@
-// Própons IA — executável único e leve.
-// Interface + motor vão anexados ao final do .exe e são extraídos para %LOCALAPPDATA%\Propons IA.
-// O modelo é baixado da internet na primeira vez em cada PC (com retomada e verificação SHA-256).
-// As conversas ficam salvas ao lado do .exe (no pendrive), numa pasta oculta "dados".
+// Própons IA — executável único e leve para Windows.
+// Interface + motor (llama.cpp) vão anexados ao final do .exe e são extraídos para %LOCALAPPDATA%\Propons IA.
+// O modelo é baixado na primeira vez em cada PC (retomada + SHA-256). As conversas e a configuração
+// ficam ao lado do .exe (pasta oculta "dados"), para irem junto no pendrive.
+// A interface conversa com este programa por mensagens {t:'pedido', id, acao, args} → {t:'resposta', id, ok, dados}.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,6 +25,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
+    public const string Versao = "1.1.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -34,7 +36,6 @@ static class Program
     {
         // nitidez: sem isso o Windows estica a janela em telas com escala (125%/150%) e tudo fica borrado
         try { if (!SetProcessDpiAwarenessContext(new IntPtr(-4))) SetProcessDPIAware(); } catch { try { SetProcessDPIAware(); } catch { } }
-
         AppDomain.CurrentDomain.AssemblyResolve += delegate (object s, ResolveEventArgs e)
         {
             string nome = new AssemblyName(e.Name).Name + ".dll";
@@ -51,13 +52,14 @@ static class Program
         ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; // TLS 1.2
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        bool leve = Array.Exists(args, delegate (string a) { return a.Equals("--leve", StringComparison.OrdinalIgnoreCase); });
-        Iniciar(leve);
+        string forcar = null;
+        foreach (string a in args) { if (a.Equals("--leve", StringComparison.OrdinalIgnoreCase)) forcar = "leve"; }
+        Iniciar(forcar);
         GC.KeepAlive(unica);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    static void Iniciar(bool leve) { Application.Run(new Janela(leve)); }
+    static void Iniciar(string forcar) { Application.Run(new Janela(forcar)); }
 
     public static void Log(string m)
     {
@@ -68,20 +70,28 @@ static class Program
 // ---------- modelos disponíveis (baixados na 1ª vez) ----------
 class Modelo
 {
-    public string Arquivo, Url, Sha256; public long Tamanho;
-    public static readonly Modelo Normal = new Modelo { Arquivo = "Qwen3.5-2B-Q4_K_M.gguf", Tamanho = 1280835840,
-        Url = "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf",
-        Sha256 = "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223" };
-    public static readonly Modelo Leve = new Modelo { Arquivo = "Qwen3.5-0.8B-Q4_K_M.gguf", Tamanho = 532517120,
+    public string Id, Nome, Descricao, Arquivo, Url, Sha256; public long Tamanho; public int RamMin;
+    public static readonly Modelo Leve = new Modelo { Id = "leve", Nome = "Leve (0.8B)", Descricao = "mais rápido, para PCs com pouca memória",
+        Arquivo = "Qwen3.5-0.8B-Q4_K_M.gguf", Tamanho = 532517120, RamMin = 3,
         Url = "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf",
         Sha256 = "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517" };
+    public static readonly Modelo Normal = new Modelo { Id = "normal", Nome = "Normal (2B)", Descricao = "equilíbrio entre velocidade e qualidade",
+        Arquivo = "Qwen3.5-2B-Q4_K_M.gguf", Tamanho = 1280835840, RamMin = 6,
+        Url = "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf",
+        Sha256 = "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223" };
+    public static readonly Modelo Avancado = new Modelo { Id = "avancado", Nome = "Avançado (4B)", Descricao = "respostas e códigos melhores, mais lento",
+        Arquivo = "Qwen3.5-4B-Q4_K_M.gguf", Tamanho = 2740937888, RamMin = 8,
+        Url = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
+        Sha256 = "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4" };
+    public static readonly Modelo[] Todos = { Leve, Normal, Avancado };
+    public static Modelo PorId(string id) { foreach (Modelo m in Todos) if (m.Id == id) return m; return null; }
 }
 
 // ---------- pacote anexado ao .exe ----------
-// formato: [arquivos...][índice UTF-8][int64 tamanho do índice]["PROPONS1"]
+// formato: [arquivos...][índice UTF-8][int64 tamanho do índice]["PROPONS1"]; índice: caminho|início|tamanho|sha256
 static class Pacote
 {
-    public class Item { public string Caminho; public long Inicio, Tamanho; }
+    public class Item { public string Caminho, Sha; public long Inicio, Tamanho; }
     public static readonly List<Item> Itens = new List<Item>();
     public static string Build = "dev";
     public static string Origem;
@@ -102,10 +112,10 @@ static class Pacote
                 f.Seek(-16 - tam, SeekOrigin.End); Ler(f, idx);
                 foreach (string linha in Encoding.UTF8.GetString(idx).Split('\n'))
                 {
-                    string[] p = linha.Split('|');
-                    if (p.Length == 2 && p[0] == "build") Build = p[1].Trim();
-                    if (p.Length != 3) continue;
-                    Itens.Add(new Item { Caminho = p[0], Inicio = long.Parse(p[1]), Tamanho = long.Parse(p[2].Trim()) });
+                    string[] p = linha.Trim().Split('|');
+                    if (p.Length == 2 && p[0] == "build") Build = p[1];
+                    if (p.Length < 3) continue;
+                    Itens.Add(new Item { Caminho = p[0], Inicio = long.Parse(p[1]), Tamanho = long.Parse(p[2]), Sha = p.Length > 3 ? p[3] : "" });
                 }
                 return Itens.Count > 0;
             }
@@ -120,18 +130,22 @@ static class Pacote
     }
     static void Ler(Stream s, byte[] b) { int t = 0, n; while (t < b.Length && (n = s.Read(b, t, b.Length - t)) > 0) t += n; }
 
-    public static void Extrair(string destino, Predicate<Item> quero)
+    // extrai o que mudou (compara pelo sha256 guardado no manifesto da pasta)
+    public static void Extrair(string destino)
     {
+        string manif = Path.Combine(destino, "extraido.txt");
+        Dictionary<string, string> feito = new Dictionary<string, string>();
+        try { foreach (string l in File.ReadAllLines(manif)) { string[] p = l.Split('|'); if (p.Length == 2) feito[p[0]] = p[1]; } } catch { }
         byte[] buf = new byte[1 << 20];
+        bool mudou = false;
         using (FileStream src = new FileStream(Origem, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, FileOptions.SequentialScan))
         {
             foreach (Item i in Itens)
             {
-                if (!quero(i)) continue;
                 string alvo = Path.Combine(destino, i.Caminho);
                 FileInfo fi = new FileInfo(alvo);
-                bool renovar = i.Caminho.StartsWith("interface\\", StringComparison.OrdinalIgnoreCase);
-                if (!renovar && fi.Exists && fi.Length == i.Tamanho) continue;
+                string sha;
+                if (fi.Exists && fi.Length == i.Tamanho && feito.TryGetValue(i.Caminho, out sha) && sha == i.Sha && i.Sha != "") continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(alvo));
                 string tmp = alvo + ".parcial";
                 src.Seek(i.Inicio, SeekOrigin.Begin);
@@ -147,21 +161,32 @@ static class Pacote
                 }
                 if (File.Exists(alvo)) File.Delete(alvo);
                 File.Move(tmp, alvo);
+                feito[i.Caminho] = i.Sha; mudou = true;
             }
+        }
+        if (mudou)
+        {
+            List<string> linhas = new List<string>();
+            foreach (KeyValuePair<string, string> kv in feito) linhas.Add(kv.Key + "|" + kv.Value);
+            File.WriteAllLines(manif, linhas.ToArray());
         }
     }
 }
 
 class Janela : Form
 {
-    readonly bool leve;
+    readonly string forcar;
     WebView2 web;
     Process motor;
     int porta = 8765;
-    string pasta;                  // interface + motor extraídos
+    string pasta;                          // interface + motor extraídos
     Modelo modelo;
     string arquivoModelo;
+    readonly string chave = GerarChave(); // llama-server --api-key: só a nossa página usa o motor
     TaskCompletionSource<bool> tentarDeNovo;
+    bool desligando, trocando;
+    readonly List<DateTime> quedas = new List<DateTime>();
+    StreamWriter logMotor;
     readonly JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string c, string t);
@@ -173,14 +198,20 @@ class Janela : Form
         if (h != IntPtr.Zero) { ShowWindow(h, 9); SetForegroundWindow(h); }
     }
 
-    public Janela(bool leve)
+    public Janela(string forcar)
     {
-        this.leve = leve;
+        this.forcar = forcar;
         Text = Program.Titulo;
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.Manual;
         BackColor = Escuro() ? Color.FromArgb(0x17, 0x17, 0x1b) : Color.White;
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+    }
+
+    static string GerarChave()
+    {
+        byte[] b = new byte[18]; using (RandomNumberGenerator r = RandomNumberGenerator.Create()) r.GetBytes(b);
+        return Convert.ToBase64String(b).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
 
     // janela pequena ao abrir (tipo mini player), centralizada, em pixels reais conforme a escala da tela
@@ -220,15 +251,64 @@ class Janela : Form
         catch { return false; }
     }
 
+    // ---------- pastas ----------
+    static string Raiz()
+    {
+        string b = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrEmpty(b)) b = Path.GetTempPath();
+        return Path.Combine(b, "Propons IA");
+    }
+    // dados (conversas, config): ao lado do .exe na pasta oculta "dados"; se não der para gravar lá, no PC
+    static string PastaDados()
+    {
+        string perto = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "dados");
+        try
+        {
+            if (!Directory.Exists(perto)) { DirectoryInfo di = Directory.CreateDirectory(perto); di.Attributes |= FileAttributes.Hidden; }
+            string teste = Path.Combine(perto, ".w"); File.WriteAllText(teste, ""); File.Delete(teste);
+            return perto;
+        }
+        catch { }
+        string local = Path.Combine(Raiz(), "dados"); Directory.CreateDirectory(local);
+        return local;
+    }
+
+    // ---------- configuração ----------
+    Dictionary<string, object> LerConfig()
+    {
+        try { string p = Path.Combine(PastaDados(), "config.json"); if (File.Exists(p)) return json.Deserialize<Dictionary<string, object>>(File.ReadAllText(p, Encoding.UTF8)) ?? new Dictionary<string, object>(); } catch { }
+        return new Dictionary<string, object>();
+    }
+    void SalvarConfig(Dictionary<string, object> c) { try { GravarSeguro(Path.Combine(PastaDados(), "config.json"), json.Serialize(c)); } catch (Exception ex) { Program.Log("config: " + ex.Message); } }
+
+    // grava com arquivo temporário + troca atômica, mantendo um .bak do anterior
+    static void GravarSeguro(string p, string conteudo)
+    {
+        string tmp = p + ".tmp";
+        using (FileStream f = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+        using (StreamWriter w = new StreamWriter(f, new UTF8Encoding(false))) { w.Write(conteudo); w.Flush(); f.Flush(true); }
+        if (File.Exists(p)) File.Replace(tmp, p, p + ".bak", true); else File.Move(tmp, p);
+    }
+
+    Modelo EscolherModelo()
+    {
+        if (forcar != null) return Modelo.PorId(forcar) ?? Modelo.Normal;
+        object id; Dictionary<string, object> c = LerConfig();
+        if (c.TryGetValue("modelo", out id)) { Modelo m = Modelo.PorId(id as string); if (m != null) return m; }
+        return RamGB() < 6 ? Modelo.Leve : Modelo.Normal;
+    }
+
     // ---------- início ----------
     protected override async void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        if (!Pacote.Abrir()) { Erro("O arquivo do Própons IA está incompleto. Copie o Própons IA.exe de novo."); return; }
-        modelo = (leve || RamGB() < 6) ? Modelo.Leve : Modelo.Normal;
+        if (!Pacote.Abrir()) { Falha("O arquivo do Própons IA está incompleto. Copie o Própons IA.exe de novo."); return; }
+        modelo = EscolherModelo();
 
+        string erroPrep = null;
         try { pasta = await Task.Run(delegate { return Preparar(); }); }
-        catch (Exception ex) { Program.Log("preparar: " + ex); Erro("Não foi possível preparar o Própons IA neste PC.\n" + ex.Message); return; }
+        catch (Exception ex) { erroPrep = ex.Message; Program.Log("preparar: " + ex); }
+        if (erroPrep != null) { Falha("Não foi possível preparar o Própons IA neste PC.\n" + erroPrep); return; }
 
         try
         {
@@ -239,38 +319,66 @@ class Janela : Form
             CoreWebView2Environment.SetLoaderDllFolderPath(pasta);
             string args = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --renderer-process-limit=1";
             if (Environment.GetEnvironmentVariable("PROPONS_DEPURAR") == "1") args += " --remote-debugging-port=9333"; // só para testes
-            CoreWebView2EnvironmentOptions op = new CoreWebView2EnvironmentOptions(args);
-            CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Raiz(), "webview"), op);
+            CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Raiz(), "webview"), new CoreWebView2EnvironmentOptions(args));
             await web.EnsureCoreWebView2Async(env);
             CoreWebView2Settings s = web.CoreWebView2.Settings;
-            s.AreDevToolsEnabled = false;
+            s.AreDevToolsEnabled = Environment.GetEnvironmentVariable("PROPONS_DEPURAR") == "1";
             s.IsStatusBarEnabled = false;
-            s.AreBrowserAcceleratorKeysEnabled = false;
             s.IsPasswordAutosaveEnabled = false;
             s.IsGeneralAutofillEnabled = false;
-            web.CoreWebView2.NewWindowRequested += delegate (object o, CoreWebView2NewWindowRequestedEventArgs a) { a.Handled = true; try { Process.Start(a.Uri); } catch { } };
+            web.CoreWebView2.NewWindowRequested += delegate (object o, CoreWebView2NewWindowRequestedEventArgs a) { a.Handled = true; AbrirLink(a.Uri); };
+            web.CoreWebView2.NavigationStarting += delegate (object o, CoreWebView2NavigationStartingEventArgs a)
+            {   // links externos nunca navegam dentro da janela do app
+                if (a.Uri.StartsWith("http", StringComparison.OrdinalIgnoreCase) && !a.Uri.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)) { a.Cancel = true; AbrirLink(a.Uri); }
+            };
             web.CoreWebView2.WebMessageReceived += Mensagem;
             await Navegar(Splash());
         }
-        catch (Exception ex) { Program.Log("webview: " + ex); Erro("Este PC não tem o componente de janela do Windows (WebView2)."); return; }
+        catch (Exception ex) { Program.Log("webview: " + ex); Falha("Este PC não tem o componente de janela do Windows (WebView2)."); return; }
 
-        // modelo: já existe neste PC? senão baixa (só na 1ª vez)
-        arquivoModelo = AcharModelo(modelo);
-        while (arquivoModelo == null)
+        await PrepararModeloEMotor(true);
+    }
+
+    // baixa (se preciso) o modelo atual e liga o motor. Na primeira vez usa a tela de carregamento.
+    async Task PrepararModeloEMotor(bool naSplash)
+    {
+        while (true)
         {
-            string falha = null;
-            try { arquivoModelo = await Baixar(modelo); }
-            catch (Exception ex) { falha = ex.Message; }
-            if (falha == null) break;
-            Program.Log("download: " + falha);
-            bool semEspaco = falha == "sem espaço";
-            Splash(-2, semEspaco ? "Pouco espaço neste PC" : "Sem conexão para baixar a IA",
-                semEspaco ? "A IA precisa de cerca de 1,6 GB livres no disco deste PC." : "Na primeira vez em cada PC é preciso internet. Verifique a conexão e tente de novo.");
+            arquivoModelo = AcharModelo(modelo);
+            if (arquivoModelo == null)
+            {
+                string falha = null;
+                try { arquivoModelo = await Baixar(modelo, naSplash); } catch (Exception ex) { falha = ex.Message; }
+                if (falha != null)
+                {
+                    Program.Log("download: " + falha);
+                    if (!naSplash) { Evento("motor", Dic("estado", "erro", "mensagem", MensagemDownload(falha))); return; }
+                    Splash(-2, TituloDownload(falha), MensagemDownload(falha));
+                    tentarDeNovo = new TaskCompletionSource<bool>();
+                    await tentarDeNovo.Task;
+                    continue;
+                }
+            }
+            if (naSplash) Splash(-1, "Iniciando", "");
+            string erro = await LigarMotor();
+            if (erro == null)
+            {
+                if (naSplash) web.CoreWebView2.Navigate("http://127.0.0.1:" + porta + "/#k=" + chave);
+                else Evento("motor", Dic("estado", "pronto", "nome", modelo.Nome));
+                return;
+            }
+            if (!naSplash) { Evento("motor", Dic("estado", "erro", "mensagem", erro)); return; }
+            Splash(-2, "Não foi possível abrir a IA", erro);
             tentarDeNovo = new TaskCompletionSource<bool>();
             await tentarDeNovo.Task;
         }
-        Splash(-1, "Iniciando", "");
-        await LigarMotor();
+    }
+    static string TituloDownload(string f) { return f == "sem espaço" ? "Pouco espaço neste PC" : f == "corrompido" ? "Download com defeito" : "Sem conexão para baixar a IA"; }
+    string MensagemDownload(string f)
+    {
+        if (f == "sem espaço") return "A IA precisa de cerca de " + ((modelo.Tamanho >> 20) + 400) + " MB livres no disco deste PC.";
+        if (f == "corrompido") return "O arquivo baixado veio com defeito e foi descartado. Tente de novo.";
+        return "Na primeira vez em cada PC é preciso internet. Verifique a conexão e tente de novo.";
     }
 
     Task Navegar(string html)
@@ -283,28 +391,28 @@ class Janela : Form
         return pronto.Task;
     }
 
-    static string Raiz()
-    {
-        string b = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrEmpty(b)) b = Path.GetTempPath();
-        return Path.Combine(b, "Propons IA");
-    }
-
     string Preparar()
     {
         if (Pacote.PastaSolta != null) return Pacote.PastaSolta;
         string destino = Path.Combine(Raiz(), Pacote.Build);
         Directory.CreateDirectory(destino);
         try
-        {   // limpa versões antigas (mantém modelos e dados do navegador)
+        {   // limpa versões antigas (mantém modelos, dados e o navegador)
             foreach (string d in Directory.GetDirectories(Raiz()))
             {
                 string n = Path.GetFileName(d);
-                if (n != Pacote.Build && n != "webview" && n != "modelos") try { Directory.Delete(d, true); } catch { }
+                if (n != Pacote.Build && n != "webview" && n != "modelos" && n != "dados") try { Directory.Delete(d, true); } catch { }
             }
         }
         catch { }
-        Pacote.Extrair(destino, delegate (Pacote.Item i) { return true; });
+        Pacote.Extrair(destino);
+        // conhecimento.md ao lado do .exe substitui o embutido (para "moldar" a IA sem recompilar)
+        try
+        {
+            string extra = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "conhecimento.md");
+            if (File.Exists(extra)) File.Copy(extra, Path.Combine(destino, @"interface\conhecimento.md"), true);
+        }
+        catch { }
         return destino;
     }
 
@@ -319,31 +427,42 @@ class Janela : Form
         return null;
     }
 
-    async Task<string> Baixar(Modelo m)
+    async Task<string> Baixar(Modelo m, bool naSplash)
     {
         string dir = Path.Combine(Raiz(), "modelos");
         Directory.CreateDirectory(dir);
         string final = Path.Combine(dir, m.Arquivo), parcial = final + ".baixando";
+        long jaTem = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
         try
         {
             long livre = new DriveInfo(Path.GetPathRoot(dir)).AvailableFreeSpace;
-            if (livre < m.Tamanho + (400L << 20)) throw new IOException("sem espaço");
+            if (livre < m.Tamanho - jaTem + (400L << 20)) throw new IOException("sem espaço");
         }
         catch (IOException) { throw; } catch { }
 
-        const string titulo = "Baixando a IA";
         const string sub = "Só na primeira vez neste PC";
-        Splash(0, titulo, sub);
+        if (naSplash) Splash(0, "Baixando a IA", sub);
+        Action<long> progresso = delegate (long ja)
+        {
+            long jaMB = ja >> 20, totMB = m.Tamanho >> 20; double v = (double)ja / m.Tamanho;
+            BeginInvoke((Action)delegate
+            {
+                if (naSplash) Splash(v, "Baixando a IA", sub + " · " + jaMB + " de " + totMB + " MB");
+                else Evento("download", Dic("pct", v, "feito", ja, "total", m.Tamanho, "nome", m.Nome));
+            });
+        };
         await Task.Run(delegate
         {
-            for (int tentativa = 1; ; tentativa++)
+            int falhasSeguidas = 0;
+            while (true)
             {
                 long ja = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
                 if (ja >= m.Tamanho) break;
+                long antes = ja;
                 try
                 {
                     HttpWebRequest r = (HttpWebRequest)WebRequest.Create(m.Url);
-                    r.UserAgent = "ProponsIA/1.0";
+                    r.UserAgent = "ProponsIA/" + Program.Versao;
                     r.Proxy = WebRequest.GetSystemWebProxy(); r.Proxy.Credentials = CredentialCache.DefaultCredentials;
                     r.Timeout = 30000; r.ReadWriteTimeout = 30000; r.AllowAutoRedirect = true;
                     if (ja > 0) r.AddRange(ja);
@@ -356,54 +475,113 @@ class Janela : Form
                         while ((n = s.Read(buf, 0, buf.Length)) > 0)
                         {
                             f.Write(buf, 0, n); ja += n;
-                            if ((DateTime.Now - ultimo).TotalMilliseconds > 200)
-                            {
-                                ultimo = DateTime.Now; long jaMB = ja >> 20, totMB = m.Tamanho >> 20; double v = (double)ja / m.Tamanho;
-                                BeginInvoke((Action)delegate { Splash(v, titulo, sub + " · " + jaMB + " de " + totMB + " MB"); });
-                            }
+                            if ((DateTime.Now - ultimo).TotalMilliseconds > 250) { ultimo = DateTime.Now; progresso(ja); }
                         }
                     }
                 }
-                catch (Exception) { if (tentativa >= 4) throw; Thread.Sleep(2000 * tentativa); }
+                catch (Exception ex)
+                {
+                    // disco cheio no meio do download: não adianta tentar de novo
+                    if (ex is IOException) { try { if (new DriveInfo(Path.GetPathRoot(dir)).AvailableFreeSpace < (64L << 20)) throw new IOException("sem espaço"); } catch (IOException) { throw; } catch { } }
+                    long agora = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
+                    if (agora > antes) falhasSeguidas = 0; else falhasSeguidas++;     // houve progresso: continua tentando
+                    if (falhasSeguidas >= 4) throw new WebException("sem conexão");
+                    Thread.Sleep(2000 * (falhasSeguidas + 1));
+                }
             }
         });
 
-        Splash(-1, "Verificando o download", "");
+        if (naSplash) Splash(-1, "Verificando o download", "");
         bool ok = await Task.Run(delegate
         {
             using (SHA256 sha = SHA256.Create()) using (FileStream f = new FileStream(parcial, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, FileOptions.SequentialScan))
                 return BitConverter.ToString(sha.ComputeHash(f)).Replace("-", "").ToLowerInvariant() == m.Sha256;
         });
-        if (!ok) { try { File.Delete(parcial); } catch { } throw new IOException("arquivo baixado corrompido"); }
+        if (!ok) { try { File.Delete(parcial); } catch { } throw new IOException("corrompido"); }
         if (File.Exists(final)) File.Delete(final);
         File.Move(parcial, final);
         return final;
     }
 
-    async Task LigarMotor()
+    // ---------- motor ----------
+    async Task<string> LigarMotor()
     {
         string exe = Path.Combine(pasta, @"motor\llama-server.exe");
-        porta = PortaLivre(8765);
+        if (motor == null) porta = PortaLivre(8765);   // ao religar ou trocar de modelo, mantém a mesma porta
         try
         {
+            try { if (logMotor != null) logMotor.Dispose(); } catch { }
+            logMotor = new StreamWriter(Path.Combine(Raiz(), "motor.log"), false, new UTF8Encoding(false)) { AutoFlush = true };
             ProcessStartInfo psi = new ProcessStartInfo(exe,
                 "-m \"" + arquivoModelo + "\" --host 127.0.0.1 --port " + porta +
                 " --path \"" + Path.Combine(pasta, "interface") + "\"" +
-                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0");
+                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key " + chave);
             psi.WorkingDirectory = pasta; psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
-            motor = Process.Start(psi);
-            Job.Prender(motor);
+            psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
+            Process p = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            DataReceivedEventHandler grava = delegate (object o, DataReceivedEventArgs a) { if (a.Data != null) try { lock (this) logMotor.WriteLine(a.Data); } catch { } };
+            p.OutputDataReceived += grava; p.ErrorDataReceived += grava;
+            p.Exited += MotorSaiu;
+            p.Start(); p.BeginOutputReadLine(); p.BeginErrorReadLine();
+            Job.Prender(p);
+            motor = p;
         }
-        catch (Exception ex) { Program.Log("motor: " + ex); Erro("O motor da IA foi bloqueado neste PC (antivírus)."); return; }
+        catch (Exception ex) { Program.Log("motor: " + ex); return "O motor da IA foi bloqueado neste PC (antivírus)."; }
 
         DateTime ini = DateTime.Now;
         while ((DateTime.Now - ini).TotalSeconds < 180)
         {
-            if (motor.HasExited) { Erro("O motor da IA fechou sozinho neste PC (provavelmente bloqueado pelo antivírus)."); return; }
-            if (await Saudavel(porta)) { web.CoreWebView2.Navigate("http://127.0.0.1:" + porta + "/"); return; }
+            if (motor.HasExited) return "O motor da IA fechou sozinho neste PC. Pode ser falta de memória ou bloqueio do antivírus.";
+            if (await Saudavel(porta)) return null;
             await Task.Delay(250);
         }
-        Erro("A IA demorou demais para iniciar neste PC.");
+        return "A IA demorou demais para iniciar neste PC.";
+    }
+
+    // vigia: se o motor cair sem a gente pedir, religa na mesma porta (até 5 vezes em 3 minutos)
+    void MotorSaiu(object o, EventArgs e)
+    {
+        if (desligando || trocando || o != motor) return;
+        BeginInvoke((Action)async delegate
+        {
+            if (desligando || trocando) return;
+            quedas.Add(DateTime.Now); quedas.RemoveAll(delegate (DateTime d) { return (DateTime.Now - d).TotalMinutes > 3; });
+            if (quedas.Count > 5) { Evento("motor", Dic("estado", "erro", "mensagem", "O motor da IA está caindo repetidamente. Veja o Diagnóstico ou use um modelo menor.")); return; }
+            Program.Log("motor caiu; religando");
+            Evento("motor", Dic("estado", "reiniciando"));
+            await Task.Delay(800);
+            string erro = await LigarMotor();
+            Evento("motor", erro == null ? Dic("estado", "pronto", "nome", modelo.Nome) : Dic("estado", "erro", "mensagem", erro));
+        });
+    }
+
+    async Task TrocarModelo(Modelo novo)
+    {
+        if (trocando) return;
+        trocando = true;
+        try
+        {
+            Dictionary<string, object> c = LerConfig(); c["modelo"] = novo.Id; SalvarConfig(c);
+            Modelo antigo = modelo; modelo = novo;
+            if (AcharModelo(novo) == null)
+            {
+                string falha = null;
+                try { await Baixar(novo, false); } catch (Exception ex) { falha = ex.Message; }
+                if (falha != null) { modelo = antigo; c["modelo"] = antigo.Id; SalvarConfig(c); Evento("motor", Dic("estado", "erro", "mensagem", MensagemDownload(falha))); return; }
+            }
+            Evento("motor", Dic("estado", "trocando"));
+            PararMotor();
+            arquivoModelo = AcharModelo(novo);
+            string erro = await LigarMotor();
+            if (erro != null) { Evento("motor", Dic("estado", "erro", "mensagem", erro)); return; }
+            Evento("motor", Dic("estado", "pronto", "nome", novo.Nome));
+        }
+        finally { trocando = false; }
+    }
+
+    void PararMotor()
+    {
+        try { if (motor != null && !motor.HasExited) { motor.Kill(); motor.WaitForExit(5000); } } catch { }
     }
 
     // ---------- mensagens da página ----------
@@ -412,55 +590,109 @@ class Janela : Form
         Dictionary<string, object> m;
         try { m = json.Deserialize<Dictionary<string, object>>(a.WebMessageAsJson); } catch { return; }
         object t; if (m == null || !m.TryGetValue("t", out t)) return;
-        switch (t as string)
-        {
-            case "tema": Tema((m["v"] as string) == "escuro"); break;
-            case "tentar": if (tentarDeNovo != null) tentarDeNovo.TrySetResult(true); break;
-            case "carregar":
-                string dados = "[]"; try { string p = ArquivoConversas(false); if (File.Exists(p)) dados = File.ReadAllText(p, Encoding.UTF8); } catch { }
-                web.CoreWebView2.PostWebMessageAsJson(json.Serialize(new Dictionary<string, object> { { "t", "historico" }, { "dados", dados } }));
-                break;
-            case "salvar":
-                object d; if (!m.TryGetValue("dados", out d)) return;
-                try
-                {
-                    string p = ArquivoConversas(true), tmp = p + ".tmp";
-                    File.WriteAllText(tmp, (string)d, Encoding.UTF8);
-                    if (File.Exists(p)) File.Delete(p);
-                    File.Move(tmp, p);
-                }
-                catch (Exception ex) { Program.Log("salvar: " + ex.Message); }
-                break;
-        }
+        if ((t as string) == "tentar") { if (tentarDeNovo != null) tentarDeNovo.TrySetResult(true); return; }
+        if ((t as string) != "pedido") return;
+        object idO, acaoO, argsO;
+        m.TryGetValue("id", out idO); m.TryGetValue("acao", out acaoO); m.TryGetValue("args", out argsO);
+        Dictionary<string, object> args = argsO as Dictionary<string, object> ?? new Dictionary<string, object>();
+        Atender(idO, acaoO as string, args);
     }
 
-    // conversas ao lado do .exe (pasta oculta "dados"); se não der para gravar lá, no PC
-    static string ArquivoConversas(bool criar)
+    async void Atender(object id, string acao, Dictionary<string, object> args)
     {
-        string perto = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "dados");
+        object dados = null; string erro = null;
         try
         {
-            if (criar && !Directory.Exists(perto)) { DirectoryInfo di = Directory.CreateDirectory(perto); di.Attributes |= FileAttributes.Hidden; }
-            if (Directory.Exists(perto))
+            switch (acao)
             {
-                string teste = Path.Combine(perto, ".w"); File.WriteAllText(teste, ""); File.Delete(teste);
-                return Path.Combine(perto, "conversas.json");
+                case "carregar": dados = await Task.Run(delegate { return CarregarConversas(); }); break;
+                case "salvar":
+                    string conteudo = Arg(args, "dados") ?? "[]";
+                    await Task.Run(delegate { lock (json) GravarSeguro(Path.Combine(PastaDados(), "conversas.json"), conteudo); });
+                    dados = true; break;
+                case "sistema": dados = await Task.Run(delegate { return Sistema(); }); break;
+                case "tema": Tema(Arg(args, "v") == "escuro"); dados = true; break;
+                case "link": AbrirLink(Arg(args, "url")); dados = true; break;
+                case "modelo":
+                    Modelo novo = Modelo.PorId(Arg(args, "id"));
+                    if (novo == null) throw new Exception("modelo desconhecido");
+                    if (novo.Id != modelo.Id) { var _ = TrocarModelo(novo); }
+                    dados = true; break;
+                case "salvarArquivo": dados = SalvarArquivo(Arg(args, "nome"), Arg(args, "conteudo")); break;
+                default: throw new Exception("ação desconhecida: " + acao);
             }
         }
-        catch { }
-        string local = Path.Combine(Raiz(), "dados"); Directory.CreateDirectory(local);
-        return Path.Combine(local, "conversas.json");
+        catch (Exception ex) { erro = ex.Message; }
+        Dictionary<string, object> r = Dic("t", "resposta", "id", id, "ok", erro == null);
+        if (erro == null) r["dados"] = dados; else r["erro"] = erro;
+        try { web.CoreWebView2.PostWebMessageAsJson(json.Serialize(r)); } catch { }
+    }
+    static string Arg(Dictionary<string, object> a, string k) { object v; return a.TryGetValue(k, out v) ? v as string : null; }
+    static Dictionary<string, object> Dic(params object[] kv) { Dictionary<string, object> d = new Dictionary<string, object>(); for (int i = 0; i + 1 < kv.Length; i += 2) d[(string)kv[i]] = kv[i + 1]; return d; }
+    void Evento(string nome, object dados) { try { web.CoreWebView2.PostWebMessageAsJson(json.Serialize(Dic("t", "evento", "nome", nome, "dados", dados))); } catch { } }
+
+    // lê as conversas; se o arquivo estiver danificado, usa o .bak
+    string CarregarConversas()
+    {
+        string p = Path.Combine(PastaDados(), "conversas.json");
+        foreach (string c in new[] { p, p + ".bak", p + ".tmp" })
+        {
+            try { if (!File.Exists(c)) continue; string s = File.ReadAllText(c, Encoding.UTF8); json.DeserializeObject(s); return s; }
+            catch { Program.Log("conversas ilegíveis: " + c); }
+        }
+        return File.Exists(p) ? "{corrompido" : "[]";   // a página detecta e não sobrescreve
     }
 
-    void Erro(string m)
+    Dictionary<string, object> Sistema()
     {
-        Matar();
+        MEMSTAT ms = new MEMSTAT(); GlobalMemoryStatusEx(ms);
+        string cpu = "?", so = Environment.OSVersion.VersionString;
+        try { cpu = (Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString", "?") as string ?? "?").Trim(); } catch { }
+        try
+        {
+            string k = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion";
+            string nome = Microsoft.Win32.Registry.GetValue(k, "ProductName", "") as string, disp = Microsoft.Win32.Registry.GetValue(k, "DisplayVersion", "") as string;
+            object build = Microsoft.Win32.Registry.GetValue(k, "CurrentBuild", "");
+            if (!string.IsNullOrEmpty(nome)) so = (Convert.ToInt32(build) >= 22000 ? nome.Replace("Windows 10", "Windows 11") : nome) + (string.IsNullOrEmpty(disp) ? "" : " " + disp) + " (build " + build + ")";
+        }
+        catch { }
+        long disco = 0; try { disco = new DriveInfo(Path.GetPathRoot(Raiz())).AvailableFreeSpace; } catch { }
+        List<object> ms2 = new List<object>();
+        foreach (Modelo m in Modelo.Todos)
+            ms2.Add(Dic("id", m.Id, "nome", m.Nome, "descricao", m.Descricao, "arquivo", m.Arquivo, "tamanho", m.Tamanho, "ramMin", m.RamMin,
+                "baixado", AcharModelo(m) != null, "atual", m.Id == modelo.Id));
+        string wv = "?"; try { wv = CoreWebView2Environment.GetAvailableBrowserVersionString(); } catch { }
+        return Dic("ramTotal", (long)ms.total, "ramLivre", (long)ms.avail, "cpu", cpu, "nucleos", Environment.ProcessorCount, "discoLivre", disco,
+            "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"));
+    }
+
+    object SalvarArquivo(string nome, string conteudo)
+    {
+        using (SaveFileDialog d = new SaveFileDialog())
+        {
+            d.FileName = nome ?? "arquivo.txt";
+            string ext = Path.GetExtension(d.FileName).TrimStart('.');
+            d.Filter = (ext == "json" ? "JSON|*.json" : ext == "md" ? "Markdown|*.md" : "Texto|*.txt") + "|Todos os arquivos|*.*";
+            d.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (d.ShowDialog(this) != DialogResult.OK) return false;
+            File.WriteAllText(d.FileName, conteudo ?? "", new UTF8Encoding(false));
+            return true;
+        }
+    }
+
+    static void AbrirLink(string url)
+    {
+        if (string.IsNullOrEmpty(url) || !(url.StartsWith("https://") || url.StartsWith("http://"))) return;
+        try { Process.Start(url); } catch { }
+    }
+
+    void Falha(string m)
+    {
         if (web != null && web.CoreWebView2 != null) Splash(-2, "Não foi possível abrir", m);
         else { MessageBox.Show(this, m, Program.Titulo, MessageBoxButtons.OK, MessageBoxIcon.Warning); Close(); }
     }
 
-    protected override void OnFormClosing(FormClosingEventArgs e) { Matar(); base.OnFormClosing(e); }
-    void Matar() { try { if (motor != null && !motor.HasExited) motor.Kill(); } catch { } }
+    protected override void OnFormClosing(FormClosingEventArgs e) { desligando = true; PararMotor(); base.OnFormClosing(e); }
 
     // ---------- tela de carregamento ----------
     void Splash(double v, string titulo, string sub)
@@ -479,7 +711,7 @@ class Janela : Form
 :root{--bg:#fff;--ink:#111114;--mu:#6b6b76;--ln:#e6e6eb;--ac:#7c5cff}
 :root[data-tema=escuro]{--bg:#17171b;--ink:#ececf1;--mu:#9d9daa;--ln:#2b2b32;--ac:#8f76ff}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:15px 'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;display:grid;place-items:center;user-select:none;cursor:default;-webkit-font-smoothing:antialiased}
-.b{text-align:center;width:260px}
+.b{text-align:center;width:280px}
 .logo{width:52px;height:52px;margin:0 auto 18px}
 h1{font-size:17px;font-weight:600;margin:0 0 4px}
 #s{color:var(--mu);margin:0;font-size:13px;min-height:18px}
@@ -490,7 +722,7 @@ h1{font-size:17px;font-weight:600;margin:0 0 4px}
 button{margin-top:18px;font:inherit;font-size:14px;font-weight:500;color:#fff;background:var(--ac);border:0;border-radius:10px;padding:8px 18px;cursor:pointer;display:none}
 </style></head><body><div class='b'><div class='logo'>" + LogoSvg + @"</div><h1 id='t'>Própons IA</h1><p id='s'></p><div class='bar ind' id='bar'><i id='i'></i></div><button id='r'>Tentar novamente</button></div>
 <script>
-document.getElementById('r').onclick=function(){window.chrome.webview.postMessage({t:'tentar'});};
+document.getElementById('r').onclick=function(){window.chrome.webview.postMessage({t:'tentar'});p(-1,'Tentando de novo','');};
 function p(v,t,s){document.getElementById('t').textContent=t||'Própons IA';document.getElementById('s').textContent=s||'';
 var b=document.getElementById('bar'),i=document.getElementById('i'),r=document.getElementById('r');
 r.style.display=v<=-2?'inline-block':'none';b.style.display=v<=-2?'none':'block';

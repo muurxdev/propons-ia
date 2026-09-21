@@ -1,0 +1,68 @@
+// Teste de ponta a ponta do app real do Windows (WebView2 via CDP; app aberto com PROPONS_DEPURAR=1).
+// Inclui: conversa, código, anexo, continuar, diagnóstico, troca de modelo (4B e volta) e o vigia do motor.
+// Uso: node src/teste_windows.mjs <pasta-saida> [--sem-troca]
+import fs from 'node:fs';
+import { execSync } from 'node:child_process';
+const saida = process.argv[2]; const semTroca = process.argv.includes('--sem-troca');
+fs.mkdirSync(saida, { recursive: true });
+let alvos = [];
+for (let i = 0; i < 60; i++) { try { alvos = await (await fetch('http://127.0.0.1:9333/json')).json(); if (alvos.some(a => /127\.0\.0\.1:\d+\/#k=/.test(a.url))) break; } catch (e) {} await new Promise(r => setTimeout(r, 1000)); }
+const pag = alvos.find(a => /127\.0\.0\.1:\d+\//.test(a.url));
+if (!pag) { console.log('app não abriu a interface', alvos.map(a => a.url)); process.exit(1); }
+const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);
+let seq = 0; const pend = new Map();
+ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
+const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
+const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0, 300)); return r.result?.result?.value; };
+const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
+const espera = ms => new Promise(r => setTimeout(r, ms));
+const res = []; const ok = (n, c, d = '') => { res.push([c, n, d]); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 150) : ''); };
+const pronto = async (s = 300) => { for (let i = 0; i < s * 2; i++) { if (await js('online && $("#estado").hidden')) return true; await espera(500); } return false; };
+const pergunta = async t => { await js(`(()=>{const e=$('#entrada'); e.value=${JSON.stringify(t)}; ajustar(); $('#enviar').click(); return 1})()`); await espera(500); for (let i = 0; i < 600 && await js('!!geracao'); i++) await espera(500); return js('atual.msgs[atual.msgs.length-1]'); };
+const motorPid = () => { try { return execSync('powershell -NoProfile -Command "(Get-Process llama-server).Id"').toString().trim(); } catch (e) { return ''; } };
+
+ok('plataforma é windows', (await js('PLATAFORMA.tipo')) === 'windows');
+ok('IA pronta', await pronto());
+await js('nova(); 1');
+let m = await pergunta('oi'); ok('responde "oi"', m.texto.length > 0 && m.texto.length < 300, m.texto);
+m = await pergunta('quick sort em [8, 2, 6, 4, 9, 1]'); ok('quick sort exato', /\[1, 2, 4, 6, 8, 9\]/.test(m.texto) && !!m.passos);
+m = await pergunta('crie um código em C que lê dois números e mostra a soma'); ok('código C com cores', await js(`!!document.querySelector('.msg.ia:last-child pre .tk-kw')`), (await js(`document.querySelector('.msg.ia:last-child pre')?.dataset.lang`)));
+await foto('w1-codigo');
+await js(`adicionarArquivos([new File(['nums = [3, 1, 2]\\nprint(sorted(nums))\\n'], 'ordena.py', {type:'text/plain'})])`);
+m = await pergunta('o que esse arquivo imprime?'); ok('anexo', /\[1, 2, 3\]/.test(m.texto), m.texto.slice(0, 120));
+// continuar
+const c = await js(`(()=>{const m=atual.msgs[atual.msgs.length-1]; m.texto=m.texto.slice(0,40); m.llm=m.texto; m.cortada=true; abrir(atual.id); return m.texto.length})()`);
+await js(`document.querySelector('.acao.continuar').click(); 1`); await espera(500); for (let i = 0; i < 400 && await js('!!geracao'); i++) await espera(500);
+ok('continuar', (await js('atual.msgs[atual.msgs.length-1].texto.length')) > c && !(await js('atual.msgs[atual.msgs.length-1].cortada')));
+// sistema e salvamento pela ponte
+const s = await js('PLATAFORMA.sistema()'); ok('sistema pela ponte', s && s.ramTotal > 0 && s.modelos.length === 3, s && s.so);
+ok('conversas no arquivo', fs.existsSync(s.pastaDados + '\\conversas.json'), s.pastaDados);
+// diagnóstico
+await js(`abrirConfig('diagnostico'); 1`); await js('rodarDiagnostico()');
+const diag = await js('window.__diagnostico'); for (const d of diag) console.log(`     [${d.st}] ${d.titulo}: ${d.det || ''}`);
+ok('diagnóstico sem erros', !diag.some(d => d.st === 'erro')); await foto('w2-diagnostico'); await js('fecharModal(); 1');
+// vigia: derruba o motor à força
+const pid1 = motorPid(); execSync(`powershell -NoProfile -Command "Stop-Process -Id ${pid1} -Force"`);
+await espera(1500); const reconectou = await pronto(120); const pid2 = motorPid();
+ok('vigia religou o motor', reconectou && pid2 && pid2 !== pid1, `${pid1} → ${pid2}`);
+m = await pergunta('responda só: ok'); ok('responde depois de religar', m.texto.length > 0 && !m.erro, m.texto);
+// troca de modelo
+if (!semTroca) {
+  for (const [id, nome] of [['avancado', '4B'], ['normal', '2B']]) {
+    await js(`abrirConfig('modelo'); 1`); await espera(800);
+    await js(`window.confirm = () => true; document.querySelector('[data-modelo="${id}"]').click(); 1`);
+    const t0 = Date.now(); await espera(3000);
+    const ok2 = await pronto(900);
+    const p = await js('PLATAFORMA.props()');
+    ok(`troca para ${nome}`, ok2 && String(p.model_path).includes(nome), `${((Date.now() - t0) / 1000).toFixed(0)} s · ${p.model_path}`);
+    await foto(`w3-modelo-${id}`); await js('fecharModal(); 1');
+    const t1 = Date.now(); m = await pergunta('Explique em uma frase o que é um algoritmo.');
+    const tps = (await js(`PLATAFORMA.gerar([{role:'user',content:'Conte de 1 a 30.'}],{temperatura:0,maxTokens:60},()=>{}).then(r=>r.timings && r.timings.predicted_per_second)`));
+    const ram = execSync('powershell -NoProfile -Command "[int]((Get-Process llama-server).WorkingSet64/1MB)"').toString().trim();
+    ok(`${nome} responde`, m.texto.length > 10, `${tps ? tps.toFixed(1) : '?'} tokens/s · RAM do motor ${ram} MB · ${m.texto.slice(0, 90)}`);
+  }
+}
+fs.writeFileSync(`${saida}/resultado.json`, JSON.stringify({ res, diag, sistema: s }, null, 1));
+ws.close();
+const falhas = res.filter(r => !r[0]).length;
+console.log(falhas ? `${falhas} falha(s)` : 'todos os testes passaram'); process.exit(falhas ? 1 : 0);

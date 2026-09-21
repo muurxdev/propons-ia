@@ -1,0 +1,64 @@
+# Projeto do app iOS, gerado pelo XcodeGen:  cd ios && xcodegen generate
+# Antes: bash ios/preparar.sh  (baixa o llama.xcframework e copia a interface)
+name: ProponsIA
+options:
+  bundleIdPrefix: io.github.muurxdev
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "10100"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Manual
+targets:
+  ProponsIA:
+    type: application
+    platform: iOS
+    sources:
+      - path: ProponsIA
+      - path: Recursos/interface
+        type: folder
+        buildPhase: resources
+      - path: Recursos/splash.html
+        buildPhase: resources
+    dependencies:
+      - framework: Frameworks/llama.xcframework
+        embed: true
+        codeSign: true
+    info:
+      path: ProponsIA/Info.plist
+      properties:
+        CFBundleDisplayName: Própons IA
+        CFBundleName: Própons IA
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: ""
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.muurxdev.proponsia
+        PRODUCT_NAME: ProponsIA
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        SUPPORTS_MACCATALYST: NO

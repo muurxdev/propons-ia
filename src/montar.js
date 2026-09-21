@@ -1,17 +1,24 @@
-// Monta payload/interface/index.html a partir do modelo + blocos testados.
+// Monta payload/interface/index.html a partir do modelo + módulos.
+// Uso: node src/montar.js
 const fs = require('fs'), path = require('path');
 const S = __dirname, OUT = path.join(S, '..', 'payload', 'interface');
-let algo = fs.readFileSync(path.join(S, 'algoritmos.js'), 'utf8')
-  .replace('(idênticos ao código do professor)', '(versões clássicas, calculadas por código)');
+const ler = f => fs.readFileSync(path.join(S, f), 'utf8');
+const VERSAO = ler('../VERSAO').trim();
+
+let algo = ler('algoritmos.js').replace('(idênticos ao código do professor)', '(versões clássicas, calculadas por código)');
 const nomes = "const NOMES={bubble:'Bubble sort',selection:'Selection sort',quick:'Quick sort',binaria:'Busca binária'};";
 algo = algo.replace(/const NOMES=\{[^\n]*\};/, nomes);
 if (!algo.includes(nomes)) throw new Error('NOMES não substituído');
-const html = fs.readFileSync(path.join(S, 'index.template.html'), 'utf8')
-  .replace('{{ALGO}}', () => algo)
-  .replace('{{MD}}', () => fs.readFileSync(path.join(S, 'markdown.js'), 'utf8'))
-  .replace('{{DETECT}}', () => fs.readFileSync(path.join(S, 'detecta.js'), 'utf8'));
-if (/\{\{[A-Z]+\}\}/.test(html)) throw new Error('marcador não substituído');
+
+const partes = {
+  VERSAO, PLATAFORMA: ler('plataforma.js'), ALGO: algo, DESTAQUE: ler('destaque.js'), MD: ler('markdown.js'),
+  LATEX: ler('latex.js'), DETECT: ler('detecta.js'), APP: ler('resumo.js') + '\n' + ler('app.js'),
+};
+let html = ler('index.template.html');
+for (const [k, v] of Object.entries(partes)) html = html.split('{{' + k + '}}').join(v);
+if (/\{\{[A-Z]+\}\}/.test(html)) throw new Error('marcador não substituído: ' + html.match(/\{\{[A-Z]+\}\}/)[0]);
 if (/professor|Estruturas de Dados/i.test(html)) console.warn('AVISO: ainda há menção a professor/disciplina');
+fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.copyFileSync(path.join(S, 'conhecimento.md'), path.join(OUT, 'conhecimento.md'));
-console.log('index.html', html.length, 'bytes');
+console.log(`interface ${VERSAO}: index.html ${html.length} bytes`);
