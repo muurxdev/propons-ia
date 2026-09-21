@@ -3,14 +3,16 @@
    - windows: WebView2 (window.chrome.webview) + llama-server local (HTTP)
    - android: WebView (window.ProponsAndroid)  + llama-server local (HTTP)
    - ios:     WKWebView (webkit.messageHandlers.propons) + motor dentro do app (ponte nativa)
+   - mac:     WKWebView (webkit.messageHandlers.proponsMac) + llama-server local (HTTP)
    - web:     navegador no Linux (sem ponte) + llama-server local (HTTP)
    Protocolo da ponte: a página manda {t:'pedido', id, acao, args}; o app responde chamando
    window.__proponsMsg({t:'resposta', id, ok, dados, erro}) ou manda eventos {t:'evento', nome, dados}. */
 const PLATAFORMA = (() => {
   const wv2 = window.chrome && window.chrome.webview;
   const and = window.ProponsAndroid;
-  const ios = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.propons;
-  const tipo = wv2 ? 'windows' : and ? 'android' : ios ? 'ios' : 'web';
+  const mac = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.proponsMac;
+  const ios = !mac && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.propons;
+  const tipo = wv2 ? 'windows' : and ? 'android' : mac ? 'mac' : ios ? 'ios' : 'web';
   const pendentes = new Map(), ouvintes = {};
   let seq = 0;
 
@@ -29,6 +31,7 @@ const PLATAFORMA = (() => {
   const enviarPonte = obj => {
     if (wv2) wv2.postMessage(obj);
     else if (and) and.pedido(JSON.stringify(obj));
+    else if (mac) mac.postMessage(obj);
     else if (ios) ios.postMessage(obj);
   };
   const pedir = (acao, args = {}, ms = 30000) => new Promise((ok, falha) => {
@@ -152,14 +155,14 @@ const PLATAFORMA = (() => {
     apagarModelo(id) { return pedir('apagarModelo', { id }, 15000); },
     verificarModelos() { return pedir('verificarModelos', {}, 30 * 60000); },
     // atualização do app: Windows e Android baixam, conferem (SHA-256) e instalam; iOS abre o SideStore/AltStore
-    podeAtualizarSozinho: tipo === 'windows' || tipo === 'android',
+    podeAtualizarSozinho: tipo === 'windows' || tipo === 'android' || tipo === 'mac',
     atualizar(versao) { return pedir('atualizar', { versao }, 60 * 60000); },
     abrirLoja() { return pedir('abrirLoja', {}, 5000); },
     // IA respondendo: o app mantém o aparelho acordado (tela apagada no celular, suspensão no PC)
-    ocupado(sim) { if (tipo === 'android' || tipo === 'windows') pedir('ocupado', { sim: !!sim }, 3000).catch(() => {}); },
+    ocupado(sim) { if (tipo === 'android' || tipo === 'windows' || tipo === 'mac') pedir('ocupado', { sim: !!sim }, 3000).catch(() => {}); },
     podeCompartilhar: tipo === 'android' || tipo === 'ios',
     // transcrever áudio: a página manda o áudio em partes (base64) e o app roda o whisper (no iPhone, o reconhecimento de voz do iOS)
-    temTranscricao: tipo === 'windows' || tipo === 'android' || tipo === 'ios',
+    temTranscricao: tipo === 'windows' || tipo === 'android' || tipo === 'ios' || tipo === 'mac',
     urlTranscricao: '',
     async transcrever(bytes, ext, aoEnviar) {
       if (tipo === 'web') {   // Linux: whisper-server local num endereço secreto (vem no sistema.json)
@@ -186,7 +189,7 @@ const PLATAFORMA = (() => {
     apagarVoz(id) { return pedir('apagarVoz', { id }, 15000); },
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },
-    abrirLink(url) { if (tipo === 'web' || tipo === 'windows') window.open(url, '_blank', 'noopener'); else pedir('link', { url }, 3000).catch(() => {}); },
+    abrirLink(url) { if (tipo === 'web' || tipo === 'windows') window.open(url, '_blank', 'noopener'); else pedir('link', { url }, 3000).catch(() => {}); },   // android/ios/mac: o app abre no navegador
     async salvarArquivo(nome, conteudo, tipoMime) {
       if (tipo === 'web') {
         const a = document.createElement('a');

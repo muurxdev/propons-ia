@@ -1192,7 +1192,7 @@ async function rodarDiagnostico() {
     li.innerHTML = `<span class="ic">${{ ok: '✅', aviso: '⚠️', erro: '❌', info: 'ℹ️' }[st]}</span><div><b>${esc(titulo)}</b>${det ? `<small>${esc(det)}</small>` : ''}</div>`;
     if ($('#listaDiag')) $('#listaDiag').appendChild(li);
   };
-  add('info', `Própons IA ${VERSAO}`, `Plataforma: ${({ windows: 'Windows', android: 'Android', ios: 'iOS', web: 'Linux (navegador)' })[PLATAFORMA.tipo]} · ${navigator.userAgent.replace(/\s+/g, ' ').slice(0, 120)}`);
+  add('info', `Própons IA ${VERSAO}`, `Plataforma: ${({ windows: 'Windows', android: 'Android', ios: 'iOS', mac: 'Mac', web: 'Linux (navegador)' })[PLATAFORMA.tipo]} · ${navigator.userAgent.replace(/\s+/g, ' ').slice(0, 120)}`);
   // sistema
   let s = null; try { s = await PLATAFORMA.sistema(); } catch (e) {}
   if (s) {
@@ -1263,7 +1263,7 @@ let atualizacao = null;        // { versao, notas, tamanho } se houver versão n
 let atualizando = null;        // { pct, fase: 'baixando' | 'verificando' | 'instalando' }
 let ultimaVerificacao = +(pref('ultimaVerificacao') || 0);
 const maior = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
-const ARQUIVO_DA_PLATAFORMA = { windows: 'Propons-IA-Windows.exe', android: 'Propons-IA-Android.apk', ios: 'Propons-IA-iOS.ipa' };
+const ARQUIVO_DA_PLATAFORMA = { windows: 'Propons-IA-Windows.exe', android: 'Propons-IA-Android.apk', ios: 'Propons-IA-iOS.ipa', mac: 'Propons-IA-Mac.zip' };
 
 // devolve { versao, ... } se houver versão nova, false se está em dia, null se não deu para verificar
 async function checarAtualizacao() {
@@ -1289,18 +1289,19 @@ function limparNotas(s) {
   return s.replace(/\r/g, '').replace(/^\s*#{1,3}\s[^\n]*\n/, '').split(/\n#{1,3}\s*(?:Baixar|Downloads?|Instalar)\b/i)[0].trim().slice(0, 2500);
 }
 function rotuloAtualizar() {
-  return ({ ios: 'Atualizar pelo SideStore/AltStore', web: 'Como atualizar', windows: 'Atualizar agora', android: 'Atualizar agora' })[PLATAFORMA.tipo];
+  return ({ ios: 'Atualizar pelo SideStore/AltStore', web: 'Como atualizar', windows: 'Atualizar agora', android: 'Atualizar agora', mac: 'Atualizar agora' })[PLATAFORMA.tipo];
 }
 function textoAtualizando() {
   if (!atualizando) return '';
   return ({ baixando: `Baixando a versão nova: ${Math.floor(atualizando.pct * 100)}%${atualizando.total ? ` (${Math.round(atualizando.feito / 1048576)} de ${Math.round(atualizando.total / 1048576)} MB)` : ''}`,
     verificando: 'Conferindo o arquivo baixado…',
-    instalando: PLATAFORMA.tipo === 'windows' ? 'Instalando: a Própons IA vai fechar e abrir de novo sozinha…' : 'Abrindo o instalador do Android…' })[atualizando.fase] || '';
+    instalando: PLATAFORMA.tipo === 'windows' || PLATAFORMA.tipo === 'mac' ? 'Instalando: a Própons IA vai fechar e abrir de novo sozinha…' : 'Abrindo o instalador do Android…' })[atualizando.fase] || '';
 }
 function instrucoesAtualizacao() {
   switch (PLATAFORMA.tipo) {
     case 'windows': return 'A Própons IA baixa a versão nova, confere o arquivo (SHA-256), troca o programa (também no pendrive) e abre de novo. Conversas e modelos continuam.';
     case 'android': return 'A Própons IA baixa a versão nova, confere o arquivo (SHA-256) e abre o instalador do Android. Conversas e modelos continuam.';
+    case 'mac': return 'A Própons IA baixa a versão nova, confere o arquivo (SHA-256), troca o app e abre de novo. Conversas e modelos continuam.';
     case 'ios': return 'No iPhone, a atualização é feita pelo SideStore ou AltStore: abra o app, vá em <b>Meus apps</b> e toque em <b>Atualizar</b> na Própons IA. Conversas e modelos continuam.';
     default: return 'No Linux, rode no terminal:<div class="cmd"><code id="cmdAtualizar">propons-ia --atualizar</code><button class="icone" data-copiar="cmdAtualizar" aria-label="Copiar">' + ICO.copiar + '</button></div>';
   }

@@ -139,9 +139,25 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: ios, path: "Propons-IA-iOS.ipa\naltstore-source.json" }
 
+  mac:
+    name: Mac (.app) + autoteste
+    needs: testes
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Compilar o app (Apple Silicon + Intel, motor, voz)
+        run: bash mac/compilar.sh
+      - name: Autoteste (abre o app, baixa o modelo Leve, responde e roda o Diagnóstico)
+        run: bash mac/autoteste.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: mac, path: dist/mac/Propons-IA-Mac.zip }
+
   publicar:
     name: Publicar release
-    needs: [windows, linux, android, ios]
+    needs: [windows, linux, android, ios, mac]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -151,7 +167,7 @@ jobs:
       - name: Conferir e somar
         run: |
           cd arte && ls -la
-          for f in Propons-IA-Windows.exe Propons-IA-Android.apk Propons-IA-iOS.ipa altstore-source.json propons-ia_amd64.deb propons-ia.x86_64.rpm propons-ia-linux-x86_64.tar.gz; do test -s "$f" || { echo "faltando: $f"; exit 1; }; done
+          for f in Propons-IA-Windows.exe Propons-IA-Android.apk Propons-IA-iOS.ipa Propons-IA-Mac.zip altstore-source.json propons-ia_amd64.deb propons-ia.x86_64.rpm propons-ia-linux-x86_64.tar.gz; do test -s "$f" || { echo "faltando: $f"; exit 1; }; done
           # APK também dentro de um .zip: alguns navegadores (Chrome) seguram o .apk esperando confirmação
           zip -0 -j Propons-IA-Android.zip Propons-IA-Android.apk
           rm -f SHA256SUMS && sha256sum Propons-IA-* propons-ia* > SHA256SUMS
