@@ -6,8 +6,9 @@
 
 ## Instalar
 
-1. No celular, abra **[muurxdev.github.io/propons-ia/](https://muurxdev.github.io/propons-ia/)** e toque em **Baixar APK**.
-   Se o navegador avisar que o arquivo pode ser perigoso, toque em **Baixar mesmo assim**.
+1. No celular, abra **[muurxdev.github.io/propons-ia/](https://muurxdev.github.io/propons-ia/)**, toque em **Baixar APK** e **fique na página** até terminar.
+   Quando o Chrome avisar que o arquivo pode ser perigoso, toque em **Baixar mesmo assim**.
+   Se a notificação ficar parada em 100%, é o Chrome esperando essa confirmação: abra o Chrome → **⋮ → Downloads** e toque em **Manter**.
 2. Abra o arquivo baixado (pela notificação ou pelo app **Arquivos → Downloads**).
 3. Se aparecer "instalação bloqueada", toque em **Configurações** e ative
    **Permitir desta fonte** (para o navegador ou o app de arquivos que você usou). Volte e toque em **Instalar**.

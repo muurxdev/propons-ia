@@ -32,6 +32,8 @@ code{font:13px ui-monospace,Consolas,monospace;background:var(--claro);padding:2
 .copiar{display:flex;gap:8px;margin-top:12px;align-items:center}
 .copiar code{flex:1;padding:10px;display:block}
 .copiar button{border:1px solid var(--borda);background:var(--cartao);color:var(--texto);border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;cursor:pointer}
+.dica{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--claro);font-size:14px;line-height:1.45}
+.dica b{color:var(--texto)} .dica .sub{display:block;margin-top:6px;color:var(--suave);font-size:13px}
 footer{text-align:center;font-size:13px;color:var(--suave);margin-top:24px}
 footer a{color:var(--roxo)}
 </style>
@@ -47,9 +49,14 @@ footer a{color:var(--roxo)}
 
 <section class="cartao" data-so="android">
   <div class="topo"><h2>Android</h2><span class="req">Android 9+ · 64 bits</span></div>
-  <a class="botao" href="https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Android.apk" download>Baixar APK <span id="tam-apk">(15 MB)</span></a>
+  <a class="botao" id="baixarApk" href="https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Android.apk" download>Baixar APK <span id="tam-apk">(15 MB)</span></a>
+  <div class="dica" id="dicaApk" hidden>
+    <b>Fique nesta página até o download terminar.</b>
+    O Chrome vai perguntar se quer manter o arquivo (<i>"pode prejudicar o dispositivo"</i>). Toque em <b>Baixar mesmo assim</b>.
+    <span class="sub">Ficou parado em 100% na notificação? É o Chrome esperando essa confirmação: volte ao Chrome, ou abra <b>⋮ → Downloads</b> e toque em <b>Manter</b>.</span>
+  </div>
   <ol>
-    <li>Toque em <b>Baixar APK</b>. Se o navegador avisar que o arquivo pode ser perigoso, toque em <b>Baixar mesmo assim</b>.</li>
+    <li>Toque em <b>Baixar APK</b> e <b>fique nesta página</b>. Quando o Chrome avisar que o arquivo pode ser perigoso, toque em <b>Baixar mesmo assim</b>. (Parou em 100%? Chrome → <b>⋮ → Downloads</b> → <b>Manter</b>.)</li>
     <li>Abra o arquivo pela notificação ou em <b>Arquivos → Downloads</b>.</li>
     <li>Se aparecer "instalação bloqueada", toque em <b>Configurações</b>, ative <b>Permitir desta fonte</b>, volte e toque em <b>Instalar</b>.</li>
     <li>Na primeira abertura a IA baixa o modelo (~0,5 a 1,2 GB). Use Wi-Fi; pode apagar a tela, o download continua.</li>
@@ -84,6 +91,7 @@ footer a{color:var(--roxo)}
   var ua = navigator.userAgent, so = /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1) ? 'ios' : /windows/i.test(ua) ? 'windows' : /linux|x11/i.test(ua) ? 'linux' : '';
   var seu = so && document.querySelector('[data-so="' + so + '"]');
   if (seu) { seu.classList.add('seu'); seu.querySelector('.topo').insertAdjacentHTML('beforeend', '<span class="selo">seu aparelho</span>'); document.querySelector('header').after(seu); }
+  document.getElementById('baixarApk').addEventListener('click', function () { document.getElementById('dicaApk').hidden = false; });
   document.querySelectorAll('[data-copiar]').forEach(function (b) {
     b.onclick = function () {
       var t = document.getElementById(b.dataset.copiar).textContent;
