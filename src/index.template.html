@@ -97,7 +97,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .col{max-width:760px;margin:0 auto;padding:8px 20px 24px}
 #boasvindas{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center}
 #boasvindas .marca{width:44px;height:44px;border-radius:13px}
-#boasvindas h1{font-size:21px;font-weight:600;letter-spacing:-.3px;margin:0;line-height:1.3;max-width:340px}
+#boasvindas h1{font-size:30px;font-weight:600;letter-spacing:-.6px;margin:0;line-height:1.2}
 #boasvindas p{margin:0;color:var(--muted);font-size:13.5px;max-width:340px}
 .msg{margin:18px 0;animation:entra .2s ease}
 @keyframes entra{from{opacity:0;transform:translateY(4px)}}
@@ -339,12 +339,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .webcam{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:12px}
 .webcam video{width:100%;height:100%;object-fit:cover;display:block}
 
-/* início: sugestões */
-.sugestoes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:min(460px,100%);margin-top:10px}
-.sugestoes button{text-align:left;padding:11px 13px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:13.5px;transition:background .15s}
-.sugestoes button:hover{background:var(--hover)}
-.sugestoes b{display:block;font-weight:500}
-.sugestoes small{display:block;color:var(--muted);font-size:12.5px}
 #descer{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 8px);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--muted);z-index:5}
 .compor{position:relative}
 
@@ -372,7 +366,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .lat-pe button{padding:12px 10px;font-size:15px}
   .copiar{opacity:1}
   .rodape{display:none}
-  .sugestoes{grid-template-columns:1fr}
 
   .painel{width:100%;height:calc(100% - var(--st) - 8px);border-left:0;border-right:0}
   .p-nav{width:100%;border:0;background:var(--side);padding:22px 14px calc(var(--sb) + 20px)}

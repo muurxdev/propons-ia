@@ -268,20 +268,11 @@ function apagar(id) {
 }
 
 /* ---------------- conversa na tela ---------------- */
-const SUGESTOES = [
-  ['Explicar um conteúdo', 'de um jeito simples', 'Explique de forma simples, com um exemplo: '],
-  ['Criar um código', 'completo e pronto para rodar', 'Crie um código completo em Python que '],
-  ['Fazer um resumo', 'com os pontos principais', 'Faça um resumo com os pontos principais sobre '],
-  ['Revisar para a prova', 'perguntas com respostas', 'Me faça 5 perguntas (com as respostas no final) para revisar '],
-];
-function boasVindas() {
-  return `<div id="boasvindas"><div class="marca" aria-hidden="true"></div><h1>Como posso ajudar nos estudos?</h1><p>Pergunte, peça um código completo ou anexe um arquivo 📎.</p>
-    <div class="sugestoes">${SUGESTOES.map(([t, s], i) => `<button data-sug="${i}"><b>${t}</b><small>${s}</small></button>`).join('')}</div></div>`;
-}
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-sug]'); if (!b) return;
-  const t = $('#entrada'); t.value = SUGESTOES[+b.dataset.sug][2]; ajustar(); t.focus(); t.setSelectionRange(t.value.length, t.value.length);
-});
+// tela inicial: só a saudação da hora (o campo para digitar fica logo abaixo)
+function saudacao(h = new Date().getHours()) { return h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }
+function boasVindas() { return `<div id="boasvindas"><h1>${saudacao()}</h1></div>`; }
+// se a hora virar com a tela inicial aberta, a saudação acompanha
+setInterval(() => { const h = document.querySelector('#boasvindas h1'); if (h && h.textContent !== saudacao()) h.textContent = saudacao(); }, 60000);
 function nova() {
   atual = null; cancelarEdicao();
   $('#tituloAtual').textContent = 'Própons IA';

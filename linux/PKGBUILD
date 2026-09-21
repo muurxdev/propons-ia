@@ -1,7 +1,7 @@
 # Arch Linux / Manjaro / EndeavourOS:
 #   git clone https://github.com/muurxdev/propons-ia.git && cd propons-ia/linux && makepkg -si
 pkgname=propons-ia
-pkgver=1.7.0
+pkgver=1.7.1
 pkgrel=1
 pkgdesc="IA de estudos que roda no seu computador"
 arch=('x86_64' 'aarch64')

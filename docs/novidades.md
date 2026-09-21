@@ -1,3 +1,7 @@
+## Novidades da 1.7.1
+
+- **Tela inicial mais limpa:** só a saudação da hora (Boa madrugada, Bom dia, Boa tarde ou Boa noite) e o campo para digitar.
+
 ## Novidades da 1.7.0
 
 **Biblioteca da sessão.**
