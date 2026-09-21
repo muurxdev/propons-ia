@@ -524,9 +524,12 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         guard versao.range(of: #"^\d{1,3}\.\d{1,3}\.\d{1,3}$"#, options: .regularExpression) != nil else { throw erro("versão inválida") }
         let base = "https://github.com/\(REPO)/releases/download/v\(versao)/"
         let (dSomas, _) = try await URLSession.shared.data(from: URL(string: base + "SHA256SUMS")!)
-        guard let linha = String(decoding: dSomas, as: UTF8.self).split(separator: "\n").map({ $0.split(whereSeparator: { $0 == " " || $0 == "*" }) }).first(where: { $0.count == 2 && $0[1] == "Propons-IA-Mac.zip" })
-        else { throw erro("a versão \(versao) não tem o app do Mac") }
-        let esperado = String(linha[0]).lowercased()
+        var esperado = ""
+        for linha in String(decoding: dSomas, as: UTF8.self).components(separatedBy: "\n") {
+            let partes = linha.components(separatedBy: CharacterSet(charactersIn: " *")).filter { !$0.isEmpty }
+            if partes.count == 2 && partes[1] == "Propons-IA-Mac.zip" { esperado = partes[0].lowercased() }
+        }
+        if esperado.isEmpty { throw erro("a versão \(versao) não tem o app do Mac") }
         let pasta = fm.temporaryDirectory.appendingPathComponent("propons-atualizacao-\(versao)", isDirectory: true)
         try? fm.removeItem(at: pasta); try fm.createDirectory(at: pasta, withIntermediateDirectories: true)
         let zip = pasta.appendingPathComponent("Propons-IA-Mac.zip")
