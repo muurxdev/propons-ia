@@ -74,7 +74,7 @@ jobs:
         env:
           KS: ${{ secrets.PROPONS_KEYSTORE_B64 }}
         run: |
-          if [ -n "$KS" ]; then echo "$KS" | base64 -d > "$RUNNER_TEMP/propons.jks"; echo "PROPONS_KEYSTORE=$RUNNER_TEMP/propons.jks" >> "$GITHUB_ENV"; fi
+          if [ -n "$KS" ]; then printf %s "$KS" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/propons.jks"; echo "PROPONS_KEYSTORE=$RUNNER_TEMP/propons.jks" >> "$GITHUB_ENV"; fi
       - name: Compilar APK
         env:
           PROPONS_KEYSTORE_SENHA: ${{ secrets.PROPONS_KEYSTORE_SENHA }}
