@@ -23,6 +23,8 @@ const ICO = {
   conversas: '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></svg>',
   diagnostico: '<svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
   sobre: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
+  foto: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>',
   compartilhar: '<svg viewBox="0 0 24 24"><path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
 };
 
@@ -34,7 +36,8 @@ let editando = false, salvarBloqueado = false, nCtx = 8192;
 const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const estimar = s => Math.ceil((s || '').length / 3.2);     // tokens aproximados (português/código)
 const TEXTO_OK = /\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|cxx|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|csv|tsv|xml|ya?ml|toml|ini|cfg|conf|sh|bash|zsh|ps1|bat|lua|r|m|dart|vue|svelte|tex|log|gitignore|env)$/i;
-const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3;
+const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3, MAX_FOTOS = 3, TOKENS_FOTO = 420;
+const eFoto = f => (f.type && /^image\//.test(f.type)) || /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(f.name || '');
 
 /* ---------------- utilidades ---------------- */
 function toast(t, ms = 2200) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
@@ -117,7 +120,7 @@ function copiarTexto(t) {
 }
 function copiaVelha(t) { const a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0'; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch (e) {} a.remove(); }
 function tamanhoBonito(b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' KB' : (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB'; }
-function gbBonito(b) { return (b / 1073741824).toFixed(1).replace('.', ',') + ' GB'; }
+function gbBonito(b) { return b < 1073741824 ? Math.max(1, Math.round(b / 1048576)) + ' MB' : (b / 1073741824).toFixed(1).replace('.', ',') + ' GB'; }
 const langDoArquivo = n => ({ py: 'python', pyw: 'python', js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'typescript', jsx: 'javascript', java: 'java', kt: 'kotlin',
   c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', cs: 'csharp', go: 'go', rs: 'rust', php: 'php', rb: 'ruby', swift: 'swift', sql: 'sql', html: 'html', htm: 'html',
   css: 'css', scss: 'scss', json: 'json', xml: 'xml', sh: 'bash', bash: 'bash', zsh: 'bash', md: 'markdown', yml: 'yaml', yaml: 'yaml' }[(n.split('.').pop() || '').toLowerCase()] || '');
@@ -135,6 +138,7 @@ function validar(lista) {
       ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}),
       ...(m.erro ? { erro: txt(m.erro) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo) })) } : {}),
+      ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
       ...(m.passos && Array.isArray(m.passos.lista) ? { passos: { titulo: txt(m.passos.titulo), lista: m.passos.lista.map(txt) } } : {}),
     })),
   }));
@@ -305,11 +309,13 @@ $('#conversa').addEventListener('scroll', () => { const c = $('#conversa'); grud
 function rolar(forcar) { const c = $('#conversa'); if (forcar || grudado) { c.scrollTop = c.scrollHeight; grudado = true; $('#descer').hidden = true; } }
 $('#descer').onclick = () => { const c = $('#conversa'); c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' }); grudado = true; $('#descer').hidden = true; };
 function chipHTML(a, remover) {
+  if (a.tipo === 'imagem') return `<div class="chip foto" title="${esc(a.nome)}"><img src="${esc(a.miniatura)}" alt=""><b>${esc(a.nome)}</b>${remover ? `<button data-rm="${esc(a.nome)}" aria-label="Remover foto">${ICO.fechar}</button>` : ''}</div>`;
   return `<div class="chip" title="${esc(a.nome)}">${ICO.arquivo}<b>${esc(a.nome)}</b><small>${tamanhoBonito(a.tam)}</small>${remover ? `<button data-rm="${esc(a.nome)}" aria-label="Remover anexo">${ICO.fechar}</button>` : ''}</div>`;
 }
 function addEu(m, ultima) {
   const d = document.createElement('div'); d.className = 'msg eu';
-  d.innerHTML = (m.anexos && m.anexos.length ? `<div class="anexos-msg">${m.anexos.map(a => chipHTML(a)).join('')}</div>` : '') +
+  d.innerHTML = (m.imagens && m.imagens.length ? `<div class="fotos-msg">${m.imagens.map(x => `<img src="${esc(x.miniatura)}" alt="${esc(x.nome)}">`).join('')}</div>` : '') +
+    (m.anexos && m.anexos.length ? `<div class="anexos-msg">${m.anexos.map(a => chipHTML(a)).join('')}</div>` : '') +
     (m.texto ? `<div class="txt">${esc(m.texto)}</div>` : '');
   if (ultima) {
     document.querySelectorAll('.msg.eu .editar').forEach(b => b.remove());
@@ -372,11 +378,35 @@ function desenharChips() {
   c.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { anexos = anexos.filter(a => a.nome !== b.dataset.rm); desenharChips(); ajustar(); });
   ajustar();
 }
+// foto → JPEG reduzido (lado maior até 1024 px) para a IA + miniatura para o histórico
+async function prepararFoto(f) {
+  const img = await createImageBitmap(f);
+  const reduzir = (max, q) => {
+    const k = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', q);
+  };
+  const r = { dataUrl: reduzir(estreita() ? 896 : 1024, 0.85), miniatura: reduzir(240, 0.72) };
+  img.close && img.close();
+  return r;
+}
 async function adicionarArquivos(lista) {
   for (const f of lista) {
-    if (anexos.length >= MAX_ANEXOS) { toast(`Até ${MAX_ANEXOS} arquivos por mensagem.`); break; }
-    if (/\.(pdf|docx?|pptx?|xlsx?|png|jpe?g|gif|webp|heic|bmp|zip|rar|7z|exe|mp[34])$/i.test(f.name) || (f.type && /^(image|video|audio)\//.test(f.type))) {
-      toast(`"${f.name}": por enquanto só arquivos de texto e código (PDF e imagens ainda não).`, 3500); continue;
+    if (eFoto(f)) {
+      if (!PLATAFORMA.temVisao) { toast('Neste aparelho a IA ainda não lê fotos.', 3500); continue; }
+      if (anexos.filter(a => a.tipo === 'imagem').length >= MAX_FOTOS) { toast(`Até ${MAX_FOTOS} fotos por mensagem.`); continue; }
+      if (f.size > 40 * 1048576) { toast(`"${f.name}" é grande demais.`); continue; }
+      try {
+        const { dataUrl, miniatura } = await prepararFoto(f);
+        let nome = f.name || 'foto.jpg'; if (anexos.some(a => a.nome === nome)) nome = nome.replace(/(\.\w+)?$/, '-' + (anexos.length + 1) + '$1');
+        anexos.push({ tipo: 'imagem', nome, tam: f.size, dataUrl, miniatura });
+      } catch (e) { toast(`Não consegui abrir "${f.name}"${/heic|heif/i.test(f.name) ? ' (formato HEIC: tire a foto em JPEG ou use "Mais compatível" na câmera)' : ''}.`, 4500); }
+      continue;
+    }
+    if (anexos.filter(a => a.tipo !== 'imagem').length >= MAX_ANEXOS) { toast(`Até ${MAX_ANEXOS} arquivos por mensagem.`); break; }
+    if (/\.(pdf|docx?|pptx?|xlsx?|zip|rar|7z|exe|mp[34])$/i.test(f.name) || (f.type && /^(video|audio)\//.test(f.type))) {
+      toast(`"${f.name}": por enquanto só fotos, textos e códigos (PDF ainda não).`, 3500); continue;
     }
     if (f.size > LIMITE_ANEXO) { toast(`"${f.name}" é grande demais (${tamanhoBonito(f.size)}). Limite: 40 KB.`, 3500); continue; }
     let texto = '';
@@ -387,8 +417,106 @@ async function adicionarArquivos(lista) {
   }
   desenharChips();
 }
-$('#anexar').onclick = () => $('#arquivo').click();
-$('#arquivo').onchange = e => { adicionarArquivos([...e.target.files]); e.target.value = ''; };
+$('#anexar').onclick = () => abrirMais();
+['arquivo', 'fotos', 'camera'].forEach(id => $('#' + id).onchange = e => { adicionarArquivos([...e.target.files]); e.target.value = ''; });
+
+/* ---------------- "+": câmera, fotos, arquivos e modelo ---------------- */
+function abrirMais() {
+  const temVisao = PLATAFORMA.temVisao;
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha">${topoFolha('Adicionar')}
+    <div class="opcoes">
+      <button data-op="camera"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.camera}</span>Câmera</button>
+      <button data-op="fotos"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.foto}</span>Fotos</button>
+      <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos<small>texto e código</small></button>
+      <button data-op="modelos"><span class="oi">${ICO.chip}</span>Modelos</button>
+    </div>
+    ${temVisao ? '' : '<p class="info" style="margin:4px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}
+    <div class="lista-modelos" id="maisModelos"><h4>Modelo de IA</h4><p class="info" style="padding:0 14px 10px;margin:0">Carregando…</p></div></div>`;
+  const folha = f.firstChild;
+  $('#anexar').setAttribute('aria-expanded', 'true');
+  const sair = () => { $('#anexar').setAttribute('aria-expanded', 'false'); animarSaida(f, folha); };
+  f.fechar = sair;
+  f.onclick = e => { if (e.target === f) sair(); };
+  folha.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, folha, sair);
+  folha.querySelectorAll('[data-op]').forEach(b => b.onclick = () => {
+    const op = b.dataset.op; sair();
+    if (op === 'camera') (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam();
+    else if (op === 'fotos') $('#fotos').click();
+    else if (op === 'arquivos') $('#arquivo').click();
+    else abrirConfig('modelo');
+  });
+  pausarDesenho();
+  document.body.appendChild(f);
+  // modelos para trocar ali mesmo (carrega depois da animação)
+  setTimeout(async () => {
+    const sis = await lerSistema(); const lm = folha.querySelector('#maisModelos'); if (!lm || !sis) return;
+    const ram = sis.ramTotal || 0;
+    lm.innerHTML = '<h4>Modelo de IA</h4>' + (sis.modelos || []).filter(m => !m.bloqueado).map(m => {
+      const [perfil, tam] = PERFIL_MODELO[m.id] || ['', ''];
+      const st = m.atual ? 'Em uso' : baixando[m.id] ? Math.floor(baixando[m.id].pct * 100) + '%' : m.baixado ? 'Usar' : 'Baixar';
+      return `<button class="lm${m.atual ? ' on' : ''}" data-m="${m.id}"><span class="mico">${tam}</span><span class="pt"><b>${esc(m.nome.replace(/\s*\(.*\)/, ''))}</b><small>${perfil} · ${gbBonito(m.tamanho)}</small></span><span class="st">${st}</span></button>`;
+    }).join('');
+    lm.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+      const m = sis.modelos.find(x => x.id === b.dataset.m); if (!m || m.atual) return;
+      sair(); acaoModelo('usar', m, ram);
+    });
+  }, 300);
+}
+
+// câmera do PC (webcam) numa folha: tira a foto e anexa
+async function abrirWebcam() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('#fotos').click(); return; }
+  let fluxo;
+  try { fluxo = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false }); }
+  catch (e) { toast('Não foi possível abrir a câmera: ' + (e.name === 'NotAllowedError' ? 'permissão negada.' : e.name === 'NotFoundError' ? 'nenhuma câmera encontrada.' : e.message), 4500); return; }
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg">${topoFolha('Câmera')}<div class="webcam"><video autoplay playsinline muted></video></div>
+    <div class="botoes"><button class="btn" data-c="cancelar">Cancelar</button><button class="btn primario" data-c="foto">${ICO.camera}Tirar foto</button></div></div>`;
+  const v = f.querySelector('video'); v.srcObject = fluxo;
+  const sair = () => { fluxo.getTracks().forEach(t => t.stop()); animarSaida(f, f.firstChild); };
+  f.fechar = sair;
+  f.onclick = e => { if (e.target === f) sair(); };
+  f.querySelector('[data-x]').onclick = sair;
+  f.querySelector('[data-c="cancelar"]').onclick = sair;
+  f.querySelector('[data-c="foto"]').onclick = () => {
+    const c = document.createElement('canvas'); c.width = v.videoWidth || 1280; c.height = v.videoHeight || 960;
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    c.toBlob(b => { if (b) adicionarArquivos([new File([b], 'foto-' + new Date().toTimeString().slice(0, 8).replace(/:/g, '') + '.jpg', { type: 'image/jpeg' })]); }, 'image/jpeg', 0.9);
+    sair();
+  };
+  folhaArrastavel(f, f.firstChild, sair);
+  pausarDesenho();
+  document.body.appendChild(f);
+}
+
+// a IA precisa do módulo de visão para ler fotos: baixa (uma vez) e liga, com confirmação
+let esperaVisao = null;
+async function garantirVisao() {
+  const sis = await lerSistema();
+  if (!sis || sis.visaoAtiva) return true;
+  if (!PLATAFORMA.temVisao) { toast('Neste aparelho a IA ainda não lê fotos.'); return false; }
+  const ativo = (sis.modelos || []).find(m => m.atual) || {};
+  if (PLATAFORMA.tipo === 'web') {
+    await perguntar('Ler fotos no Linux', `<p>Para a IA entender fotos, ligue a visão pelo terminal (baixa ${gbBonito(ativo.visaoTamanho || 0)} uma vez) e abra de novo:</p><div class="cmd"><code id="cmdVisao">propons-ia --visao</code><button class="icone" data-copiar="cmdVisao">${ICO.copiar}</button></div>`, [['Entendi', true, 'primario']]);
+    return false;
+  }
+  const baixar = !ativo.visaoBaixada;
+  const ok = await confirmar('Ler fotos', `<p>Para entender fotos, a IA usa um <b>módulo de visão</b>${baixar ? ` de ${gbBonito(ativo.visaoTamanho || 0)}, baixado uma vez só` : ''}.</p><p>Com a visão ligada a IA usa um pouco mais de memória. Dá para desligar em Ajustes → Modelos de IA.</p>`, baixar ? 'Baixar e ligar' : 'Ligar visão');
+  if (!ok) return false;
+  try { await PLATAFORMA.ligarVisao(true); } catch (e) { toast('Não foi possível: ' + e.message, 4000); return false; }
+  toast(baixar ? 'Baixando a visão… a foto vai assim que terminar.' : 'Ligando a visão…', 3500);
+  return new Promise(res => { esperaVisao = res; });
+}
+function fimEsperaVisao(ok) {
+  if (!esperaVisao) return;
+  const r = esperaVisao; esperaVisao = null;
+  if (!ok) { r(false); return; }
+  // espera o motor voltar a responder antes de mandar a foto
+  (async () => { for (let i = 0; i < 240 && !online; i++) await new Promise(t => setTimeout(t, 500)); r(online); })();
+}
+document.addEventListener('click', e => { const b = e.target.closest('.dlg [data-copiar]'); if (b) copiarTexto($('#' + b.dataset.copiar).textContent).then(() => toast('Copiado.')); });
 ['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); $('#caixa').classList.add('soltar'); } }));
 ['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { if (t === 'dragleave' && e.relatedTarget) return; $('#caixa').classList.remove('soltar'); }));
 document.addEventListener('drop', e => { if (e.dataTransfer?.files?.length) { e.preventDefault(); adicionarArquivos([...e.dataTransfer.files]); } });
@@ -405,7 +533,9 @@ function montarHistorico(conv, maxTokens, extra) {
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i];
     let conteudo = m.llm || m.texto;
-    const custo = estimar(conteudo);
+    const fotos = m.imagens && m.imagens.length;
+    if (fotos && !(i === msgs.length - 1 && m._envio)) conteudo += `\n[${fotos === 1 ? 'uma foto foi enviada' : fotos + ' fotos foram enviadas'} nesta mensagem]`;
+    const custo = estimar(conteudo) + (fotos && i === msgs.length - 1 && m._envio ? TOKENS_FOTO * fotos : 0);
     if (usado + custo > orcamento) {
       if (i === msgs.length - 1) conteudo = conteudo.slice(0, Math.floor((orcamento - usado) * 3.2)) + '\n[…texto cortado por ser longo demais]';
       else if (m.anexos && m.anexos.length) conteudo = m.texto + `\n[anexos anteriores omitidos: ${m.anexos.map(a => a.nome).join(', ')}]`;
@@ -413,7 +543,8 @@ function montarHistorico(conv, maxTokens, extra) {
       if (usado + estimar(conteudo) > orcamento) break;
     }
     usado += estimar(conteudo);
-    saida.unshift({ role: m.role, content: conteudo });
+    if (fotos && i === msgs.length - 1 && m._envio) { usado += TOKENS_FOTO * fotos; saida.unshift({ role: m.role, content: [{ type: 'text', text: conteudo }, ...m._envio.map(url => ({ type: 'image_url', image_url: { url } }))] }); }
+    else saida.unshift({ role: m.role, content: conteudo });
   }
   while (saida.length && saida[0].role !== 'user') saida.shift();   // começa sempre por uma pergunta
   return extra ? saida.concat(extra) : saida;
@@ -428,21 +559,28 @@ function textoParaModelo(texto, lista) {
 async function enviar(texto) {
   texto = texto.trim();
   if ((!texto && !anexos.length) || geracao) return;
+  if (anexos.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
+  if (geracao) return;
   if (editando && atual) {
     // substitui a última pergunta (e a resposta dela)
     const iu = ultimoIndice(atual, 'user'); if (iu >= 0) atual.msgs.splice(iu);
     cancelarEdicao(); abrir(atual.id);
   }
   $('#entrada').value = '';
-  const lista = anexos; anexos = []; desenharChips(); ajustar();
+  const todos = anexos; anexos = []; desenharChips(); ajustar();
+  const fotos = todos.filter(a => a.tipo === 'imagem'), lista = todos.filter(a => a.tipo !== 'imagem');
   if (!atual) {
-    const base = (texto || lista.map(a => a.nome).join(', ')).replace(/\s+/g, ' ').trim();
+    const base = (texto || (fotos.length ? (fotos.length === 1 ? 'Foto' : fotos.length + ' fotos') : lista.map(a => a.nome).join(', '))).replace(/\s+/g, ' ').trim();
     const titulo = (base.match(/^.{0,60}?[.!?](?=\s|$)/) || [base.slice(0, 60)])[0].replace(/[.!?]+$/, '') || 'Conversa';
     atual = { id: novoId(), titulo, criada: Date.now(), atualizada: Date.now(), msgs: [] };
     conversas.unshift(atual); $('#tituloAtual').textContent = atual.titulo;
   }
-  const m = { role: 'user', texto, llm: textoParaModelo(texto, lista) };
+  const m = { role: 'user', texto, llm: textoParaModelo(texto || (fotos.length && !lista.length ? (fotos.length === 1 ? 'Descreva e explique esta foto.' : 'Descreva e explique estas fotos.') : ''), lista) };
   if (lista.length) m.anexos = lista;
+  if (fotos.length) {
+    m.imagens = fotos.map(a => ({ nome: a.nome, miniatura: a.miniatura }));
+    Object.defineProperty(m, '_envio', { value: fotos.map(a => a.dataUrl), enumerable: false, writable: true });   // não vai para o arquivo de conversas
+  }
   atual.msgs.push(m); atual.atualizada = Date.now();
   conversas = [atual, ...conversas.filter(c => c !== atual)];
   addEu(m, true); desenharLista(); salvar();
@@ -466,7 +604,9 @@ function editarUltima() {
   const iu = ultimoIndice(atual, 'user'); if (iu < 0) return;
   const m = atual.msgs[iu];
   editando = true; $('#editando').hidden = false;
-  $('#entrada').value = m.texto; anexos = (m.anexos || []).slice(); desenharChips();
+  $("#entrada").value = m.texto;
+  anexos = (m.anexos || []).slice().concat((m.imagens || []).map((x, i) => ({ tipo: "imagem", nome: x.nome, tam: 0, miniatura: x.miniatura, dataUrl: m._envio && m._envio[i] })).filter(a => a.dataUrl));
+  desenharChips();
   ajustar(); $('#entrada').focus();
 }
 function cancelarEdicao() { editando = false; $('#editando').hidden = true; }
@@ -479,7 +619,7 @@ async function responder(conv, continuacao) {
   const pedeCodigo = PEDE_CODIGO.test(texto);
 
   // algoritmo com lista de números: passo a passo e resumo calculados por código (exatos e instantâneos)
-  const tr = (continuacao || pedeCodigo || (pergunta && pergunta.anexos)) ? null : detectTrace(texto);
+  const tr = (continuacao || pedeCodigo || (pergunta && (pergunta.anexos || pergunta.imagens))) ? null : detectTrace(texto);
   if (tr) {
     const titulo = NOMES[tr.alg] + (tr.alg === 'binaria' ? ` · procurando ${tr.val} em ${fmt(tr.lista)}` : ` · ${fmt(tr.lista)}`);
     const r = resumo(tr.alg, tr.lista, tr.val);
@@ -755,11 +895,12 @@ function cartaoModelo(m, ram, rec) {
   else if (b) acoes = `<button class="btn" data-acao="cancelar" data-id="${m.id}">Cancelar download</button>`;
   else if (web) acoes = usar('Usar este');
   else if (m.baixado) acoes = usar('Usar este') + `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>`;
+  if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
   else acoes = usar('Baixar e usar') + `<button class="btn" data-acao="baixar" data-id="${m.id}">${ICO.exportar}Só baixar</button>`;
   const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? `<span class="selo cinza">${esc(m.bloqueado)}</span>` : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
     <div class="mtopo"><div class="mico">${tam}</div><div class="pt"><b>${esc(m.nome.replace(/\s*\(.*\)/, ''))}</b><small>${esc(m.descricao || '')}</small></div>${selo}</div>
-    <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span><span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${m.ramMin} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
+    <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${m.ramMin} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;
 }
@@ -771,10 +912,11 @@ async function abaModelo(c) {
   if (!modelos.length) { c.innerHTML = '<p class="info">Não foi possível ler os modelos deste aparelho.</p>'; return; }
   const ram = s.ramTotal || 0, web = PLATAFORMA.tipo === 'web';
   const rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
-  const usado = modelos.filter(m => m.baixado).reduce((t, m) => t + m.tamanho, 0), livre = s.discoLivre || 0;
+  const usado = modelos.reduce((t, m) => t + (m.baixado ? m.tamanho : 0) + (m.visaoBaixada ? m.visaoTamanho : 0), 0), livre = s.discoLivre || 0;
   const rolagem = c.scrollTop;
   c.innerHTML = `<p class="info">Os modelos ficam guardados neste aparelho e funcionam sem internet. Os maiores respondem melhor (principalmente código), mas são mais lentos e usam mais memória.</p>
     ${modelos.map(m => cartaoModelo(m, ram, rec)).join('')}
+    ${PLATAFORMA.temVisao && !web ? `<div class="secao" style="margin-top:18px"><h4>Fotos</h4><div class="cartao"><button class="interruptor" id="swVisao" role="switch" aria-checked="${!!s.visaoLigada}"><span class="pt"><b>Ler fotos (visão)</b><small>${s.visaoAtiva ? 'Ligada: a IA entende fotos e prints' : 'Desligada: liga sozinha quando você manda uma foto'}</small></span><span class="chave"></span></button></div></div>` : ''}
     <div class="secao" style="margin-top:18px"><h4>Armazenamento</h4><div class="cartao">
       ${livre ? `<div class="uso"><i style="width:${Math.max(usado ? 1.5 : 0, Math.min(100, usado / (usado + livre) * 100)).toFixed(1)}%"></i></div>` : ''}
       <div class="linha-info"><span>Modelos baixados</span><b>${usado ? gbBonito(usado) : 'nenhum'}</b></div>
@@ -788,11 +930,23 @@ async function abaModelo(c) {
   c.scrollTop = rolagem;
   ligarCopiar(c);
   c.querySelectorAll('[data-acao]').forEach(b => b.onclick = () => acaoModelo(b.dataset.acao, modelos.find(x => x.id === b.dataset.id), ram));
+  const sw = c.querySelector('#swVisao');
+  if (sw) sw.onclick = async () => {
+    if (sw.getAttribute('aria-checked') === 'true') {
+      if (!await confirmar('Desligar a visão?', 'A IA deixa de ler fotos até você mandar outra (aí ela liga de novo). O módulo continua baixado.', 'Desligar')) return;
+      try { await PLATAFORMA.ligarVisao(false); sw.setAttribute('aria-checked', 'false'); } catch (e) { toast(e.message, 4000); }
+    } else if (await garantirVisao()) { toast('Visão ligada.'); if (abaAtual === 'modelo') desenharAba(); }
+  };
 }
 async function acaoModelo(acao, m, ram) {
   if (!m) return;
   if (PLATAFORMA.tipo === 'web') { $('#cmdModelo').textContent = 'propons-ia --modelo ' + m.id; $('#cmdModelo').scrollIntoView({ block: 'center', behavior: 'smooth' }); toast('Copie o comando e rode no terminal.'); return; }
   if (acao === 'cancelar') { PLATAFORMA.cancelarDownload(m.id).catch(() => {}); return; }
+  if (acao === 'apagarVisao') {
+    if (!await confirmar('Apagar a visão?', `Libera ${gbBonito(m.visaoTamanho)}. Se mandar uma foto com este modelo, ela é baixada de novo.`, 'Apagar', true)) return;
+    try { await PLATAFORMA.apagarVisao(m.id); toast('Visão apagada.'); } catch (e) { toast('Não deu para apagar: ' + e.message, 4000); }
+    desenharAba(); return;
+  }
   if (acao === 'apagar') {
     if (!await confirmar(`Apagar o ${m.nome}?`, `Libera ${gbBonito(m.tamanho)}. Se quiser usar de novo, ele é baixado outra vez.`, 'Apagar', true)) return;
     try { await PLATAFORMA.apagarModelo(m.id); toast('Modelo apagado.'); } catch (e) { toast('Não deu para apagar: ' + e.message, 4000); }
@@ -824,6 +978,7 @@ PLATAFORMA.ao('download', d => {
 });
 PLATAFORMA.ao('download-fim', d => {
   delete baixando[d.id]; if (online) estado('');
+  if (String(d.id).startsWith('visao-') && !d.ok) fimEsperaVisao(false);
   if (d.ok) toast('Download concluído. O modelo já pode ser usado.', 3000);
   else if (d.erro === 'cancelado') toast('Download cancelado.');
   else if (d.erro) toast(d.erro, 5000);
@@ -839,10 +994,10 @@ PLATAFORMA.ao('motor', d => {
     online = false; verificar(true);
     if (trocandoPara) toast('Pronto! Modelo em uso: ' + (d.nome || ''), 3000);
     baixando = {}; trocandoPara = null;
-    lerSistema().then(() => { desenharNav(); if (abaAtual === 'modelo') desenharAba(); });
+    lerSistema().then(() => { desenharNav(); if (abaAtual === 'modelo') desenharAba(); fimEsperaVisao(!!(sistemaCache && sistemaCache.visaoAtiva)); });
   }
   if (d.estado === 'erro') {
-    baixando = {}; trocandoPara = null;
+    baixando = {}; trocandoPara = null; fimEsperaVisao(false);
     estado('erro', true); toast(d.mensagem || 'Erro no motor da IA.', 5000);
     if (abaAtual === 'modelo') desenharAba();
   }

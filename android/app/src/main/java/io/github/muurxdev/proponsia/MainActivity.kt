@@ -7,7 +7,9 @@ import android.app.PendingIntent
 import android.content.pm.PackageInstaller
 import android.provider.Settings
 import android.view.WindowManager
+import android.content.ClipData
 import android.content.Intent
+import android.provider.MediaStore
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
@@ -48,14 +50,23 @@ import kotlin.concurrent.thread
  */
 class MainActivity : Activity() {
 
-    data class Modelo(val id: String, val nome: String, val descricao: String, val arquivo: String, val tamanho: Long, val sha256: String, val ramMin: Int) {
-        val url get() = "https://huggingface.co/unsloth/${arquivo.removeSuffix("-Q4_K_M.gguf")}-GGUF/resolve/main/$arquivo"
+    data class Modelo(val id: String, val nome: String, val descricao: String, val arquivo: String, val tamanho: Long, val sha256: String, val ramMin: Int,
+                      val visaoTamanho: Long = 0, val visaoSha: String = "", val urlFixa: String? = null) {
+        val url get() = urlFixa ?: "https://huggingface.co/unsloth/${arquivo.removeSuffix("-Q4_K_M.gguf")}-GGUF/resolve/main/$arquivo"
+        // módulo de visão (ler fotos): baixado só quando a pessoa manda a primeira foto
+        fun visao(): Modelo {
+            val base = arquivo.removeSuffix("-Q4_K_M.gguf")
+            return Modelo("visao-$id", "Visão ($nome)", "", "mmproj-$base-F16.gguf", visaoTamanho, visaoSha, 0, urlFixa = "https://huggingface.co/unsloth/$base-GGUF/resolve/main/mmproj-F16.gguf")
+        }
     }
 
     private val modelos = listOf(
-        Modelo("leve", "Leve (0.8B)", "mais rápido, para celulares com pouca memória", "Qwen3.5-0.8B-Q4_K_M.gguf", 532517120, "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517", 3),
-        Modelo("normal", "Normal (2B)", "equilíbrio entre velocidade e qualidade", "Qwen3.5-2B-Q4_K_M.gguf", 1280835840, "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223", 6),
-        Modelo("avancado", "Avançado (4B)", "respostas melhores, precisa de celular forte", "Qwen3.5-4B-Q4_K_M.gguf", 2740937888, "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4", 8),
+        Modelo("leve", "Leve (0.8B)", "mais rápido, para celulares com pouca memória", "Qwen3.5-0.8B-Q4_K_M.gguf", 532517120, "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517", 3,
+            204987232, "56e4c6cfe73b0c82e3e82bc518d7591997e61d81f723fc41a586f4fa69ea2453"),
+        Modelo("normal", "Normal (2B)", "equilíbrio entre velocidade e qualidade", "Qwen3.5-2B-Q4_K_M.gguf", 1280835840, "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223", 6,
+            668227264, "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"),
+        Modelo("avancado", "Avançado (4B)", "respostas melhores, precisa de celular forte", "Qwen3.5-4B-Q4_K_M.gguf", 2740937888, "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4", 8,
+            672423616, "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"),
     )
 
     private lateinit var web: WebView
@@ -112,9 +123,17 @@ class MainActivity : Activity() {
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 escolhaArquivos?.onReceiveValue(null)
                 escolhaArquivos = cb
-                val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
-                    .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
-                return try { startActivityForResult(i, PEDIDO_ARQUIVOS); true } catch (e: Exception) { escolhaArquivos = null; false }
+                val tipos = params.acceptTypes.filter { it.isNotBlank() }
+                val soImagens = tipos.isNotEmpty() && tipos.all { it.startsWith("image/") }
+                val varias = params.mode == FileChooserParams.MODE_OPEN_MULTIPLE
+                val camera = params.isCaptureEnabled && soImagens
+                val i = when {
+                    camera -> intentCamera()
+                    soImagens && Build.VERSION.SDK_INT >= 33 -> Intent(MediaStore.ACTION_PICK_IMAGES).apply { if (varias) putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 3) }
+                    soImagens -> Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, varias)
+                    else -> Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*").putExtra(Intent.EXTRA_ALLOW_MULTIPLE, varias)
+                }
+                return try { startActivityForResult(i, if (camera) PEDIDO_CAMERA else PEDIDO_ARQUIVOS); true } catch (e: Exception) { escolhaArquivos = null; false }
             }
         }
         aplicarTema(escuro())
@@ -293,7 +312,7 @@ class MainActivity : Activity() {
         val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
         val pb = ProcessBuilder(*nice, exe.path, "-m", arq.path, "--host", "127.0.0.1", "--port", "$porta", "--path", pastaInterface.path,
             "-c", "4096", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning", "off", "--reasoning-budget", "0",
-            "--api-key", chave, "-t", "$threads")
+            "--api-key", chave, "-t", "$threads", *argsVisao())
         pb.environment()["LD_LIBRARY_PATH"] = dir
         pb.directory(filesDir); pb.redirectErrorStream(true); pb.redirectOutput(File(filesDir, "motor.log"))
         val p = try { pb.start() } catch (e: Exception) { return "O motor da IA não pôde ser iniciado: ${e.message}" }
@@ -305,6 +324,52 @@ class MainActivity : Activity() {
             Thread.sleep(300)
         }
         return "A IA demorou demais para iniciar."
+    }
+
+    @Volatile private var visaoAtiva = false
+    private fun argsVisao(): Array<String> {
+        val arq = if (prefs.getBoolean("visao", false)) acharModelo(modelo.visao()) else null
+        visaoAtiva = arq != null
+        return if (arq == null) emptyArray() else arrayOf("--mmproj", arq.path, "--image-max-tokens", "300")
+    }
+
+    // liga/desliga a visão: baixa o módulo do modelo atual se preciso e religa o motor
+    private fun ligarVisao(ligar: Boolean) = trabalho.execute {
+        prefs.edit().putBoolean("visao", ligar).apply()
+        if (ligar) {
+            val v = modelo.visao()
+            if (acharModelo(v) == null) {
+                baixandoId = v.id; cancelarBaixar = false
+                var erro: String? = null
+                try { baixar(v, false) } catch (e: Exception) { erro = if (e.message == "cancelado") "cancelado" else mensagemFalha(e.message ?: "", v) } finally { baixandoId = null }
+                if (erro != null) {
+                    prefs.edit().putBoolean("visao", false).apply()
+                    evento("download-fim", JSONObject().put("id", v.id).put("ok", false).put("erro", erro)); return@execute
+                }
+                evento("download-fim", JSONObject().put("id", v.id).put("ok", true))
+            }
+        }
+        trocando = true
+        try {
+            evento("motor", JSONObject().put("estado", "trocando"))
+            pararMotor()
+            val arq = acharModelo(modelo) ?: return@execute
+            val erro = ligarMotor(arq)
+            evento("motor", if (erro == null) JSONObject().put("estado", "pronto").put("nome", modelo.nome).put("visao", visaoAtiva) else JSONObject().put("estado", "erro").put("mensagem", erro))
+        } finally { trocando = false }
+    }
+
+    // câmera: o app de câmera do Android grava a foto no ProvedorFotos
+    private var fotoCamera: Uri? = null
+    private fun intentCamera(): Intent {
+        val pasta = File(cacheDir, "camera").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
+        val nome = "foto-${System.currentTimeMillis()}.jpg"
+        File(pasta, nome).createNewFile()
+        val uri = Uri.parse("content://$packageName.fotos/$nome")
+        fotoCamera = uri
+        return Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .apply { clipData = ClipData.newRawUri("", uri) }
     }
 
     private fun saudavel(): Boolean = try {
@@ -378,6 +443,15 @@ class MainActivity : Activity() {
                             }
                             "cancelarDownload" -> { cancelarBaixar = true; true }
                             "apagarModelo" -> apagarModelo(modeloDe(args))
+                            "visao" -> {
+                                if (baixandoId != null || trocando) throw Exception("espere o download ou a troca atual terminar")
+                                ligarVisao(args.optBoolean("ligar")); true
+                            }
+                            "apagarVisao" -> {
+                                val m = modeloDe(args)
+                                if (visaoAtiva && m.id == modelo.id) throw Exception("a visão deste modelo está em uso; desligue a visão antes de apagar")
+                                File(pastaModelos, m.visao().arquivo).delete(); File(pastaModelos, m.visao().arquivo + ".baixando").delete(); true
+                            }
                             "verificarModelos" -> verificarModelos()
                             "atualizar" -> atualizar(args.optString("versao"))
                             "ocupado" -> { ocupado(args.optBoolean("sim")); true }
@@ -415,9 +489,11 @@ class MainActivity : Activity() {
         val lista = JSONArray()
         for (m in modelos) lista.put(JSONObject().put("id", m.id).put("nome", m.nome).put("descricao", m.descricao).put("arquivo", m.arquivo)
             .put("tamanho", m.tamanho).put("ramMin", m.ramMin).put("baixado", acharModelo(m) != null).put("atual", m.id == modelo.id)
+            .put("visaoTamanho", m.visaoTamanho).put("visaoBaixada", acharModelo(m.visao()) != null)
             .apply { if (m.id == "avancado" && ramTotal < 7L shl 30) put("bloqueado", "precisa de 8 GB") })
         return JSONObject().put("ramTotal", mi.totalMem).put("ramLivre", mi.availMem).put("cpu", soc.trim()).put("nucleos", Runtime.getRuntime().availableProcessors())
             .put("discoLivre", filesDir.usableSpace).put("pastaDados", "armazenamento interno do app").put("pastaModelos", "armazenamento interno do app")
+            .put("visaoLigada", prefs.getBoolean("visao", false)).put("visaoAtiva", visaoAtiva).put("temVisao", true)
             .put("so", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
             .put("versao", packageManager.getPackageInfo(packageName, 0).versionName).put("modelos", lista)
     }
@@ -570,6 +646,12 @@ class MainActivity : Activity() {
                     else data.clipData?.let { c -> Array(c.itemCount) { c.getItemAt(it).uri } } ?: data.data?.let { arrayOf(it) }
                 cb?.onReceiveValue(uris)
             }
+            PEDIDO_CAMERA -> {
+                val cb = escolhaArquivos; escolhaArquivos = null
+                val u = fotoCamera; fotoCamera = null
+                val tirou = resultCode == RESULT_OK && u != null && File(File(cacheDir, "camera"), u.lastPathSegment ?: "").length() > 0
+                cb?.onReceiveValue(if (tirou) arrayOf(u!!) else null)
+            }
             PEDIDO_SALVAR -> {
                 val id = idSalvarPendente; val conteudo = salvarPendente; salvarPendente = null; idSalvarPendente = null
                 val uri = data?.data
@@ -641,6 +723,7 @@ class MainActivity : Activity() {
     companion object {
         const val PEDIDO_ARQUIVOS = 1
         const val PEDIDO_SALVAR = 2
+        const val PEDIDO_CAMERA = 4
         const val ACAO_INSTALACAO = "io.github.muurxdev.proponsia.INSTALACAO"
     }
 }

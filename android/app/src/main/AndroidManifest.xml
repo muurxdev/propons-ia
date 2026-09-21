@@ -33,6 +33,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- onde o app de câmera grava a foto do botão "Câmera" -->
+        <provider
+            android:name=".ProvedorFotos"
+            android:authorities="${applicationId}.fotos"
+            android:exported="false"
+            android:grantUriPermissions="true" />
         <service
             android:name=".ServicoDownload"
             android:exported="false"

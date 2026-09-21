@@ -1,24 +1,27 @@
-## Novidades da 1.3.0
+## Novidades da 1.4.0
 
-**Mais fluida, e tudo sobe de baixo.**
+**Botão "+" e a IA lê fotos.**
 
-- **Sem travadas enquanto a IA responde:**
-  - a resposta é desenhada aos poucos (só o trecho novo) e no ritmo da tela;
-  - o motor da IA roda com prioridade menor que a interface;
-  - quando um menu abre ou fecha, a animação tem prioridade e o texto espera uma fração de segundo.
-- **Folhas que sobem de baixo** em todo lugar (Ajustes, menus, confirmações e avisos), no celular e no PC:
-  - arraste para baixo pela alça ou pelo topo para fechar (a folha segue o dedo);
-  - ou toque no **X**, fora da folha, ou use o botão voltar.
-- Os menus abrem sem engasgar já na primeira vez (o app prepara tudo enquanto está parado).
+- **"+" na caixa de mensagem** abre uma folha com:
+  - **Câmera:** no celular abre a câmera; no PC, a webcam;
+  - **Fotos:** escolhe da galeria;
+  - **Arquivos:** textos e códigos;
+  - **Modelos:** troca ou baixa o modelo ali mesmo.
+- **A IA entende fotos e prints:** exercício do caderno, conta no quadro, gráfico, print de código…
+  - Na primeira foto ela pede para ligar o **módulo de visão**. Ele é baixado uma vez só: 205 MB no Leve, cerca de 670 MB no Normal e no Avançado.
+  - As fotos são reduzidas antes de ir para a IA (mais rápido). No histórico fica só uma miniatura.
+  - A visão liga e desliga em **Ajustes → Modelos de IA**, onde também dá para apagar o módulo.
+  - **Linux:** `propons-ia --visao` liga a visão e `propons-ia --sem-visao` desliga.
+  - **iPhone:** ler fotos ainda não está disponível.
 
-Da 1.2.x: downloads em segundo plano com notificação, área de **Modelos de IA** e **atualização automática**.
+Da 1.3: interface fluida e folhas que sobem de baixo (arraste para fechar).
 
 ## Instalar
 
 | Plataforma | Como |
 |---|---|
 | Qualquer aparelho | abra **[muurxdev.github.io/propons-ia](https://muurxdev.github.io/propons-ia/)** e toque em baixar |
-| Já tem a 1.2 | Ajustes → Atualizações → **Atualizar agora** (Windows e Android instalam sozinhos) |
+| Já tem a 1.2 ou mais nova | Ajustes → Atualizações → **Atualizar agora** (Windows e Android instalam sozinhos) |
 | Windows 10/11 | `Propons-IA-Windows.exe`: abra (funciona direto do pendrive) |
 | Linux (qualquer) | `propons-ia --atualizar` ou `curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh \| bash` |
 | Android 9+ | baixe pelo site acima (se o Chrome segurar o .apk, use o **.zip**) — [tutorial](https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-android.md) |

@@ -71,7 +71,7 @@ const PLATAFORMA = (() => {
   async function continuarHTTP(mensagens, op, aoToken, sinal) {
     const parcial = mensagens[mensagens.length - 1].content;
     const t = await fetch(base + '/apply-template', { method: 'POST', signal: sinal, headers: cab(),
-      body: JSON.stringify({ messages: mensagens.slice(0, -1), chat_template_kwargs: { enable_thinking: false } }) });
+      body: JSON.stringify({ messages: mensagens.slice(0, -1).map(m => Array.isArray(m.content) ? { role: m.role, content: m.content.filter(c => c.type === 'text').map(c => c.text).join('\n') } : m), chat_template_kwargs: { enable_thinking: false } }) });
     if (!t.ok) throw await erroHTTP(t);
     const { prompt } = await t.json();
     const r = await fetch(base + '/completion', { method: 'POST', signal: sinal, headers: cab(),
@@ -142,6 +142,10 @@ const PLATAFORMA = (() => {
       return pedir('sistema', {}, 15000);
     },
     trocarModelo(id) { return pedir('modelo', { id }, 10000); },
+    // ler fotos (módulo de visão): Windows, Android e Linux (no Linux, pelo comando propons-ia --visao)
+    temVisao: tipo !== 'ios',
+    ligarVisao(ligar) { return pedir('visao', { ligar: !!ligar }, 10000); },
+    apagarVisao(id) { return pedir('apagarVisao', { id }, 15000); },
     // gerenciar modelos (Windows, Android, iOS; no Linux é pelo comando propons-ia)
     baixarModelo(id) { return pedir('baixarModelo', { id }, 10000); },
     cancelarDownload(id) { return pedir('cancelarDownload', { id }, 5000); },

@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.3.0";
+    public const string Versao = "1.4.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -86,6 +86,21 @@ class Modelo
         Sha256 = "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4" };
     public static readonly Modelo[] Todos = { Leve, Normal, Avancado };
     public static Modelo PorId(string id) { foreach (Modelo m in Todos) if (m.Id == id) return m; return null; }
+
+    // módulo de visão (ler fotos): baixado só quando a pessoa manda a primeira foto
+    public long VisaoTamanho; public string VisaoSha;
+    public Modelo Visao()
+    {
+        string tam = Arquivo.Replace("Qwen3.5-", "").Replace("-Q4_K_M.gguf", "");
+        return new Modelo { Id = "visao-" + Id, Nome = "Visão (" + Nome + ")", Arquivo = "mmproj-Qwen3.5-" + tam + "-F16.gguf",
+            Tamanho = VisaoTamanho, Sha256 = VisaoSha, Url = "https://huggingface.co/unsloth/Qwen3.5-" + tam + "-GGUF/resolve/main/mmproj-F16.gguf" };
+    }
+    static Modelo()
+    {
+        Leve.VisaoTamanho = 204987232; Leve.VisaoSha = "56e4c6cfe73b0c82e3e82bc518d7591997e61d81f723fc41a586f4fa69ea2453";
+        Normal.VisaoTamanho = 668227264; Normal.VisaoSha = "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7";
+        Avancado.VisaoTamanho = 672423616; Avancado.VisaoSha = "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864";
+    }
 }
 
 // ---------- pacote anexado ao .exe ----------
@@ -335,6 +350,10 @@ class Janela : Form
                 if (a.Uri.StartsWith("http", StringComparison.OrdinalIgnoreCase) && !a.Uri.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)) { a.Cancel = true; AbrirLink(a.Uri); }
             };
             web.CoreWebView2.WebMessageReceived += Mensagem;
+            web.CoreWebView2.PermissionRequested += delegate (object o, CoreWebView2PermissionRequestedEventArgs a)
+            {   // a webcam só é liberada para a página da própria Própons IA (quando a pessoa toca em Câmera)
+                if (a.PermissionKind == CoreWebView2PermissionKind.Camera && a.Uri.StartsWith("http://127.0.0.1:" + porta + "/")) a.State = CoreWebView2PermissionState.Allow;
+            };
             await Navegar(Splash());
         }
         catch (Exception ex) { Program.Log("webview: " + ex); Falha("Este PC não tem o componente de janela do Windows (WebView2)."); return; }
@@ -541,7 +560,7 @@ class Janela : Form
             ProcessStartInfo psi = new ProcessStartInfo(exe,
                 "-m \"" + arquivoModelo + "\" --host 127.0.0.1 --port " + porta +
                 " --path \"" + Path.Combine(pasta, "interface") + "\"" +
-                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key " + chave);
+                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key " + chave + ArgsVisao());
             psi.WorkingDirectory = pasta; psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
             psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
             Process p = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -564,6 +583,48 @@ class Janela : Form
             await Task.Delay(250);
         }
         return "A IA demorou demais para iniciar neste PC.";
+    }
+
+    bool visaoAtiva;
+    bool VisaoLigada() { object v; return LerConfig().TryGetValue("visao", out v) && v is bool && (bool)v; }
+    string ArgsVisao()
+    {
+        string arq = VisaoLigada() ? AcharModelo(modelo.Visao()) : null;
+        visaoAtiva = arq != null;
+        return arq == null ? "" : " --mmproj \"" + arq + "\" --image-max-tokens 400";
+    }
+
+    // liga/desliga a visão: baixa o módulo do modelo atual se preciso e religa o motor
+    async Task LigarVisao(bool ligar)
+    {
+        Dictionary<string, object> c = LerConfig(); c["visao"] = ligar; SalvarConfig(c);
+        if (ligar)
+        {
+            Modelo v = modelo.Visao();
+            if (AcharModelo(v) == null)
+            {
+                baixandoId = v.Id; cancelarBaixar = false; string falha = null;
+                try { await Baixar(v, false); }
+                catch (Exception ex) { falha = ex is OperationCanceledException ? "cancelado" : ex.Message; }
+                finally { baixandoId = null; }
+                if (falha != null)
+                {
+                    c["visao"] = false; SalvarConfig(c);
+                    Evento("download-fim", Dic("id", v.Id, "ok", false, "erro", falha == "cancelado" ? "cancelado" : MensagemDownload(falha, v)));
+                    return;
+                }
+                Evento("download-fim", Dic("id", v.Id, "ok", true));
+            }
+        }
+        trocando = true;
+        try
+        {
+            Evento("motor", Dic("estado", "trocando"));
+            PararMotor();
+            string erro = await LigarMotor();
+            Evento("motor", erro == null ? Dic("estado", "pronto", "nome", modelo.Nome, "visao", visaoAtiva) : Dic("estado", "erro", "mensagem", erro));
+        }
+        finally { trocando = false; }
     }
 
     // vigia: se o motor cair sem a gente pedir, religa na mesma porta (até 5 vezes em 3 minutos)
@@ -659,6 +720,17 @@ class Janela : Form
                 case "cancelarDownload": cancelarBaixar = true; dados = true; break;
                 case "ocupado": ManterAcordado(args.ContainsKey("sim") && args["sim"] is bool && (bool)args["sim"], true); dados = true; break;
                 case "apagarModelo": dados = ApagarModelo(Modelo.PorId(Arg(args, "id"))); break;
+                case "visao":
+                    if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
+                    { var _v = LigarVisao(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); }
+                    dados = true; break;
+                case "apagarVisao":
+                    Modelo mv = Modelo.PorId(Arg(args, "id"));
+                    if (mv == null) throw new Exception("modelo desconhecido");
+                    if (visaoAtiva && mv.Id == modelo.Id) throw new Exception("a visão deste modelo está em uso; desligue a visão antes de apagar");
+                    foreach (string a in new[] { Path.Combine(Raiz(), @"modelos\" + mv.Visao().Arquivo), Path.Combine(Raiz(), @"modelos\" + mv.Visao().Arquivo + ".baixando") })
+                        try { if (File.Exists(a)) File.Delete(a); } catch { }
+                    dados = true; break;
                 case "verificarModelos": dados = await Task.Run(delegate { return VerificarModelos(); }); break;
                 case "atualizar": dados = await Atualizar(Arg(args, "versao")); break;
                 default: throw new Exception("ação desconhecida: " + acao);
@@ -702,10 +774,10 @@ class Janela : Form
         List<object> ms2 = new List<object>();
         foreach (Modelo m in Modelo.Todos)
             ms2.Add(Dic("id", m.Id, "nome", m.Nome, "descricao", m.Descricao, "arquivo", m.Arquivo, "tamanho", m.Tamanho, "ramMin", m.RamMin,
-                "baixado", AcharModelo(m) != null, "atual", m.Id == modelo.Id));
+                "baixado", AcharModelo(m) != null, "atual", m.Id == modelo.Id, "visaoTamanho", m.VisaoTamanho, "visaoBaixada", AcharModelo(m.Visao()) != null));
         string wv = "?"; try { wv = CoreWebView2Environment.GetAvailableBrowserVersionString(); } catch { }
         return Dic("ramTotal", (long)ms.total, "ramLivre", (long)ms.avail, "cpu", cpu, "nucleos", Environment.ProcessorCount, "discoLivre", disco,
-            "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"));
+            "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"), "visaoLigada", VisaoLigada(), "visaoAtiva", visaoAtiva, "temVisao", true);
     }
 
     // ---------- gerenciar modelos ----------

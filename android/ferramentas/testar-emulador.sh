@@ -53,5 +53,6 @@ PID=$(adb shell pidof $PKG | tr -d '\r')
 adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
 sleep 2
 node "$RAIZ/src/teste_celular.mjs" 9444 "$SAIDA"; R=$?
+if [ -n "${FOTO:-}" ]; then echo "== fotos"; node "$RAIZ/src/teste_fotos.mjs" 9444 "$SAIDA" "$FOTO" || R=1; fi
 adb exec-out screencap -p >"$SAIDA/9-final.png"
 exit $R

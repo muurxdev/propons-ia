@@ -66,7 +66,8 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 
 - **Chat** com histórico, busca, renomear, exportar (.md), editar e reenviar a pergunta, backup e importação
 - **Código completo** quando você pede, com **cores** por linguagem, rótulo e botão copiar; botão **Continuar** se a resposta for cortada
-- **Anexar arquivos** de texto e código (📎, arrastar ou colar) para a IA ler e explicar
+- **Botão "+"**: câmera, fotos, arquivos (texto e código) e troca rápida de modelo
+- **Lê fotos e prints** (exercício, conta, gráfico, código) com o módulo de visão, baixado na primeira foto; no Linux: `propons-ia --visao`
 - **Algoritmos** (bubble sort, selection sort, quick sort, busca binária com uma lista de números): passo a passo e resumo **calculados por código** — sempre corretos
 - **Modelos de IA:** Leve (0.8B) · Normal (2B) · Avançado (4B, 8 GB+). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
 - **Atualizações:** avisa quando sai versão nova e tem o botão **Atualizar tudo**. No Windows e no Android, o próprio app instala; no iPhone, pelo SideStore/AltStore; no Linux, com `propons-ia --atualizar`

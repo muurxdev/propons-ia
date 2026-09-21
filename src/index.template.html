@@ -164,7 +164,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .linha{display:flex;align-items:flex-end;gap:4px}
 #entrada{flex:1;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:var(--fs)/1.5 var(--sans);padding:7px 4px;min-height:36px;max-height:200px}
 #entrada::placeholder{color:var(--faint)}
-#anexar{width:36px;height:36px;border-radius:50%}
+#anexar{width:36px;height:36px;border-radius:50%;transition:transform .2s,background .15s}
+#anexar[aria-expanded="true"]{transform:rotate(45deg)}
 #enviar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);flex:none;transition:background .15s,opacity .15s,transform .1s}
 #enviar:hover{background:var(--accent-hover)}
 #enviar:active{transform:scale(.94)}
@@ -292,6 +293,31 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .folha button.op svg{width:20px;height:20px}
 .toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:13.5px;box-shadow:var(--shadow);animation:aparece .15s ease;max-width:min(90vw,420px);text-align:center}
 
+/* "+": câmera, fotos, arquivos, modelo */
+.opcoes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:4px 4px 6px}
+.opcoes button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px 12px;border-radius:16px;background:var(--hover);font-size:13px;font-weight:500;transition:background .15s,transform .1s}
+.opcoes button:active{transform:scale(.96)}
+.opcoes button:hover{background:var(--line)}
+.opcoes button:disabled{opacity:.45}
+.opcoes .oi{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--accent)}
+.opcoes .oi svg{width:22px;height:22px}
+.opcoes small{font-size:11px;color:var(--muted);font-weight:400;margin-top:-4px;text-align:center}
+.lista-modelos{margin:10px 4px 4px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface)}
+.lista-modelos h4{margin:0;padding:10px 14px 6px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.lm{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;text-align:left;border-top:1px solid var(--line)}
+.lm:hover{background:var(--hover)}
+.lm .mico{width:36px;height:36px;border-radius:10px;font-size:11.5px}
+.lm.on .mico{background:var(--accent);color:var(--accent-ink)}
+.lm .pt{flex:1;min-width:0} .lm b{display:block;font-size:14.5px;font-weight:600} .lm small{display:block;font-size:12.5px;color:var(--muted)}
+.lm .st{font-size:12px;color:var(--muted);white-space:nowrap}
+.lm.on .st{color:var(--accent);font-weight:600}
+.chip img,.anexos-msg img{width:34px;height:34px;object-fit:cover;border-radius:7px;display:block}
+.chip.foto{padding:3px 5px 3px 3px}
+.fotos-msg{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-bottom:6px;max-width:85%}
+.fotos-msg img{width:120px;height:120px;object-fit:cover;border-radius:14px;border:1px solid var(--line);display:block}
+.webcam{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:12px}
+.webcam video{width:100%;height:100%;object-fit:cover;display:block}
+
 /* início: sugestões */
 .sugestoes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:min(460px,100%);margin-top:10px}
 .sugestoes button{text-align:left;padding:11px 13px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:13.5px;transition:background .15s}
@@ -316,6 +342,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .caixa{border-radius:24px}
   #entrada{font-size:16px}
   #anexar,#enviar{width:40px;height:40px}
+  .opcoes{gap:8px} .opcoes button{padding:12px 4px 10px;font-size:12.5px}
   .acao{height:36px;min-width:36px}
   .item{padding:11px 6px 11px 12px;font-size:15px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   .item .mais{width:32px;height:32px}
@@ -385,12 +412,14 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
     <div class="caixa" id="caixa">
       <div id="chips" hidden></div>
       <div class="linha">
-        <button class="icone" id="anexar" title="Anexar arquivo de texto ou código" aria-label="Anexar arquivo"><svg viewBox="0 0 24 24"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+        <button class="icone" id="anexar" title="Câmera, fotos, arquivos e modelo" aria-label="Adicionar: câmera, fotos, arquivos e modelo" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
         <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>
       </div>
     </div>
     <input type="file" id="arquivo" multiple hidden>
+    <input type="file" id="fotos" accept="image/*" multiple hidden>
+    <input type="file" id="camera" accept="image/*" capture="environment" hidden>
     <input type="file" id="importar" accept=".json,application/json" hidden>
     <div class="rodape">A IA pode errar. Confira informações importantes.</div>
   </div>
