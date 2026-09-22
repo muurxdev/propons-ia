@@ -81,9 +81,8 @@ class MainActivity : Activity() {
     private lateinit var web: WebView
     private val ui = Handler(Looper.getMainLooper())
     private val trabalho = Executors.newSingleThreadExecutor()
-    private var motor: Process? = null
-    private var porta = 8765
-    private val chave = ByteArray(18).also { SecureRandom().nextBytes(it) }.let { android.util.Base64.encodeToString(it, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING) }
+    // motor, porta e chave ficam no companion (um só por processo): se a Activity for recriada (tema, idioma, densidade),
+    // a instância nova reaproveita o motor que já está de pé em vez de subir outro com outra chave
     private lateinit var modelo: Modelo
     @Volatile private var desligando = false
     @Volatile private var trocando = false
@@ -207,9 +206,12 @@ class MainActivity : Activity() {
     // ---------------- inicialização ----------------
     private fun iniciar() {
         try { copiarInterface() } catch (e: Exception) { splash(-2.0, "Não foi possível abrir", "Falha ao preparar os arquivos: ${e.message}"); return }
-        matarOrfaos()
         modelo = modelos.firstOrNull { it.id == prefs.getString("modelo", null) } ?: if (ramTotal < 6L shl 30) modelos[0] else modelos[1]
         if (acharModelo(modelo) == null) melhorBaixado(null)?.let { modelo = it; prefs.edit().putString("modelo", it.id).apply() }
+        // Activity recriada (tema, idioma, densidade…): o motor da instância anterior continua de pé, com a mesma chave —
+        // reaproveita em vez de matar e subir outro (dois motores na mesma porta = página com chave errada)
+        if (motor?.isAlive == true && saudavel()) { naSplash = false; ui.post { web.loadUrl("http://127.0.0.1:$porta/#k=$chave") }; return }
+        matarOrfaos()
         // abertura fria: a interface abre na hora, sem ligar a IA; ela liga na primeira mensagem (ou, sem modelo baixado,
         // depois da escolha). Os testes abrem com o extra "ligar" para ligar já.
         val ligarAgora = intent?.getBooleanExtra("ligar", false) == true
@@ -885,6 +887,10 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        // estado do motor por processo (sobrevive à recriação da Activity)
+        @Volatile var motor: Process? = null
+        @Volatile var porta = 8765
+        val chave: String = ByteArray(18).also { SecureRandom().nextBytes(it) }.let { android.util.Base64.encodeToString(it, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING) }
         const val PEDIDO_ARQUIVOS = 1
         const val PEDIDO_SALVAR = 2
         const val PEDIDO_CAMERA = 4
