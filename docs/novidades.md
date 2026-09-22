@@ -1,3 +1,9 @@
+## Novidades da 1.11.1
+
+- **Menu "+" refeito:** uma lista limpa (Câmera, Fotos, Arquivos, Áudio, Biblioteca), sem os textinhos embaixo.
+- **Trocar de modelo atualiza na hora:** a linha mostra "ligando", passa para "Em uso" e o nome ao lado do "+" muda sem precisar fechar e abrir.
+- **Janela do PC no tamanho certo:** abre como um app de verdade (1180×780, centralizada, como o Claude para PC) em vez de uma janelinha de celular, e lembra o tamanho e a posição da última vez.
+
 ## Novidades da 1.11.0
 
 - **Novos nomes:** os modelos agora são **Própons Lume** (leve e rápido), **Própons Aurora** (médio, equilibrado) e **Própons Ápice** (pesado, o mais inteligente). Sem ícones, sem números.

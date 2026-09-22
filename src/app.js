@@ -665,9 +665,9 @@ function abrirMais() {
     <div class="opcoes">
       <button data-op="camera"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.camera}</span>Câmera</button>
       <button data-op="fotos"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.foto}</span>Fotos</button>
-      <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos<small>texto e código</small></button>
-      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span>Áudio<small>qualquer tamanho</small></button>
-      <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span>Biblioteca<small>${biblioteca.length ? biblioteca.length + (biblioteca.length === 1 ? ' item' : ' itens') : 'desta sessão'}</small></button>
+      <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos</button>
+      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span>Áudio</button>
+      <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span>Biblioteca${biblioteca.length ? `<span class="cont">${biblioteca.length}</span>` : ''}</button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:4px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
   const folha = f.firstChild;
@@ -761,14 +761,16 @@ async function abrirSeletorModelo(motivo) {
   await lerSistema(); atualizarSeletorModelo();
   desenharListaModelos(folha); posicionarPop(f, folha, $('#seletorModelo'));
 }
+// a folha/menu do seletor, se estiver aberta, acompanha downloads e trocas
+function redesenharSeletor() { const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f); }
 function desenharListaModelos(folha) {
   const lm = folha.querySelector('.lista-modelos'), sis = sistemaCache; if (!lm) return;
   if (!sis || !sis.modelos) { lm.innerHTML = '<p class="info" style="padding:12px 14px;margin:0">Não foi possível ler os modelos.</p>'; return; }
   const ram = sis.ramTotal || 0, rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
   lm.innerHTML = sis.modelos.map(m => {
     const b = baixando[m.id] || (escolhendoId === m.id ? { pct: 0 } : null);
-    const emUso = !ESCOLHER && m.atual;
-    const st = b ? anel(b.pct || 0) : m.bloqueado ? `<span class="st-txt">${esc(m.bloqueado)}</span>` : emUso ? '<span class="st-txt on">Em uso</span>'
+    const emUso = !ESCOLHER && m.atual && !trocandoPara, ligando = !ESCOLHER && trocandoPara === m.id;
+    const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b>…</b></span>' : m.bloqueado ? `<span class="st-txt">${esc(m.bloqueado)}</span>` : emUso ? '<span class="st-txt on">Em uso</span>'
       : `<span class="btn-mini">${m.baixado ? 'Usar' : 'Baixar'}</span>`;
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
       <span class="pt"><b>${esc(nomeModelo(m))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
@@ -783,7 +785,7 @@ function desenharListaModelos(folha) {
       try { await PLATAFORMA.escolherModelo(m.id); } catch (e) { escolhendoId = null; estado(''); toast('Não foi possível: ' + e.message, 4000); desenharListaModelos(folha); }
       return;
     }
-    if (m.atual) return;
+    if (m.atual || trocandoPara) return;
     if (PLATAFORMA.tipo === 'web') { animarSaida(folha.parentNode, folha); abrirConfig('modelo'); return; }
     await acaoModelo('usar', m, ram);
     desenharListaModelos(folha);
@@ -1337,6 +1339,7 @@ function atualizarCartao(id) {
 }
 const idDoModelo = d => d.id || ((sistemaCache && (sistemaCache.modelos || []).find(m => m.nome === d.nome)) || {}).id;
 PLATAFORMA.ao('download', d => {
+  redesenharSeletor();
   const id = idDoModelo(d); if (!id) return;
   baixando[id] = { pct: d.pct, feito: d.feito, total: d.total, fase: d.fase };
   atualizarCartao(id);
@@ -1355,19 +1358,18 @@ PLATAFORMA.ao('download-fim', d => {
 PLATAFORMA.ao('motor', d => {
   if (d.estado === 'reiniciando' || d.estado === 'trocando') {
     online = false; estado(d.estado === 'trocando' ? 'trocando de modelo' : 'reconectando');
-    if (d.estado === 'trocando' && trocandoPara) { delete baixando[trocandoPara]; if (abaAtual === 'modelo') desenharAba(); }
+    if (d.estado === 'trocando' && trocandoPara) { delete baixando[trocandoPara]; if (abaAtual === 'modelo') desenharAba(); redesenharSeletor(); }
   }
   if (d.estado === 'pronto') {
     online = false; verificar(true);
     lerSistema().then(atualizarSeletorModelo);
-    if (trocandoPara) toast('Pronto! Em uso: ' + nomeModelo(trocandoPara), 3000);
     baixando = {}; trocandoPara = null;
-    lerSistema().then(() => { desenharNav(); if (abaAtual === 'modelo') desenharAba(); fimEsperaVisao(!!(sistemaCache && sistemaCache.visaoAtiva)); });
+    lerSistema().then(() => { desenharNav(); atualizarSeletorModelo(); redesenharSeletor(); if (abaAtual === 'modelo') desenharAba(); fimEsperaVisao(!!(sistemaCache && sistemaCache.visaoAtiva)); });
   }
   if (d.estado === 'erro') {
     baixando = {}; trocandoPara = null; fimEsperaVisao(false);
     estado('erro', true); toast(d.mensagem || 'Erro no motor da IA.', 5000);
-    if (abaAtual === 'modelo') desenharAba();
+    if (abaAtual === 'modelo') desenharAba(); redesenharSeletor();
   }
 });
 

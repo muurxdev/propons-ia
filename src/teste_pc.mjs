@@ -19,6 +19,7 @@ await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(4
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
 ok('"+" abre menu flutuante (pop) no PC', await js(`!!document.querySelector('.dlg-fundo.pop .dlg')`));
+ok('"+" é uma lista limpa: 5 itens, sem textinhos', await js(`document.querySelectorAll('.opcoes button').length === 5 && !document.querySelector('.opcoes small')`));
 const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, x: Math.abs(r.left-b.left) < 40}})()`);
 ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(rp));
 await foto('p1-mais');
@@ -27,6 +28,21 @@ await js(`$('#seletorModelo').click(); 1`); await espera(700);
 ok('seletor de modelo flutuante com os nomes novos', await js(`!!document.querySelector('.dlg-fundo.pop .dlg.modelos') && /Própons Lume/.test(document.querySelector('.dlg.modelos').innerText) && /Própons Aurora/.test(document.querySelector('.dlg.modelos').innerText)`), await js(`document.querySelector('.dlg.modelos').innerText.replace(/\\s+/g,' ').slice(0,120)`));
 ok('sem ícones nos modelos', await js(`document.querySelectorAll('.dlg.modelos .mico').length === 0`));
 await foto('p2-seletor');
+// troca de modelo ao vivo: a linha mostra "ligando", depois "Em uso", e o nome ao lado do "+" muda sem fechar o menu
+{
+  const atualId = await js(`(sistemaCache.modelos.find(m => m.atual) || {}).id`);
+  const outro = atualId === 'leve' ? 'normal' : 'leve';
+  await js(`document.querySelector('.dlg.modelos [data-m="${outro}"]').click(); 1`); await espera(600);
+  ok('ao tocar em Usar, a linha mostra "ligando"', await js(`!!document.querySelector('.dlg.modelos [data-m="${outro}"] .anel.girando')`));
+  for (let i = 0; i < 120 && !(await js(`/Em uso/.test((document.querySelector('.dlg.modelos [data-m="${outro}"] .st')||{}).textContent || '')`)); i++) await espera(500);
+  ok('sem fechar o menu, "Em uso" passa para o modelo novo', await js(`/Em uso/.test(document.querySelector('.dlg.modelos [data-m="${outro}"] .st').textContent) && !/Em uso/.test(document.querySelector('.dlg.modelos [data-m="${atualId}"] .st').textContent)`));
+  ok('nome ao lado do "+" atualizou na hora', (await js(`$('#nomeModelo').textContent`)) === 'Própons ' + { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' }[outro], await js(`$('#nomeModelo').textContent`));
+  await foto('p2b-trocou');
+  for (let i = 0; i < 60 && !(await js('online')); i++) await espera(500);
+  await js(`document.querySelector('.dlg.modelos [data-m="${atualId}"]').click(); 1`);
+  for (let i = 0; i < 120 && !(await js(`online && /Em uso/.test((document.querySelector('.dlg.modelos [data-m="${atualId}"] .st')||{}).textContent || '')`)); i++) await espera(500);
+  ok('volta para o modelo de antes', (await js(`(sistemaCache.modelos.find(m => m.atual) || {}).id`)) === atualId);
+}
 await js('fecharDialogo(); 1'); await espera(300);
 // menu da conversa (⋯) no PC é ancorado
 await js(`$('#entrada').value='Diga apenas: olá'; ajustar(); $('#enviar').click(); 1`);

@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.11.0";
+    public const string Versao = "1.11.1";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -244,8 +244,10 @@ class Janela : Form
         return Convert.ToBase64String(b).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
 
-    // janela pequena ao abrir (tipo mini player), centralizada, em pixels reais conforme a escala da tela
+    // janela de app de verdade (proporção parecida com a do Claude para PC: 1180x780 em escala 100%), centralizada;
+    // o tamanho e a posição da última vez ficam guardados em dados\janela.txt
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr h);
+    string ArquivoJanela() { return Path.Combine(Raiz(), @"dados\janela.txt"); }
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
@@ -253,9 +255,33 @@ class Janela : Form
         if (dpi < 96) dpi = 96;
         float esc = dpi / 96f;
         Rectangle area = Screen.FromPoint(Cursor.Position).WorkingArea;
-        int w = Math.Min((int)(460 * esc), area.Width - 40), h = Math.Min((int)(720 * esc), area.Height - 40);
-        MinimumSize = new Size((int)(360 * esc), (int)(480 * esc));
-        Bounds = new Rectangle(area.Left + (area.Width - w) / 2, area.Top + (area.Height - h) / 2, w, h);
+        MinimumSize = new Size((int)(820 * esc), (int)(560 * esc));   // nunca cai no leiaute de celular
+        int w = Math.Min((int)(1180 * esc), area.Width - 48), h = Math.Min((int)(780 * esc), area.Height - 48);
+        Rectangle b = new Rectangle(area.Left + (area.Width - w) / 2, area.Top + (area.Height - h) / 2, w, h);
+        bool max = false;
+        try
+        {
+            string[] p = File.ReadAllText(ArquivoJanela()).Trim().Split(',');
+            if (p.Length == 5)
+            {
+                Rectangle g = new Rectangle(int.Parse(p[0]), int.Parse(p[1]), int.Parse(p[2]), int.Parse(p[3]));
+                Rectangle tela = Screen.FromRectangle(g).WorkingArea;
+                if (g.Width >= MinimumSize.Width && g.Height >= MinimumSize.Height && tela.IntersectsWith(g)) { g.Intersect(new Rectangle(tela.Left, tela.Top, tela.Width, tela.Height)); if (g.Width >= MinimumSize.Width && g.Height >= MinimumSize.Height) b = g; }
+                max = p[4] == "1";
+            }
+        }
+        catch { }
+        Bounds = b;
+        if (max) WindowState = FormWindowState.Maximized;
+    }
+    void GuardarJanela()
+    {
+        try
+        {
+            Rectangle r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+            File.WriteAllText(ArquivoJanela(), r.X + "," + r.Y + "," + r.Width + "," + r.Height + "," + (WindowState == FormWindowState.Maximized ? "1" : "0"));
+        }
+        catch { }
     }
 
     // ---------- barra de título no tema ----------
@@ -1091,6 +1117,7 @@ class Janela : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        GuardarJanela();
         desligando = true; PararMotor();
         try { if (aviso != null) { aviso.Visible = false; aviso.Dispose(); } } catch { }
         base.OnFormClosing(e);

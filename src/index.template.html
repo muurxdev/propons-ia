@@ -316,14 +316,13 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:13.5px;box-shadow:var(--shadow);animation:aparece .15s ease;max-width:min(90vw,420px);text-align:center}
 
 /* "+": câmera, fotos, arquivos, modelo */
-.opcoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:10px;padding:4px 4px 6px}
-.opcoes button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px 12px;border-radius:16px;background:var(--hover);font-size:13px;font-weight:500;transition:background .15s,transform .1s}
-.opcoes button:active{transform:scale(.96)}
-.opcoes button:hover{background:var(--line)}
-.opcoes button:disabled{opacity:.45}
-.opcoes .oi{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--accent)}
-.opcoes .oi svg{width:22px;height:22px}
-.opcoes small{font-size:11px;color:var(--muted);font-weight:400;margin-top:-4px;text-align:center}
+.opcoes{display:flex;flex-direction:column;gap:2px;padding:2px 4px 4px}
+.opcoes button{display:flex;align-items:center;gap:14px;width:100%;padding:11px 10px;border-radius:12px;font-size:15px;font-weight:500;text-align:left;transition:background .15s}
+.opcoes button:hover,.opcoes button:active{background:var(--hover)}
+.opcoes button:disabled{opacity:.4}
+.opcoes .oi{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--accent-soft);color:var(--accent)}
+.opcoes .oi svg{width:20px;height:20px}
+.opcoes .cont{margin-left:auto;min-width:22px;padding:0 7px;border-radius:99px;background:var(--hover);color:var(--muted);font-size:12px;font-weight:600;text-align:center;line-height:22px}
 .lista-modelos{margin:10px 4px 4px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface)}
 .lista-modelos h4{margin:0;padding:10px 14px 6px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
 .lm{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;text-align:left;border-top:1px solid var(--line)}
@@ -430,11 +429,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .folha .dlg-topo{padding:12px 12px 4px}
   .dlg-fundo.pop{background:rgba(10,10,14,.08)}
   .dlg-fundo.pop .dlg{position:fixed;width:min(340px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 16px));padding:0 6px 6px;border-radius:16px;box-shadow:var(--shadow),0 16px 48px rgba(0,0,0,.28);animation-duration:.16s}
-  .pop .opcoes{display:flex;flex-direction:column;gap:2px;padding:2px}
-  .pop .opcoes button{flex-direction:row;justify-content:flex-start;gap:12px;padding:7px 10px;border-radius:10px;background:none;font-size:14px}
-  .pop .opcoes button:hover{background:var(--hover)}
-  .pop .opcoes .oi{width:32px;height:32px;background:var(--accent-soft)} .pop .opcoes .oi svg{width:18px;height:18px}
-  .pop .opcoes small{margin:0 0 0 auto;text-align:right}
+  .pop .opcoes button{padding:7px 10px;border-radius:10px;font-size:14px}
+  .pop .opcoes .oi{width:32px;height:32px;border-radius:9px} .pop .opcoes .oi svg{width:18px;height:18px}
   .pop .lista-modelos{margin:2px 2px 0}
   .painel-fundo{place-items:center}
   .painel{height:min(680px,calc(100% - 56px));border-radius:22px;border-bottom:1px solid var(--line);box-shadow:0 30px 90px rgba(0,0,0,.42);animation:pop .22s cubic-bezier(.16,1,.3,1)}
