@@ -1,5 +1,6 @@
 // fotos das telas novas no PC (janela larga): menus flutuantes, diálogo, ajustes, gravação, digitação
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 const [porta, saida] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const a = (await (await fetch(`http://127.0.0.1:${porta}/json`)).json()).find(x => x.type === 'page');
@@ -71,6 +72,10 @@ ok('ajustes numa janela centralizada, nomes novos, sem ícones', rj.cy && rj.nom
 await foto('p6-ajustes');
 await js('fecharModal(true); 1'); await espera(200);
 // gravação: só "Gravando"/"Transcrevendo", sem porcentagens nem toast de "Pronto"
+// "microfone" determinístico: um WAV com fala (3º argumento) vira o MediaStream que o app grava; sem ele, microfone real
+const wavArq = process.argv[4];
+if (wavArq) await js(`window.__wavMic = 'data:audio/wav;base64,${fs.readFileSync(wavArq).toString('base64')}'; navigator.mediaDevices.getUserMedia = async () => { const ctx = new AudioContext(); const buf = await ctx.decodeAudioData(await (await fetch(window.__wavMic)).arrayBuffer()); const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; const dest = ctx.createMediaStreamDestination(); src.connect(dest); src.start(); return dest.stream; }; 1`);
+const FALA = wavArq ? /transcri|teste|ol[áa]/i : /capital do brasil/i;
 await js(`window.__avisos = []; if (!window.__toast0) { window.__toast0 = toast; toast = (t, ms) => { window.__avisos.push(t); window.__toast0(t, ms); }; } nova(); $('#entrada').value=''; $('#falar').click(); 1`);
 await espera(11500); await foto('p7-gravando');
 ok('barra de gravação: X · tempo · ondas · seta redonda (transcreve para a caixa, não envia)', await js(`!$('#cancelarGrav').disabled && !$('#pararGrav').disabled && getComputedStyle($('#pararGrav')).borderRadius === '50%' && !$('#enviarGrav')`));
@@ -79,8 +84,36 @@ ok('transcrevendo: a barra continua (ondas paradas), "Transcrevendo" no lugar do
 await foto('p8-transcrevendo');
 for (let i = 0; i < 200 && (await js('transcrevendo')); i++) await espera(200);
 ok('depois de transcrever, o texto fica na caixa e NÃO é enviado', await js(`!geracao && !!$('#entrada').value && !(atual && atual.msgs.length)`));
-ok('texto na caixa, sem aviso "Pronto"', /capital do brasil/i.test(await js(`$('#entrada').value`)) && !(await js('window.__avisos')).some(t => /Pronto/.test(t)), JSON.stringify([await js(`$('#entrada').value`), await js('window.__avisos')]));
+ok('texto na caixa, sem aviso "Pronto"', FALA.test(await js(`$('#entrada').value`)) && !(await js('window.__avisos')).some(t => /Pronto/.test(t)), JSON.stringify([await js(`$('#entrada').value`), await js('window.__avisos')]));
 await js(`$('#entrada').value=''; ajustar(); 1`);
+
+// 1.16: cancelar a transcrição pelo X (grava 4 s com fala, para, cancela na hora)
+await js(`window.__avisos = []; $('#falar').click(); 1`);
+await espera(5000); await js(`$('#pararGrav').click(); 1`); await espera(300);
+ok('transcrevendo: o X fica ativo (cancelar)', await js(`$('#gravando').classList.contains('transcrevendo') && !$('#cancelarGrav').disabled`));
+await js(`$('#cancelarGrav').click(); 1`);
+for (let i = 0; i < 100 && (await js('transcrevendo')); i++) await espera(100);
+ok('cancelar encerra a transcrição e avisa', !(await js('transcrevendo')) && (await js('window.__avisos')).some(t => /cancelad/i.test(t)), JSON.stringify(await js('window.__avisos')));
+await js(`$('#entrada').value=''; ajustar(); 1`);
+
+// 1.16: diálogo com aria-modal, foco dentro e foco de volta ao fechar
+await js(`$('#entrada').focus(); abrirEsforco(); 1`); await espera(250);
+ok('diálogo: aria-modal e foco dentro', await js(`(()=>{const d=document.querySelector('.dlg-fundo:not(.saindo) .dlg'); return !!d && d.getAttribute('aria-modal')==='true' && d.contains(document.activeElement)})()`));
+await js(`fecharDialogo(); 1`); await espera(400);
+ok('diálogo: foco volta para a caixa ao fechar', (await js(`document.activeElement === $('#entrada')`)));
+// 1.16: menu flutuante acompanha o botão depois de "resize"
+await js(`abrirEsforco(); 1`); await espera(250);
+const rr = await js(`(()=>{const f=document.querySelector('.dlg-fundo.pop:not(.saindo)'); const d=f.querySelector('.dlg'); d.style.left='0px'; dispatchEvent(new Event('resize')); const r=d.getBoundingClientRect(), b=$('#seletorModelo').getBoundingClientRect(); return { dx: Math.abs(r.left-b.left), pop: !!f._pop }})()`);
+ok('menu flutuante reposicionado no resize', rr.pop && rr.dx < 40, JSON.stringify(rr));
+await js(`fecharDialogo(); 1`); await espera(300);
+// 1.16: rascunho por conversa
+await js(`conversas.unshift({ id: 'testeB', titulo: 'B', criada: Date.now(), atualizada: Date.now(), msgs: [] }, { id: 'testeA', titulo: 'A', criada: Date.now(), atualizada: Date.now(), msgs: [] }); abrir('testeA'); $('#entrada').value = 'rascunho da A'; abrir('testeB'); 1`);
+const r1 = await js(`$('#entrada').value`); await js(`abrir('testeA'); 1`); const r2 = await js(`$('#entrada').value`);
+ok('rascunho fica na conversa (B vazia, A recupera)', r1 === '' && r2 === 'rascunho da A', JSON.stringify([r1, r2]));
+await js(`conversas = conversas.filter(c => !/^teste[AB]$/.test(c.id)); nova(); $('#entrada').value=''; ajustar(); 1`);
+// 1.16: estado com prioridade (download por cima de rede; limpar só o download)
+const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
+ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));
 ws.close();
 const falhas = res.filter(x => !x).length;
 console.log(falhas ? `${falhas} falha(s)` : 'todos os testes passaram'); process.exit(falhas ? 1 : 0);

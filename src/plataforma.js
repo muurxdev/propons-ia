@@ -126,9 +126,15 @@ const PLATAFORMA = (() => {
     });
   }
 
+  /* IndexedDB mínimo (chave → valor), usado só no Linux/web */
+  const idb = {
+    abrir() { return new Promise((ok, falha) => { if (!window.indexedDB) return falha(new Error('sem IndexedDB')); const p = indexedDB.open('propons', 1); p.onupgradeneeded = () => p.result.createObjectStore('kv'); p.onsuccess = () => ok(p.result); p.onerror = () => falha(p.error); }); },
+    async get(k) { const db = await this.abrir(); try { return await new Promise((ok, falha) => { const r = db.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => ok(r.result); r.onerror = () => falha(r.error); }); } finally { db.close(); } },
+    async set(k, v) { const db = await this.abrir(); try { return await new Promise((ok, falha) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => ok(true); t.onerror = () => falha(t.error); }); } finally { db.close(); } },
+  };
+
   return {
     tipo, chave,
-    temPonte: tipo !== 'web',
     ao(nome, f) { (ouvintes[nome] = ouvintes[nome] || []).push(f); },
     gerar(mensagens, op, aoToken, sinal) { return tipo === 'ios' ? gerarNativo(mensagens, op, aoToken, sinal) : gerarHTTP(mensagens, op, aoToken, sinal); },
     async saude() {
@@ -144,11 +150,20 @@ const PLATAFORMA = (() => {
       const r = await fetch('conhecimento.md', { cache: 'no-store' }); return r.ok ? r.text() : '';
     },
     async carregar() {
-      if (tipo === 'web') { try { return localStorage.getItem('conversas') || '[]'; } catch (e) { return '[]'; } }
+      if (tipo === 'web') {
+        // Linux: histórico em IndexedDB (o localStorage tem cota de ~5 MB e estourava com as miniaturas); migra o antigo
+        try {
+          const v = await idb.get('conversas'); if (v != null) return v;
+          const antigo = localStorage.getItem('conversas');
+          if (antigo) { await idb.set('conversas', antigo); localStorage.removeItem('conversas'); return antigo; }
+          return '[]';
+        } catch (e) {}
+        try { return localStorage.getItem('conversas') || '[]'; } catch (e) { return '[]'; }
+      }
       return pedir('carregar');
     },
     salvar(json) {
-      if (tipo === 'web') { try { localStorage.setItem('conversas', json); return Promise.resolve(true); } catch (e) { return Promise.reject(e); } }
+      if (tipo === 'web') return idb.set('conversas', json).catch(() => { localStorage.setItem('conversas', json); return true; });
       return pedir('salvar', { dados: json });
     },
     async sistema() {
@@ -178,13 +193,13 @@ const PLATAFORMA = (() => {
     temTranscricao: tipo === 'windows' || tipo === 'android' || tipo === 'ios' || tipo === 'mac',
     // Linux: o endereço (secreto) do whisper-server vem no # da página, junto com a chave do motor
     urlTranscricao: decodeURIComponent((location.hash.match(/[#&]voz=([^&]+)/) || [])[1] || ''),
-    async transcrever(bytes, ext, aoEnviar) {
-      if (tipo === 'web') {   // Linux: whisper-server local num endereço secreto (vem no sistema.json)
+    async transcrever(bytes, ext, aoEnviar, sinal) {
+      if (tipo === 'web') {   // Linux: whisper-server local num endereço secreto (vem no # da página)
         if (!this.urlTranscricao) throw new Error('transcrição desligada: rode propons-ia --voz');
         const f = new FormData();
         f.append('file', new Blob([bytes], { type: 'audio/wav' }), 'audio.wav'); f.append('response_format', 'json'); f.append('language', 'pt');
         if (aoEnviar) aoEnviar(1);
-        const r = await fetch(this.urlTranscricao, { method: 'POST', body: f });
+        const r = await fetch(this.urlTranscricao, { method: 'POST', body: f, signal: sinal });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json(); return { texto: String(j.text || '').replace(/\s*\n\s*/g, ' ').trim() };
       }

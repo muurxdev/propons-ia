@@ -9,7 +9,7 @@
 2. Abra o `.zip` (o Mac descompacta sozinho) e arraste a **Própons IA** para a pasta **Aplicativos**.
 3. **Primeira vez:** como o app não é da App Store, o Mac pede uma confirmação:
    - clique com o **botão direito** (ou Control + clique) na Própons IA → **Abrir** → **Abrir**;
-   - se aparecer "não foi possível verificar", vá em **Ajustes do Sistema → Privacidade e Segurança**, role até o fim e clique em **Abrir Mesmo Assim**.
+   - se aparecer "não foi possível verificar" (no **macOS 15 Sequoia** ou mais novo é sempre assim: o botão direito → Abrir não basta), feche o aviso, vá em **Ajustes do Sistema → Privacidade e Segurança**, role até o fim e clique em **Abrir Mesmo Assim**; depois abra o app de novo e confirme.
 4. Pronto! Da próxima vez é só abrir normalmente.
 
 > Alternativa pelo Terminal: `xattr -dr com.apple.quarantine "/Applications/Própons IA.app"`

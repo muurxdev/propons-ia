@@ -38,6 +38,14 @@ echo "== instalar e abrir"
 adb install -r -g "$APK" >/dev/null || exit 1
 adb shell am force-stop $PKG; adb logcat -c
 T0=$(date +%s)
+if ! adb shell "run-as $PKG sh -c 'ls files/modelos 2>/dev/null'" 2>/dev/null | grep -q '\.gguf$'; then
+  # aparelho limpo (CI): o app abre no chat e a primeira mensagem escolhe e baixa o Lume — teste_escolher.mjs faz isso
+  echo "== primeira vez: escolher e baixar o modelo Leve"
+  adb shell am start -n $PKG/.MainActivity >/dev/null; sleep 4
+  PID=$(adb shell pidof $PKG | tr -d '\r'); adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
+  node "$RAIZ/src/teste_escolher.mjs" 9444 "$SAIDA/escolher" leve || { adb logcat -d | grep -iE "proponsia|AndroidRuntime|FATAL" | tail -30; exit 1; }
+  adb shell am force-stop $PKG; sleep 1
+fi
 adb shell am start -n $PKG/.MainActivity --ez ligar true >/dev/null
 # espera a IA ficar pronta (motor respondendo dentro do celular)
 PRONTO=0

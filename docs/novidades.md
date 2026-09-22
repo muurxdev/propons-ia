@@ -1,7 +1,17 @@
-## Novidades da 1.15.0
+## Novidades da 1.16.0
 
-Versão de fundações: nada visível de novo, muita coisa por baixo para a atualização, o motor e os dados serem à prova de falha.
+Versão de fundações (junta a 1.15, que não chegou a sair): a interface fica sólida e o motor, a atualização e os dados ficam à prova de falha.
 
+- **A mesma pergunta não tem mais sempre a mesma resposta:** cada pedido usa uma semente nova e a amostragem recomendada para o modelo (temperatura 0,6–0,7 em texto livre; baixa em código e contas), com filtros contra repetição (DRY) e a favor de variedade (XTC).
+- **Resposta escrevendo sem travar:** o bloco de código em streaming não é mais recolorido inteiro a cada quadro (numa CPU 4× mais lenta o pior quadro caiu para 35 ms); tabela sendo digitada não trava mais a tela (bug antigo); salvar a conversa nunca mais é cancelado por engano pelo desenho.
+- **Transcrição cancelável:** o X da barra cancela a transcrição (fica o que já foi transcrito); gravação avisa aos 10 min e para aos 30; áudio muito baixo pergunta "transcrever assim mesmo" em vez de descartar.
+- **Exemplo de algoritmo com números inventados** vira uma nota no fim da resposta, em vez de cortar a explicação no meio.
+- **Rascunho por conversa:** o que você digitou fica guardado ao trocar de conversa. Conversa longa abre mais rápido (um reflow só).
+- **Acessibilidade e tema:** diálogos com `aria-modal`, foco preso dentro e devolvido ao fechar; avisos anunciados por leitor de tela; sem flash branco ao abrir no tema escuro; textos apagados com contraste AA; menus flutuantes acompanham a janela ao redimensionar/girar; fotos do celular respeitam a rotação (EXIF).
+- **Celular:** folhas altas rolam (o arraste para fechar é pelo topo); o botão voltar cancela a gravação/transcrição; Enter quebra linha (a seta envia).
+- **Linux:** o histórico sai do `localStorage` (cota de 5 MB) e vai para o IndexedDB, com migração automática.
+- **iPhone:** se o motor morrer no meio da resposta, o app percebe em 90 s (antes ficava travado para sempre).
+- **Proteções:** histórico com limites (200 mil caracteres por texto, 2 mil mensagens por conversa, ids únicos); fotos em tamanho cheio saem da memória depois da resposta; "continuar" só a partir do texto inteiro; segunda mensagem antes de a IA ligar é recusada com aviso.
 - **Atualização protegida:** a release só sai se o APK do Android estiver assinado com a chave oficial (antes, sem a chave, saía assinado com a chave de teste e ninguém conseguia atualizar). No Linux, `propons-ia --atualizar` baixa o instalador da própria versão nova e confere o **SHA-256** do pacote com a lista publicada (`install.sh` e `PKGBUILD` também).
 - **Versão única:** `ferramentas/versao.js` grava a versão nos 6 arquivos e o CI confere que tag, versão e novidades batem antes de compilar.
 - **Binários de terceiros conferidos:** llama.cpp, whisper.cpp e WebView2 são baixados com SHA-256 fixo (`ferramentas/terceiros.sums`) em todos os builds, com cache no CI.

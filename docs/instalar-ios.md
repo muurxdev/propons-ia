@@ -57,3 +57,9 @@ e, no SideStore/AltStore, vá em **My Apps** → **+** → escolha o arquivo bai
 | App fecha ao abrir a IA | Pouca memória: em **Configurações → Modelo de IA** escolha **Leve**. Feche outros apps. |
 | Download parou | Abra o app de novo: ele continua de onde parou. |
 | Quer conferir se está tudo bem | **Configurações → Diagnóstico → Rodar diagnóstico**. |
+
+## Transcrição de voz no iPhone
+
+No iPhone a Própons IA usa o **reconhecimento de fala do próprio iOS** (não o whisper). Ele funciona no aparelho quando o
+idioma Português tem o reconhecimento "no dispositivo" instalado (Ajustes → Geral → Teclado → Ditado → Idiomas). Se não
+tiver, o iOS pode mandar o áudio para os servidores da Apple para transcrever — é o único caso em que algo sai do aparelho.

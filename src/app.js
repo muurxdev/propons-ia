@@ -42,7 +42,7 @@ const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3, MAX_FOTOS = 3, TOKENS_FOTO = 420
 const eFoto = f => (f.type && /^image\//.test(f.type)) || /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(f.name || '');
 
 /* ---------------- utilidades ---------------- */
-function toast(t, ms = 2200) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
+function toast(t, ms = 2200) { const d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
 /* enquanto uma folha ou a gaveta anima, o texto da resposta espera (a animação tem prioridade) */
 let pausaDesenhoAte = 0;
 const pausarDesenho = (ms = 360) => { pausaDesenhoAte = Math.max(pausaDesenhoAte, performance.now() + ms); };
@@ -121,12 +121,49 @@ function perguntarTexto(titulo, valor) {
   inp.onkeydown = e => { if (e.key === 'Enter') inp.closest('.dlg').querySelector('.primario').click(); };
   return p.then(v => v === 'ok' ? inp.value.trim() : null);
 }
-new MutationObserver(() => {
+/* toda folha/diálogo/painel que entra: aria-modal, foco dentro (e de volta ao sair); a folha de trás fica escondida */
+const FOCAVEL = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+new MutationObserver(muts => {
   const abertos = [...document.querySelectorAll('.dlg-fundo:not(.saindo)')];
   abertos.forEach((f, i) => f.classList.toggle('atras', i < abertos.length - 1));
+  for (const m of muts) {
+    for (const n of m.addedNodes) {
+      if (!(n instanceof Element) || !/\b(dlg-fundo|painel-fundo)\b/.test(n.className)) continue;
+      const caixa = n.firstElementChild; if (!caixa) continue;
+      caixa.setAttribute('role', caixa.getAttribute('role') || 'dialog'); caixa.setAttribute('aria-modal', 'true');
+      if (!caixa.hasAttribute('tabindex')) caixa.tabIndex = -1;
+      n._focoAntes = document.activeElement;
+      setTimeout(() => { if (!n.isConnected || n.contains(document.activeElement)) return; const alvo = caixa.querySelector('input, textarea') || caixa; alvo.focus({ preventScroll: true }); }, 30);
+    }
+    for (const n of m.removedNodes) {
+      if (!(n instanceof Element) || !n._focoAntes) continue;
+      const topo = [...document.querySelectorAll('.dlg-fundo:not(.saindo), .painel-fundo:not(.saindo)')].pop();
+      const de = n._focoAntes; n._focoAntes = null;
+      if (!topo && de.isConnected && (document.activeElement === document.body || !document.activeElement)) de.focus({ preventScroll: true });
+      else if (topo && !topo.contains(document.activeElement)) topo.firstElementChild.focus({ preventScroll: true });
+    }
+  }
 }).observe(document.body, { childList: true });
+// Tab não sai do diálogo aberto
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const topo = [...document.querySelectorAll('.dlg-fundo:not(.saindo), .painel-fundo:not(.saindo)')].pop(); if (!topo) return;
+  const itens = [...topo.querySelectorAll(FOCAVEL)].filter(x => x.offsetParent !== null); if (!itens.length) return;
+  const i = itens.indexOf(document.activeElement);
+  if (e.shiftKey && (i <= 0)) { e.preventDefault(); itens[itens.length - 1].focus(); }
+  else if (!e.shiftKey && (i === -1 || i === itens.length - 1)) { e.preventDefault(); itens[0].focus(); }
+});
 function fecharDialogo() { const d = [...document.querySelectorAll('.dlg-fundo:not(.saindo)')].pop(); if (d) { d.fechar ? d.fechar() : animarSaida(d, d.firstChild); return true; } return false; }
-function estado(txt, erro) { const e = $('#estado'); if (txt) { e.textContent = txt; e.hidden = false; e.classList.toggle('erro', !!erro); } else e.hidden = true; }
+/* texto ao lado do título: cada origem (erro > troca > download > rede) guarda o seu e o mais importante aparece.
+   estado('') sem origem limpa tudo (a IA respondeu: está tudo bem); estado('', false, 'download') limpa só o download. */
+const estados = {};
+function estado(txt, erro, origem) {
+  origem = origem || (erro ? 'erro' : /trocando/.test(txt) ? 'troca' : /baixando|conferindo/.test(txt) ? 'download' : 'rede');
+  if (txt) estados[origem] = txt; else if (arguments.length > 2) delete estados[origem]; else for (const k in estados) delete estados[k];
+  const atualE = ['erro', 'troca', 'download', 'rede'].find(k => estados[k]);
+  const e = $('#estado');
+  if (atualE) { e.textContent = estados[atualE]; e.hidden = false; e.classList.toggle('erro', atualE === 'erro'); } else e.hidden = true;
+}
 function copiarTexto(t) {
   if (navigator.clipboard && window.isSecureContext !== false) return navigator.clipboard.writeText(t).catch(() => copiaVelha(t));
   return Promise.resolve(copiaVelha(t));
@@ -141,12 +178,14 @@ const langDoArquivo = n => ({ py: 'python', pyw: 'python', js: 'javascript', mjs
 /* ---------------- histórico: carregar / salvar ---------------- */
 function validar(lista) {
   if (!Array.isArray(lista)) throw new Error('formato inválido');
-  const txt = v => typeof v === 'string' ? v : '';
-  return lista.filter(c => c && typeof c === 'object' && Array.isArray(c.msgs)).map(c => ({
-    id: /^[a-z0-9]{4,40}$/i.test(c.id) ? c.id : novoId(),
+  // limites: 200 mil caracteres por texto, 2 mil mensagens por conversa, 3 mil conversas, ids únicos
+  const txt = v => typeof v === 'string' ? v.slice(0, 200000) : '';
+  const ids = new Set();
+  return lista.filter(c => c && typeof c === 'object' && Array.isArray(c.msgs)).slice(0, 3000).map(c => ({
+    id: (() => { const id = /^[a-z0-9]{4,40}$/i.test(c.id) && !ids.has(c.id) ? c.id : novoId(); ids.add(id); return id; })(),
     titulo: txt(c.titulo).slice(0, 120) || 'Conversa',
     criada: +c.criada || Date.now(), atualizada: +c.atualizada || +c.criada || Date.now(),
-    msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).map(m => ({
+    msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
       ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
       ...(m.erro ? { erro: txt(m.erro) } : {}),
@@ -174,7 +213,6 @@ async function carregarHistorico() {
   conversas.sort((a, b) => b.atualizada - a.atualizada);
   desenharLista();
 }
-if (PLATAFORMA.tipo === 'web') window.addEventListener('storage', e => { if (e.key === 'conversas' && !geracao) carregarHistorico().then(() => { if (atual) { const c = conversas.find(x => x.id === atual.id); c ? abrir(c.id) : nova(); } }); });
 
 /* ---------------- lista lateral ---------------- */
 function grupoData(ts) {
@@ -293,6 +331,7 @@ function boasVindas() {
 // se a hora virar com a tela inicial aberta, a saudação acompanha
 setInterval(() => { const h = document.querySelector('#boasvindas .sd'); if (h && h.textContent !== saudacao() + ',') h.textContent = saudacao() + ','; }, 60000);
 function nova() {
+  if (atual) atual.rascunho = '';   // o que estava na caixa vai junto para a conversa nova
   atual = null; cancelarEdicao();
   $('#tituloAtual').textContent = 'Própons IA';
   $('#conversa').innerHTML = boasVindas();
@@ -300,19 +339,28 @@ function nova() {
 }
 function abrir(id) {
   const c = conversas.find(x => x.id === id); if (!c) return nova();
-  if (atual && atual !== c) atual.msgs.forEach(m => { if (m._envio) m._envio = null; });   // fotos cheias só da conversa aberta
+  if (atual && atual !== c) { atual.msgs.forEach(m => { if (m._envio) m._envio = null; }); atual.rascunho = $('#entrada').value; }   // fotos cheias só da conversa aberta; o rascunho fica guardado
+  const trocou = atual !== c;
   atual = c; cancelarEdicao();
   $('#tituloAtual').textContent = c.titulo;
-  $('#conversa').innerHTML = ''; const col = coluna();
-  c.msgs.forEach((m, i) => {
-    if (m.role === 'user') addEu(m, i === ultimoIndice(c, 'user'));
-    else { if (m.passos) addPassos(m.passos.titulo, m.passos.lista); addIa(m, i === c.msgs.length - 1); }
-  });
+  // as mensagens são montadas fora da página (uma coluna solta) e entram de uma vez: um reflow só, não um por mensagem
+  $('#conversa').innerHTML = ''; const col = document.createElement('div'); col.className = 'col'; colDestacada = col;
+  const iu = ultimoIndice(c, 'user');
+  try {
+    c.msgs.forEach((m, i) => {
+      if (m.role === 'user') addEu(m, i === iu);
+      else { if (m.passos) addPassos(m.passos.titulo, m.passos.lista); addIa(m, i === c.msgs.length - 1); }
+    });
+  } finally { colDestacada = null; }
   if (geracao && geracao.conv === c && geracao.el) col.appendChild(geracao.el.parentNode);
+  $('#conversa').appendChild(col);
+  if (trocou) { $('#entrada').value = c.rascunho || ''; ajustar(); }
   rolar(true); desenharLista();
 }
 function ultimoIndice(c, role) { for (let i = c.msgs.length - 1; i >= 0; i--) if (c.msgs[i].role === role) return i; return -1; }
+let colDestacada = null;   // coluna ainda fora da página, enquanto abrir() monta uma conversa
 function coluna() {
+  if (colDestacada) return colDestacada;
   let col = $('#conversa .col');
   if (!col) { $('#conversa').innerHTML = ''; col = document.createElement('div'); col.className = 'col'; $('#conversa').appendChild(col); }
   return col;
@@ -393,7 +441,7 @@ function desenharChips() {
 }
 // foto → JPEG reduzido (lado maior até 1024 px) para a IA + miniatura para o histórico
 async function prepararFoto(f) {
-  const img = await createImageBitmap(f);
+  const img = await createImageBitmap(f, { imageOrientation: 'from-image' });   // respeita a rotação do EXIF (foto do celular)
   const reduzir = (max, q) => {
     const k = Math.min(1, max / Math.max(img.width, img.height));
     const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
@@ -439,14 +487,15 @@ $('#anexar').onclick = () => abrirMais();
    Áudio longo é cortado em trechos (nos silêncios) e transcrito um por um; áudio curtinho ganha silêncio
    em volta, porque o whisper ignora trechos com menos de 1 segundo. */
 const TRECHO = PLATAFORMA.tipo === 'ios' ? 50 : 180;   // segundos por trecho (o reconhecimento do iPhone aceita ~1 min)
-let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null;
+let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null, cancelarTranscricao = null;
+const AVISO_GRAV = 10 * 60, LIMITE_GRAV = 30 * 60;   // segundos: aviso e parada automática (memória do celular)
 const mmss = s => (s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') : Math.floor(s / 60)) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 function barraGravacao(modo, texto, pct) {
   const g = $('#gravando');
   if (!modo) { g.hidden = true; return; }
   g.hidden = false;
   const grav = modo === 'gravando';
-  $('#cancelarGrav').disabled = !grav;
+  $('#cancelarGrav').disabled = false; $('#cancelarGrav').title = grav ? 'Cancelar gravação' : 'Cancelar transcrição';
   $('#pararGrav').disabled = !grav; $('#pararGrav').classList.toggle('carregando', !grav);
   g.classList.toggle('transcrevendo', !grav);
   if (!grav) $('#tempoGrav').textContent = 'Transcrevendo'; else if (texto !== undefined) $('#tempoGrav').textContent = texto;
@@ -468,7 +517,7 @@ async function garantirVoz() {
   try { baixando[v.id] = { pct: 0, feito: 0, total: v.tamanho }; await PLATAFORMA.baixarVoz(v.id); }
   catch (e) { delete baixando[v.id]; toast('Não foi possível: ' + e.message, 4000); return false; }
   toast('Baixando a voz…', 2500);
-  return new Promise(res => { esperaVoz = { id: v.id, res }; });
+  return new Promise(res => { esperaVoz = { id: v.id, res }; setTimeout(() => { if (esperaVoz && esperaVoz.res === res) { esperaVoz = null; res(false); } }, 30 * 60000); });   // nunca fica esperando para sempre
 }
 // ondas: cobrem a largura toda e cada barrinha é o volume real de um instante (a mais nova entra pela direita)
 function montarOnda() {
@@ -495,8 +544,12 @@ async function iniciarGravacao() {
   barraGravacao('gravando', '0:00');
   const barras = montarOnda(), niveis = barras.map(() => 0.1);
   let soma = 0, qtd = 0, tick = 0;
+  let avisou = false;
   gravacao.timer = setInterval(() => {
-    $('#tempoGrav').textContent = mmss((Date.now() - t0) / 1000);
+    const seg = (Date.now() - t0) / 1000;
+    $('#tempoGrav').textContent = mmss(seg);
+    if (seg >= LIMITE_GRAV) { toast('Gravação de 30 min: parei e vou transcrever. Para continuar, grave de novo.', 5000); pararGravacao(true); return; }
+    if (seg >= AVISO_GRAV && !avisou) { avisou = true; toast('Gravação longa (10 min). Aos 30 min ela para sozinha.', 4000); }
     if (!analisador) return;
     analisador.getFloatTimeDomainData(amostras);
     let q = 0; for (let i = 0; i < amostras.length; i++) q += amostras[i] * amostras[i];
@@ -556,12 +609,14 @@ function wav16k(amostras) {
   return wav;
 }
 // o whisper às vezes "inventa" frases em áudio sem fala; só vale para trechos quase mudos
-const temFala = a => { let pico = 0; for (let i = 0; i < a.length; i += 4) { const x = Math.abs(a[i]); if (x > pico) pico = x; } return pico > 0.015; };
+const picoDe = a => { let pico = 0; for (let i = 0; i < a.length; i += 4) { const x = Math.abs(a[i]); if (x > pico) pico = x; } return pico; };
+const temFala = a => picoDe(a) > 0.015;
 // tira as marcas que o whisper põe em trechos sem fala: [BLANK_AUDIO], (música), [risos]…
 const limparTranscricao = t => String(t || '').replace(/\[[^\]]{0,40}\]|\((?:m[uú]sica|music|risos?|aplausos|sil[eê]ncio|inaud[ií]vel)[^)]{0,20}\)/gi, ' ').replace(/\s+/g, ' ').trim();
-async function transcreverAudio(blob) {
+async function transcreverAudio(blob, mesmoSemFala) {
   if (transcrevendo) return;
-  transcrevendo = true;
+  transcrevendo = true; cancelarTranscricao = new AbortController();
+  const sinal = cancelarTranscricao.signal;
   barraGravacao('transcrevendo', 'Transcrevendo');
   try {
     let amostras = null;
@@ -574,32 +629,41 @@ async function transcreverAudio(blob) {
     if (!amostras) {
       const ext = /mp4|m4a|aac/.test(blob.type) ? 'm4a' : /mpeg|mp3/.test(blob.type) ? 'mp3' : 'wav';
       trechoAtual = { i: 0, n: 1 };
-      const r = await PLATAFORMA.transcrever(new Uint8Array(await blob.arrayBuffer()), ext, null);
+      const r = await PLATAFORMA.transcrever(new Uint8Array(await blob.arrayBuffer()), ext, null, sinal);
       texto = limparTranscricao(r && r.texto);
     } else {
-      if (!amostras.length || !temFala(amostras)) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
-      const trechos = cortarEmTrechos(amostras), partes = [];
+      if (!amostras.length) { toast('Este áudio está vazio.', 3500); return; }
+      if (!mesmoSemFala && !temFala(amostras)) {
+        // volume baixo demais: pergunta em vez de descartar (pode ser uma gravação distante, mas com fala)
+        transcrevendo = false; barraGravacao(null);
+        if (await confirmar('Áudio muito baixo', '<p>Não ouvi fala neste áudio — pode estar mudo ou muito baixo.</p>', 'Transcrever assim mesmo')) return transcreverAudio(blob, true);
+        return;
+      }
+      const trechos = cortarEmTrechos(amostras), partes = [], pico = Math.max(...trechos.map(picoDe));
       for (let i = 0; i < trechos.length; i++) {
+        if (sinal.aborted) break;
         trechoAtual = { i, n: trechos.length };
-        if (!temFala(trechos[i])) continue;
-        const r = await PLATAFORMA.transcrever(wav16k(trechos[i]), 'wav', null);
+        if (!mesmoSemFala && picoDe(trechos[i]) < Math.max(0.004, pico * 0.02)) continue;   // trecho mudo em relação ao resto
+        const r = await PLATAFORMA.transcrever(wav16k(trechos[i]), 'wav', null, sinal);
         const t = limparTranscricao(r && r.texto);
         if (t) partes.push(t);
       }
       texto = partes.join(' ').replace(/\s+/g, ' ').trim();
     }
+    if (sinal.aborted) { if (texto) toast('Transcrição cancelada; ficou só o que já tinha sido transcrito.', 3500); else { toast('Transcrição cancelada.'); return; } }
     if (!texto) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
     const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
     guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto });
   } catch (e) {
-    toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : /memory|allocation|RangeError/i.test(e.message || e.name) ? 'Áudio grande demais para a memória deste aparelho.' : 'Não foi possível transcrever: ' + e.message, 4500);
-  } finally { transcrevendo = false; trechoAtual = null; barraGravacao(null); }
+    if (e.name === 'AbortError' || sinal.aborted) toast('Transcrição cancelada.');
+    else toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : /memory|allocation|RangeError/i.test(e.message || e.name) ? 'Áudio grande demais para a memória deste aparelho.' : 'Não foi possível transcrever: ' + e.message, 4500);
+  } finally { transcrevendo = false; trechoAtual = null; cancelarTranscricao = null; barraGravacao(null); }
 }
 // progresso real do whisper (quando o aparelho manda): a barra deixa de ser indeterminada
 PLATAFORMA.ao('transcricao', d => { if (!transcrevendo) return; const t = trechoAtual || { i: 0, n: 1 }; barraGravacao('transcrevendo', undefined, (t.i + (d.pct || 0)) / t.n); });
 $('#falar').onclick = () => iniciarGravacao();
 $('#pararGrav').onclick = () => pararGravacao(true);
-$('#cancelarGrav').onclick = () => pararGravacao(false);
+$('#cancelarGrav').onclick = () => { if (gravacao) pararGravacao(false); else if (cancelarTranscricao) { cancelarTranscricao.abort(); $('#tempoGrav').textContent = 'Cancelando'; } };
 $('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { transcreverAudio(f); } };
 
 /* ---------------- biblioteca da sessão ----------------
@@ -698,7 +762,8 @@ function abrirMais() {
 /* PC e tablet: a folha vira um menu flutuante ancorado no botão (abre para cima quando não cabe embaixo) */
 function posicionarPop(f, folha, ancora, lado) {
   if (estreita() || !ancora) return;
-  f.classList.add('pop');
+  f.classList.add('pop'); f._pop = { folha, ancora, lado };
+  folha.style.top = folha.style.bottom = '';
   const r = ancora.getBoundingClientRect(), w = folha.offsetWidth, h = folha.offsetHeight;
   const abaixo = innerHeight - r.bottom - 8, acima = r.top - 8, paraCima = abaixo < Math.min(h, 240) && acima > abaixo;
   const x = lado === 'fim' ? r.right - w : r.left;
@@ -706,6 +771,8 @@ function posicionarPop(f, folha, ancora, lado) {
   if (paraCima) { folha.style.bottom = (innerHeight - r.top + 6) + 'px'; folha.style.transformOrigin = 'bottom left'; }
   else { folha.style.top = (r.bottom + 6) + 'px'; folha.style.transformOrigin = 'top left'; }
 }
+// janela redimensionada ou tablet girado: os menus flutuantes acompanham o botão
+addEventListener('resize', () => document.querySelectorAll('.dlg-fundo.pop:not(.saindo)').forEach(f => { if (f._pop) posicionarPop(f, f._pop.folha, f._pop.ancora, f._pop.lado); }));
 
 /* ---------------- nomes dos modelos ----------------
    Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado) e Própons Ápice (pesado, o mais capaz). */
@@ -753,13 +820,14 @@ PLATAFORMA.ao('download', d => {
 });
 PLATAFORMA.ao('download-fim', d => {
   if (!ESCOLHER || d.id !== escolhendoId || d.ok) return;
-  escolhendoId = null; estado('');
+  escolhendoId = null; estado('', false, 'download');
   toast(d.erro === 'cancelado' ? 'Download cancelado.' : (d.erro || 'Não foi possível baixar. Verifique a internet e tente de novo.'), 5000);
   const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f);
 });
 PLATAFORMA.ao('motor', d => {
   if (!ESCOLHER) return;
   if (d.estado === 'ligando') document.querySelectorAll('.lista-modelos .st .anel').forEach(a => a.outerHTML = '<span class="anel girando"><b></b></span>');
+  if (d.estado === 'pronto') escolhendoId = null;
   if (d.estado === 'erro') { escolhendoId = null; document.querySelectorAll('.msg.ia .txt.digitando').forEach(t => t.parentNode.remove()); toast(d.mensagem || 'Não foi possível ligar a IA.', 5000); const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f); }
 });
 // depois que a IA liga, responde a mensagem que ficou esperando o download
@@ -868,7 +936,7 @@ async function garantirVisao() {
   if (!ok) return false;
   try { await PLATAFORMA.ligarVisao(true); } catch (e) { toast('Não foi possível: ' + e.message, 4000); return false; }
   toast(baixar ? 'Baixando a visão… a foto vai assim que terminar.' : 'Ligando a visão…', 3500);
-  return new Promise(res => { esperaVisao = res; });
+  return new Promise(res => { esperaVisao = res; setTimeout(() => { if (esperaVisao === res) { esperaVisao = null; res(false); } }, 30 * 60000); });
 }
 function fimEsperaVisao(ok) {
   if (!esperaVisao) return;
@@ -996,7 +1064,7 @@ async function responder(conv, continuacao) {
     salvar(); desenharLista(); return;
   }
   if (!online) {
-    const aviso = { role: 'assistant', texto: '', llm: '', interno: true, erro: 'A IA ainda está carregando. Espere o aviso "carregando" sumir e toque em ↻ para tentar de novo.' };
+    const aviso = { role: 'assistant', texto: '', llm: '', interno: true, erro: 'A IA está sendo ligada. Quando o indicador ao lado do título sumir, toque em ↻ para tentar de novo.' };
     if (!continuacao) { conv.msgs.push(aviso); if (atual === conv) addIa(aviso, true); salvar(); }
     else toast('A IA ainda está carregando.');
     return;
@@ -1145,6 +1213,7 @@ document.addEventListener('keydown', e => {
 // celular: botão voltar fecha, nesta ordem, o diálogo, a subpágina dos ajustes, os ajustes e a gaveta
 window.__proponsVoltar = () => {
   if (fecharDialogo()) return true;
+  if (gravacao || cancelarTranscricao) { $('#cancelarGrav').click(); return true; }
   if (document.querySelector('.painel-fundo:not(.saindo)')) { voltarPainel(); return true; }
   if (!$('#lateral').classList.contains('fechada') && estreita()) { fecharLateral(); return true; }
   return false;
@@ -1284,9 +1353,9 @@ function desenharAba() {
   ({ geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
 }
 function seg(nome, opcoes, atualV) {
-  return `<div class="seg" data-seg="${nome}">${opcoes.map(([v, r]) => `<button data-v="${v}" class="${v === atualV ? 'on' : ''}">${r}</button>`).join('')}</div>`;
+  return `<div class="seg" data-seg="${nome}" role="radiogroup">${opcoes.map(([v, r]) => `<button data-v="${v}" role="radio" aria-checked="${v === atualV}" class="${v === atualV ? 'on' : ''}">${r}</button>`).join('')}</div>`;
 }
-function ligarSeg(c, nome, f) { c.querySelectorAll(`[data-seg="${nome}"] button`).forEach(b => b.onclick = () => { c.querySelectorAll(`[data-seg="${nome}"] button`).forEach(x => x.classList.toggle('on', x === b)); f(b.dataset.v); desenharNav(); }); }
+function ligarSeg(c, nome, f) { c.querySelectorAll(`[data-seg="${nome}"] button`).forEach(b => b.onclick = () => { c.querySelectorAll(`[data-seg="${nome}"] button`).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); f(b.dataset.v); desenharNav(); }); }
 function ligarCopiar(c) { c.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => copiarTexto($('#' + b.dataset.copiar).textContent).then(() => toast('Copiado.'))); }
 
 function abaGeral(c) {
@@ -1299,13 +1368,13 @@ function abaGeral(c) {
 }
 
 /* ---------------- modelos ---------------- */
-const PERFIL_MODELO = { leve: ['Mais rápido', '0.8B'], normal: ['Equilibrado', '2B'], avancado: ['Mais inteligente', '4B'] };
+const PERFIL_MODELO = { leve: 'Mais rápido', normal: 'Equilibrado', avancado: 'Mais inteligente' };
 let baixando = {};          // id → { pct, feito, total, fase }
 let trocandoPara = null;    // id do modelo que está sendo ligado
 const textoDownload = b => b.fase === 'verificando' ? 'Conferindo o arquivo…' : `Baixando ${Math.floor(b.pct * 100)}% · ${Math.round(b.feito / 1048576)} de ${Math.round(b.total / 1048576)} MB`;
 
 function cartaoModelo(m, ram, rec) {
-  const [perfil] = PERFIL_MODELO[m.id] || [''];
+  const perfil = PERFIL_MODELO[m.id] || '';
   const b = baixando[m.id], ligando = trocandoPara === m.id && !b, web = PLATAFORMA.tipo === 'web';
   const pouca = ram && m.ramMin && ram < ramNecessaria(m) * GB * 0.93;
   const usar = rot => `<button class="btn primario" data-acao="usar" data-id="${m.id}" data-modelo="${m.id}">${rot}</button>`;
@@ -1413,7 +1482,7 @@ PLATAFORMA.ao('download', d => {
   estado(`baixando ${Math.floor(d.pct * 100)}%`);
 });
 PLATAFORMA.ao('download-fim', d => {
-  delete baixando[d.id]; if (online) estado('');
+  delete baixando[d.id]; estado('', false, 'download');
   if (String(d.id).startsWith('visao-') && !d.ok) fimEsperaVisao(false);
   if (esperaVoz && d.id === esperaVoz.id) { const r = esperaVoz.res; esperaVoz = null; r(!!d.ok); }
   if (d.ok) toast('Download concluído. O modelo já pode ser usado.', 3000);
@@ -1760,6 +1829,7 @@ async function aquecer() {
 
 /* ---------------- início ---------------- */
 aplicarTema(); aplicarFonte();
+if (CELULAR) $('#entrada').enterKeyHint = 'enter';   // no celular Enter quebra linha (o botão de enviar é a seta); no PC, envia
 nova();
 if (!estreita()) abrirLateral();
 (async () => {
