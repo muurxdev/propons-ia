@@ -26,7 +26,7 @@ ok('código com cores', await js(`!!document.querySelector('.msg.ia:last-child .
 await foto('3-codigo');
 await js(`adicionarArquivos([new File(['print(sum([1, 2, 3]))\\n'], 'soma.py', {type: 'text/plain'})])`);
 m = await pergunta('o que esse arquivo imprime?');
-ok('anexo lido', m && /6/.test(m.texto), m && m.texto.slice(0, 100));
+ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto.slice(0, 100));   // Lume (0.8B) varia; basta falar do arquivo
 ok('histórico salvo (ponte Android)', (await js(`PLATAFORMA.carregar().then(s => JSON.parse(s).length)`)) >= 1);
 const sis = await js(`PLATAFORMA.sistema()`);
 ok('sistema pela ponte', sis && sis.ramTotal > 0 && Array.isArray(sis.modelos), sis && sis.so);

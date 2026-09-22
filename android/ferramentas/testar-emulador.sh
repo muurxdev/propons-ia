@@ -26,7 +26,7 @@ fi
 emulator -list-avds | grep -qx propons || { echo "AVD 'propons' não apareceu em $ANDROID_AVD_HOME"; ls -la "$ANDROID_AVD_HOME"; exit 1; }
 adb start-server >/dev/null 2>&1
 if ! adb devices | grep -q emulator; then
-  nohup emulator -avd propons -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -cores 4 >"$SAIDA/emulador.log" 2>&1 &
+  nohup emulator -avd propons -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory "${EMU_MEM:-4096}" -cores 4 >"$SAIDA/emulador.log" 2>&1 &
 fi
 timeout 300 adb wait-for-device || { echo "emulador não apareceu em 5 min"; tail -30 "$SAIDA/emulador.log"; exit 1; }
 BOOT=0; for i in $(seq 1 240); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && { BOOT=1; break; }; sleep 2; done
@@ -36,7 +36,7 @@ adb shell settings put global window_animation_scale 0; adb shell settings put g
 
 echo "== instalar e abrir"
 adb install -r -g "$APK" >/dev/null || exit 1
-adb shell am force-stop $PKG; adb logcat -c
+adb shell am force-stop $PKG; sleep 3; adb logcat -c
 T0=$(date +%s)
 if ! adb shell "run-as $PKG sh -c 'ls files/modelos 2>/dev/null'" 2>/dev/null | grep -q '\.gguf$'; then
   # aparelho limpo (CI): o app abre no chat e a primeira mensagem escolhe e baixa o Lume — teste_escolher.mjs faz isso
@@ -44,7 +44,7 @@ if ! adb shell "run-as $PKG sh -c 'ls files/modelos 2>/dev/null'" 2>/dev/null | 
   adb shell am start -n $PKG/.MainActivity >/dev/null; sleep 4
   PID=$(adb shell pidof $PKG | tr -d '\r'); adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
   node "$RAIZ/src/teste_escolher.mjs" 9444 "$SAIDA/escolher" leve || { adb logcat -d | grep -iE "proponsia|AndroidRuntime|FATAL" | tail -30; exit 1; }
-  adb shell am force-stop $PKG; sleep 1
+  adb shell am force-stop $PKG; sleep 3
 fi
 adb shell am start -n $PKG/.MainActivity --ez ligar true >/dev/null
 # espera a IA ficar pronta (motor respondendo dentro do celular)
@@ -66,6 +66,7 @@ PID=$(adb shell pidof $PKG | tr -d '\r')
 adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
 sleep 2
 node "$RAIZ/src/teste_celular.mjs" 9444 "$SAIDA"; R=$?
+echo "   motor na porta $PORTA · pedidos recusados por chave: $(adb shell "run-as $PKG grep -c unauthorized files/motor.log" 2>/dev/null | tr -d '')"
 if [ -n "${FOTO:-}" ]; then echo "== fotos"; node "$RAIZ/src/teste_fotos.mjs" 9444 "$SAIDA" "$FOTO" || R=1; fi
 if [ -n "${VOZ:-}" ]; then echo "== voz"; SEM_MIC=1 node "$RAIZ/src/teste_voz.mjs" 9444 "$SAIDA" "$VOZ" "${VOZ_CURTO:-}" || R=1; fi
 adb exec-out screencap -p >"$SAIDA/9-final.png"
