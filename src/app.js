@@ -1406,6 +1406,7 @@ async function abaModelo(c) {
   c.innerHTML = `<p class="info">Os modelos ficam guardados neste aparelho e funcionam sem internet. Os maiores respondem melhor (principalmente código), mas são mais lentos e usam mais memória.</p>
     ${modelos.map(m => cartaoModelo(m, ram, rec)).join('')}
     ${PLATAFORMA.temVisao && !web ? `<div class="secao" style="margin-top:18px"><h4>Fotos</h4><div class="cartao"><button class="interruptor" id="swVisao" role="switch" aria-checked="${!!s.visaoLigada}"><span class="pt"><b>Ler fotos (visão)</b><small>${s.visaoAtiva ? 'Ligada: a IA entende fotos e prints' : 'Desligada: liga sozinha quando você manda uma foto'}</small></span><span class="chave"></span></button></div></div>` : ''}
+    ${s.gpu && !web ? `<div class="secao" style="margin-top:18px"><h4>Aceleração por GPU</h4><div class="cartao"><button class="interruptor" id="swGpu" role="switch" aria-checked="${!!s.gpu.ligada}"><span class="pt"><b>Usar a placa de vídeo (Vulkan)</b><small>${descricaoGpu(s.gpu)}</small></span><span class="chave"></span></button>${s.gpu.baixada && !s.gpu.ligada && !baixando['gpu-vulkan'] ? `<button class="btn link" data-gpu="apagar" style="margin:8px 12px 10px">Apagar o módulo (${gbBonito(43658240)})</button>` : ''}</div></div>` : ''}
     ${s.vozes ? `<div class="secao" style="margin-top:18px"><h4>Transcrição de áudio</h4><div class="lista-modelos" style="margin:0">${s.vozes.map(v => {
       const b = baixando[v.id];
       const st = b ? Math.floor(b.pct * 100) + '%' : v.atual ? (v.baixado ? 'Em uso' : 'Escolhida') : v.baixado ? 'Baixada' : gbBonito(v.tamanho);
@@ -1441,6 +1442,58 @@ async function abaModelo(c) {
       try { await PLATAFORMA.ligarVisao(false); sw.setAttribute('aria-checked', 'false'); } catch (e) { toast(e.message, 4000); }
     } else if (await garantirVisao()) { toast('Visão ligada.'); if (abaAtual === 'modelo') desenharAba(); }
   };
+  const sg = c.querySelector('#swGpu');
+  if (sg) sg.onclick = async () => {
+    const g = (sistemaCache && sistemaCache.gpu) || {};
+    if (geracao || transcrevendo) { toast('Espere a resposta terminar.'); return; }
+    if (sg.getAttribute('aria-checked') === 'true') {
+      try { await PLATAFORMA.ligarGpu(false); toast('GPU desligada. A IA volta a usar o processador.', 3000); } catch (e) { toast(e.message, 4000); }
+      await lerSistema(); if (abaAtual === 'modelo') desenharAba(); return;
+    }
+    if (!g.baixada) {
+      if (!await confirmar('Aceleração por GPU', `<p>A Própons baixa o módulo Vulkan do motor (${gbBonito(g.tamanho || 31851321)}, uma vez só) e passa a usar a placa de vídeo para responder mais rápido — no PC com placa dedicada, 3 a 4 vezes.</p><p>Se a placa for mais lenta que o processador (comum em gráficos integrados), a IA volta para o processador sozinha.</p>`, 'Baixar e testar')) return;
+      baixando['gpu-vulkan'] = { pct: 0, feito: 0, total: g.tamanho || 0 }; desenharAba();
+      const fim = await new Promise(res => { esperaGpu = res; PLATAFORMA.baixarGpu().catch(e => res({ ok: false, erro: e.message })); });
+      delete baixando['gpu-vulkan'];
+      if (!fim.ok) { toast(fim.erro === 'cancelado' ? 'Download cancelado.' : (fim.erro || 'Não foi possível baixar.'), 4500); await lerSistema(); if (abaAtual === 'modelo') desenharAba(); return; }
+    }
+    await testarGpu();
+  };
+  const ag = c.querySelector('[data-gpu="apagar"]');
+  if (ag) ag.onclick = async () => { try { await PLATAFORMA.apagarGpu(); pref('gpuMedida', ''); toast('Módulo da GPU apagado.'); } catch (e) { toast(e.message, 4000); } await lerSistema(); if (abaAtual === 'modelo') desenharAba(); };
+}
+// GPU: texto do interruptor, download e o teste que decide (a placa só fica ligada se for mais rápida que o processador)
+let esperaGpu = null;
+PLATAFORMA.ao('download-fim', d => { if (d.id === 'gpu-vulkan' && esperaGpu) { const r = esperaGpu; esperaGpu = null; r(d); } });
+function descricaoGpu(g) {
+  let med = null; try { med = JSON.parse(pref('gpuMedida') || 'null'); } catch (e) {}
+  const b = baixando['gpu-vulkan'];
+  if (b) return `Baixando o módulo · ${Math.floor((b.pct || 0) * 100)}%`;
+  if (g.ativa) return `Em uso: ${g.dispositivo}${med && med.gpu ? ` · ${med.gpu.toFixed(0)} tokens/s (processador: ${med.cpu.toFixed(0)})` : ''}`;
+  if (g.ligada && g.falhou) return 'A placa não funcionou desta vez; a IA está no processador. Desligue e ligue para tentar de novo.';
+  if (g.ligada) return 'Ligada (entra quando a IA religar)';
+  if (g.baixada) return med && med.lenta ? `Desligada: aqui a placa (${med.dispositivo || 'GPU'}) ficou mais lenta que o processador (${med.gpu.toFixed(0)} × ${med.cpu.toFixed(0)} tokens/s)` : 'Baixada, desligada';
+  return `Desligada · baixa o módulo Vulkan (${gbBonito(g.tamanho || 31851321)}) uma vez`;
+}
+async function testarGpu() {
+  const medir = async () => { const r = await PLATAFORMA.gerar([{ role: 'user', content: 'Escreva os números de 1 a 60 separados por vírgula, sem mais nada.' }], { temperatura: 0, maxTokens: 80, exato: true }, () => {}); return r && r.timings && r.timings.predicted_per_second || 0; };
+  const esperarOnline = async () => { for (let i = 0; i < 480 && !online; i++) await new Promise(r => setTimeout(r, 250)); return online; };
+  toast('Medindo o processador…', 4000);
+  const cpu = await medir().catch(() => 0);
+  toast('Ligando a placa de vídeo…', 4000);
+  let r;
+  try { r = await PLATAFORMA.ligarGpu(true); } catch (e) { toast('A placa de vídeo não funcionou aqui: ' + e.message + ' A IA continua no processador.', 6000); await lerSistema(); if (abaAtual === 'modelo') desenharAba(); return; }
+  await esperarOnline();
+  const gpu = r && r.ativa ? await medir().catch(() => 0) : 0;
+  if (!r || !r.ativa || gpu < cpu * 1.15) {
+    try { await PLATAFORMA.ligarGpu(false); } catch (e) {}
+    pref('gpuMedida', JSON.stringify({ cpu, gpu, dispositivo: (r && r.dispositivo) || '', lenta: true }));
+    toast(r && r.ativa ? `A placa (${r.dispositivo}) não ficou mais rápida que o processador (${gpu.toFixed(0)} × ${cpu.toFixed(0)} tokens/s). A IA continua no processador.` : 'Nenhuma placa de vídeo compatível com Vulkan foi encontrada. A IA continua no processador.', 8000);
+  } else {
+    pref('gpuMedida', JSON.stringify({ cpu, gpu, dispositivo: r.dispositivo }));
+    toast(`Placa de vídeo ligada: ${r.dispositivo} · ${gpu.toFixed(0)} tokens/s (antes ${cpu.toFixed(0)}).`, 7000);
+  }
+  await lerSistema(); if (abaAtual === 'modelo') desenharAba();
 }
 async function acaoModelo(acao, m, ram) {
   if (!m) return;
@@ -1479,13 +1532,14 @@ PLATAFORMA.ao('download', d => {
   const id = idDoModelo(d); if (!id) return;
   baixando[id] = { pct: d.pct, feito: d.feito, total: d.total, fase: d.fase };
   atualizarCartao(id);
+  if (id === 'gpu-vulkan') { const el = document.querySelector('#swGpu small'); if (el) el.textContent = descricaoGpu((sistemaCache && sistemaCache.gpu) || {}); }
   estado(`baixando ${Math.floor(d.pct * 100)}%`);
 });
 PLATAFORMA.ao('download-fim', d => {
   delete baixando[d.id]; estado('', false, 'download');
   if (String(d.id).startsWith('visao-') && !d.ok) fimEsperaVisao(false);
   if (esperaVoz && d.id === esperaVoz.id) { const r = esperaVoz.res; esperaVoz = null; r(!!d.ok); }
-  if (d.ok) toast('Download concluído. O modelo já pode ser usado.', 3000);
+  if (d.ok && !String(d.id).startsWith('gpu-')) toast('Download concluído. O modelo já pode ser usado.', 3000);
   else if (d.erro === 'cancelado') toast('Download cancelado.');
   else if (d.erro) toast(d.erro, 5000);
   if (abaAtual === 'modelo') desenharAba();
@@ -1599,6 +1653,7 @@ async function rodarDiagnostico() {
           `${ger.toFixed(1)} tokens/s gerando${pro ? ` · ${pro.toFixed(0)} tokens/s lendo` : ''} · primeira palavra em ${(tPrimeiro / 1000).toFixed(1)} s${ger < 6 ? ' — use um modelo menor em Ajustes > Modelos de IA para ficar mais rápido' : ''}`);
       } catch (e) { add('erro', 'Velocidade de resposta', 'falhou: ' + e.message); }
     } else add('info', 'Velocidade de resposta', 'pulado (a IA está respondendo agora).');
+    if (sistemaCache && sistemaCache.gpu) add('info', 'Aceleração', sistemaCache.gpu.ativa ? `placa de vídeo (${sistemaCache.gpu.dispositivo}, Vulkan)` : 'processador (CPU)' + (sistemaCache.gpu.baixada ? '' : ' — a placa de vídeo pode ser ligada em Modelos de IA'));
   }
   // algoritmos e renderizador
   try {

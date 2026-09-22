@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
@@ -112,6 +113,16 @@ static class Vozes
         Url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin", Sha256 = "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb" };
     public static readonly Modelo[] Todas = { Base, Small };
     public static Modelo PorId(string id) { foreach (Modelo m in Todas) if (m.Id == id) return m; return null; }
+}
+
+// ---------- aceleração por GPU: backend Vulkan do llama.cpp (a build "vulkan" da release é a de CPU + este dll), baixada sob demanda ----------
+static class Gpu
+{
+    public const string Build = "b11070";
+    public static readonly Modelo Zip = new Modelo { Id = "gpu-vulkan", Nome = "Aceleração por GPU", Descricao = "Vulkan", Arquivo = "llama-" + Build + "-bin-win-vulkan-x64.zip", Tamanho = 31851321,
+        Url = "https://github.com/ggml-org/llama.cpp/releases/download/" + Build + "/llama-" + Build + "-bin-win-vulkan-x64.zip", Sha256 = "91487bd1d145dafb58d7b83fc45b72dc8fae771323191b995daddde984a2e099" };
+    public const string Dll = "ggml-vulkan.dll"; public const long DllTamanho = 43658240;
+    public const string DllSha = "91ae90e4bfe8cc26ad914070e531bfbddd17701083fd626402e8faddb3692141";
 }
 
 // ---------- pacote anexado ao .exe ----------
@@ -642,6 +653,7 @@ class Janela : Form
     {
         string exe = Path.Combine(pasta, @"motor\llama-server.exe");
         if (motor == null) porta = PortaLivre(8765);   // ao religar ou trocar de modelo, mantém a mesma porta
+        string gpuArgs = PrepararGpu();
         try
         {
             try { if (logMotor != null) logMotor.Dispose(); } catch { }
@@ -649,7 +661,7 @@ class Janela : Form
             ProcessStartInfo psi = new ProcessStartInfo(exe,
                 "-m \"" + arquivoModelo + "\" --host 127.0.0.1 --port " + porta +
                 " --path \"" + Path.Combine(pasta, "interface") + "\"" +
-                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao());
+                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao() + gpuArgs);
             psi.WorkingDirectory = pasta; psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
             psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
             Process p = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -667,11 +679,11 @@ class Janela : Form
         DateTime ini = DateTime.Now;
         while ((DateTime.Now - ini).TotalSeconds < 180)
         {
-            if (motor.HasExited) { MotorFalhou(); return "O motor da IA fechou sozinho neste PC. Pode ser falta de memória ou bloqueio do antivírus."; }
+            if (motor.HasExited) { MotorFalhou(); if (gpuAtiva) return await SemGpu("fechou"); return "O motor da IA fechou sozinho neste PC. Pode ser falta de memória ou bloqueio do antivírus."; }
             if (await Saudavel(porta)) return null;
             await Task.Delay(250);
         }
-        MotorFalhou(); return "A IA demorou demais para iniciar neste PC.";
+        MotorFalhou(); if (gpuAtiva) return await SemGpu("demorou"); return "A IA demorou demais para iniciar neste PC.";
     }
     // a chave do motor vai num arquivo (só este usuário lê), não na linha de comando (que qualquer processo vê)
     string ArquivoChave()
@@ -685,6 +697,8 @@ class Janela : Form
     void MotorFalhou() { ignorarSaida = motor; PararMotor(); }
 
     bool visaoAtiva;
+    bool gpuAtiva, gpuFalhou;              // motor atual usa a GPU; a GPU falhou nesta sessão (caiu para CPU até reabrir ou religar)
+    string gpuDispositivo, gpuNome;        // "Vulkan0" e o nome da placa escolhida
     bool VisaoLigada() { object v; return LerConfig().TryGetValue("visao", out v) && v is bool && (bool)v; }
     string ArgsVisao()
     {
@@ -724,6 +738,99 @@ class Janela : Form
             Evento("motor", erro == null ? Dic("estado", "pronto", "nome", modelo.Nome, "visao", visaoAtiva) : Dic("estado", "erro", "mensagem", erro));
         }
         finally { trocando = false; }
+    }
+
+    // ---------- GPU (Vulkan) ----------
+    static string PastaGpu() { return Path.Combine(Raiz(), @"gpu\" + Gpu.Build); }
+    static string DllGpu() { return Path.Combine(PastaGpu(), Gpu.Dll); }
+    static bool GpuBaixada() { try { FileInfo f = new FileInfo(DllGpu()); return f.Exists && f.Length == Gpu.DllTamanho; } catch { return false; } }
+    bool GpuLigada() { object v; return LerConfig().TryGetValue("gpu", out v) && v is bool && (bool)v; }
+    static string Sha256De(string p) { using (FileStream f = File.OpenRead(p)) using (SHA256 s = SHA256.Create()) return BitConverter.ToString(s.ComputeHash(f)).Replace("-", "").ToLowerInvariant(); }
+    // tira só o ggml-vulkan.dll do zip da release (o resto é igual ao motor de CPU), confere o SHA-256 e descarta o zip
+    void ExtrairGpu()
+    {
+        string zip = AcharModelo(Gpu.Zip); if (zip == null) throw new Exception("o pacote da GPU não foi baixado");
+        Directory.CreateDirectory(PastaGpu());
+        string tmp = DllGpu() + ".tmp";
+        using (ZipArchive z = ZipFile.OpenRead(zip))
+        {
+            ZipArchiveEntry e = null; foreach (ZipArchiveEntry x in z.Entries) if (x.Name == Gpu.Dll) { e = x; break; }
+            if (e == null) throw new Exception("o pacote da GPU não tem o " + Gpu.Dll);
+            e.ExtractToFile(tmp, true);
+        }
+        if (Sha256De(tmp) != Gpu.DllSha) { File.Delete(tmp); throw new Exception("o " + Gpu.Dll + " veio com defeito; baixe de novo"); }
+        if (File.Exists(DllGpu())) File.Delete(DllGpu());
+        File.Move(tmp, DllGpu());
+        try { File.Delete(zip); } catch { }
+    }
+    async Task BaixarGpu()
+    {
+        baixandoId = Gpu.Zip.Id; cancelarBaixar = false; string erro = null;
+        try { await Baixar(Gpu.Zip, false); ExtrairGpu(); }
+        catch (Exception ex) { erro = ex is OperationCanceledException ? "cancelado" : MensagemDownload(ex.Message, Gpu.Zip); Program.Log("gpu download: " + ex.Message); }
+        finally { baixandoId = null; }
+        Evento("download-fim", Dic("id", Gpu.Zip.Id, "ok", erro == null, "erro", erro));
+    }
+    // motor com GPU: o llama.cpp carrega o backend Vulkan se o dll estiver na pasta do motor; sem GPU, o dll sai de lá
+    string PrepararGpu()
+    {
+        string alvo = Path.Combine(pasta, @"motor\" + Gpu.Dll);
+        bool usar = GpuLigada() && GpuBaixada() && !gpuFalhou;
+        try
+        {
+            if (!usar) { if (File.Exists(alvo)) File.Delete(alvo); gpuAtiva = false; return ""; }
+            FileInfo a = new FileInfo(alvo);
+            if (!a.Exists || a.Length != Gpu.DllTamanho) File.Copy(DllGpu(), alvo, true);
+        }
+        catch (Exception ex) { Program.Log("gpu: " + ex.Message); gpuAtiva = false; return ""; }
+        if (gpuDispositivo == null) ListarGpu();
+        gpuAtiva = gpuDispositivo != null;
+        return gpuAtiva ? " -ngl 999 -dev " + gpuDispositivo : "";
+    }
+    // "llama-server --list-devices" → "  Vulkan0: NVIDIA GeForce RTX 3050 (6001 MiB, ...)": prefere a placa dedicada à integrada
+    void ListarGpu()
+    {
+        try
+        {
+            ProcessStartInfo psi = new ProcessStartInfo(Path.Combine(pasta, @"motor\llama-server.exe"), "--list-devices") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = Path.Combine(pasta, "motor") };
+            Process p = Process.Start(psi); string saida = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd(); p.WaitForExit(20000);
+            string primeiro = null, primeiroNome = null;
+            foreach (Match m in Regex.Matches(saida, @"^\s*(Vulkan\d+):\s*(.+?)\s*\(", RegexOptions.Multiline))
+            {
+                string id = m.Groups[1].Value, nome = m.Groups[2].Value;
+                if (primeiro == null) { primeiro = id; primeiroNome = nome; }
+                bool dedicada = Regex.IsMatch(nome, "NVIDIA|GeForce|RTX|GTX|Radeon RX|Radeon Pro|Arc", RegexOptions.IgnoreCase) && !Regex.IsMatch(nome, @"Radeon\(TM\) Graphics|Radeon Graphics$", RegexOptions.IgnoreCase);
+                if (dedicada) { gpuDispositivo = id; gpuNome = nome; return; }
+            }
+            gpuDispositivo = primeiro; gpuNome = primeiroNome;
+        }
+        catch (Exception ex) { Program.Log("gpu list: " + ex.Message); }
+    }
+    // o motor com GPU não subiu: volta para a CPU nesta sessão (a preferência fica; a pessoa pode tentar de novo)
+    async Task<string> SemGpu(string motivo) { Program.Log("gpu: motor " + motivo + "; voltando para CPU"); gpuFalhou = true; gpuAtiva = false; return await LigarMotor(); }
+    async Task<object> LigarGpu(bool ligar)
+    {
+        if (ligar && !GpuBaixada()) throw new Exception("baixe a aceleração por GPU primeiro");
+        Dictionary<string, object> c = LerConfig(); c["gpu"] = ligar; SalvarConfig(c); gpuFalhou = false;
+        trocando = true;
+        try
+        {
+            Evento("motor", Dic("estado", "trocando"));
+            PararMotor();
+            string erro = await LigarMotor();
+            Evento("motor", erro == null ? Dic("estado", "pronto", "nome", modelo.Nome, "visao", visaoAtiva) : Dic("estado", "erro", "mensagem", erro));
+            if (erro != null) throw new Exception(erro);
+        }
+        finally { trocando = false; }
+        return Dic("ativa", gpuAtiva, "dispositivo", gpuNome ?? "");
+    }
+    async Task<object> ApagarGpu()
+    {
+        if (baixandoId == Gpu.Zip.Id) throw new Exception("cancele o download antes de apagar");
+        if (gpuAtiva) await LigarGpu(false); else { Dictionary<string, object> c = LerConfig(); c["gpu"] = false; SalvarConfig(c); }
+        foreach (string a in new[] { DllGpu(), Path.Combine(Raiz(), @"modelos\" + Gpu.Zip.Arquivo), Path.Combine(Raiz(), @"modelos\" + Gpu.Zip.Arquivo + ".baixando") })
+            try { if (File.Exists(a)) File.Delete(a); } catch (Exception ex) { Program.Log("apagar gpu: " + ex.Message); }
+        return true;
     }
 
     // vigia: se o motor cair sem a gente pedir, religa na mesma porta (até 5 vezes em 3 minutos)
@@ -878,6 +985,13 @@ class Janela : Form
                     if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
                     { var _v = LigarVisao(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); }
                     dados = true; break;
+                case "baixarGpu":
+                    if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
+                    { var _g = BaixarGpu(); } dados = true; break;
+                case "ligarGpu":
+                    if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
+                    dados = await LigarGpu(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); break;
+                case "apagarGpu": dados = await ApagarGpu(); break;
                 case "apagarVisao":
                     Modelo mv = Modelo.PorId(Arg(args, "id"));
                     if (mv == null) throw new Exception("modelo desconhecido");
@@ -932,7 +1046,8 @@ class Janela : Form
         string wv = "?"; try { wv = CoreWebView2Environment.GetAvailableBrowserVersionString(); } catch { }
         return Dic("ramTotal", (long)ms.total, "ramLivre", (long)ms.avail, "cpu", cpu, "nucleos", Environment.ProcessorCount, "discoLivre", disco,
             "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"), "visaoLigada", VisaoLigada(), "visaoAtiva", visaoAtiva, "temVisao", true,
-            "temTranscricao", File.Exists(Path.Combine(pasta, @"voz\whisper-cli.exe")), "vozes", ListaVozes());
+            "temTranscricao", File.Exists(Path.Combine(pasta, @"voz\whisper-cli.exe")), "vozes", ListaVozes(),
+            "gpu", Dic("baixada", GpuBaixada(), "ligada", GpuLigada(), "ativa", gpuAtiva, "dispositivo", gpuNome ?? "", "tamanho", Gpu.Zip.Tamanho, "falhou", gpuFalhou));
     }
 
     // ---------- transcrição de áudio (whisper.cpp) ----------

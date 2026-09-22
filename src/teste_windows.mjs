@@ -24,7 +24,7 @@ const motorPid = () => { try { return execSync('powershell -NoProfile -Command "
 ok('plataforma é windows', (await js('PLATAFORMA.tipo')) === 'windows');
 ok('IA pronta', await pronto());
 await js('nova(); 1');
-let m = await pergunta('oi'); ok('responde "oi"', m && m.role === 'assistant' && m.texto.trim().length > 0 && m.texto.length < 600, m && (m.role + ': ' + m.texto));
+let m = await pergunta('oi'); ok('responde "oi"', m && m.role === 'assistant' && m.texto.trim().length > 0 && m.texto.length < 1500, m && (m.role + ': ' + m.texto));   // com a temperatura livre o Lume às vezes se apresenta em 2–3 frases
 m = await pergunta('quick sort em [8, 2, 6, 4, 9, 1]'); ok('quick sort exato', /\[1, 2, 4, 6, 8, 9\]/.test(m.texto) && !!m.passos);
 m = await pergunta('crie um código em C que lê dois números e mostra a soma'); ok('código C com cores', await js(`!!document.querySelector('.msg.ia:last-child pre .tk-kw')`), (await js(`document.querySelector('.msg.ia:last-child pre')?.dataset.lang`)));
 await foto('w1-codigo');

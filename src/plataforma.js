@@ -177,6 +177,10 @@ const PLATAFORMA = (() => {
     temVisao: tipo !== 'ios',
     ligarVisao(ligar) { return pedir('visao', { ligar: !!ligar }, 10000); },
     apagarVisao(id) { return pedir('apagarVisao', { id }, 15000); },
+    // aceleração por GPU (Windows): módulo Vulkan baixado sob demanda; ligar/desligar religa o motor
+    baixarGpu() { return pedir('baixarGpu', {}, 10000); },
+    ligarGpu(ligar) { return pedir('ligarGpu', { ligar: !!ligar }, 240000); },
+    apagarGpu() { return pedir('apagarGpu', {}, 240000); },
     // gerenciar modelos (Windows, Android, iOS; no Linux é pelo comando propons-ia)
     baixarModelo(id) { return pedir('baixarModelo', { id }, 10000); },
     cancelarDownload(id) { return pedir('cancelarDownload', { id }, 5000); },

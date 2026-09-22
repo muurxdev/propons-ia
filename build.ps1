@@ -59,7 +59,7 @@ Push-Location "$R\app"
 try {
   # 3) programa (DLLs do WebView2 embutidas como recurso)
   & $csc /nologo /target:winexe /platform:x64 /optimize+ /out:nucleo.exe "/win32icon:$R\logo\Propons.ico" `
-    /r:Microsoft.Web.WebView2.Core.dll /r:Microsoft.Web.WebView2.WinForms.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll `
+    /r:Microsoft.Web.WebView2.Core.dll /r:Microsoft.Web.WebView2.WinForms.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
     /resource:Microsoft.Web.WebView2.Core.dll,Microsoft.Web.WebView2.Core.dll `
     /resource:Microsoft.Web.WebView2.WinForms.dll,Microsoft.Web.WebView2.WinForms.dll Propons.cs
   if ($LASTEXITCODE -ne 0) { throw 'falha ao compilar o programa' }
