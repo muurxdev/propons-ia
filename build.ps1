@@ -9,9 +9,9 @@ $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $ProgressPreference = 'SilentlyContinue'
 # downloads de terceiros conferidos por SHA-256 (ferramentas/terceiros.sums); 3 tentativas
 function Baixar-Verificado($url, $dest) {
-  $linha = Get-Content "$Rerramentas	erceiros.sums" | Where-Object { $_ -notmatch '^#' -and $_ -like "*  $url" } | Select-Object -First 1
+  $linha = Get-Content (Join-Path $R 'ferramentas\terceiros.sums') | Where-Object { $_ -notmatch '^#' -and $_ -like "*  $url" } | Select-Object -First 1
   if (-not $linha) { throw "sem hash em terceiros.sums para $url" }
-  $esperado = ($linha -split 's+')[0].ToLower()
+  $esperado = ($linha -split '\s+')[0].ToLower()
   if ((Test-Path $dest) -and ((Get-FileHash $dest).Hash.ToLower() -eq $esperado)) { return }
   for ($i = 1; $i -le 3; $i++) { try { Invoke-WebRequest $url -OutFile $dest; break } catch { if ($i -eq 3) { throw }; Start-Sleep 5 } }
   $obtido = (Get-FileHash $dest).Hash.ToLower()
