@@ -27,6 +27,10 @@ await foto('3-codigo');
 await js(`adicionarArquivos([new File(['print(sum([1, 2, 3]))\\n'], 'soma.py', {type: 'text/plain'})])`);
 m = await pergunta('o que esse arquivo imprime?');
 ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto.slice(0, 100));   // Lume (0.8B) varia; basta falar do arquivo
+// ler em voz alta pela ponte (TextToSpeech do Android): botão presente e o sintetizador responde (fim ou erro sem travar)
+ok('resposta tem o botão de ouvir', await js(`!!document.querySelector('.msg.ia .acao.ler')`));
+const fala = await js(`new Promise(res => { let fim = false; PLATAFORMA.ao('fala', d => { if (d.id === 'tcel' && !fim) { fim = true; res(d); } }); PLATAFORMA.falar('Teste de voz.', 'tcel').catch(e => res({ estado: 'erro', erro: e.message })); setTimeout(() => !fim && res({ estado: 'sem resposta' }), 15000); })`);
+ok('sintetizador de voz responde pela ponte', fala && (fala.estado === 'fim' || fala.estado === 'erro'), JSON.stringify(fala));
 ok('histórico salvo (ponte Android)', (await js(`PLATAFORMA.carregar().then(s => JSON.parse(s).length)`)) >= 1);
 const sis = await js(`PLATAFORMA.sistema()`);
 ok('sistema pela ponte', sis && sis.ramTotal > 0 && Array.isArray(sis.modelos), sis && sis.so);
