@@ -1,3 +1,7 @@
+## Novidades da 1.19.0
+
+- **PDF e DOCX no "+"**: o texto é extraído no próprio aparelho (sem internet) e vai para a IA, com a marca de cada página. Documento longo: a Própons avisa que parte dele cabe na memória da IA nesta conversa (a busca por trechos em documentos grandes vem na próxima versão). PDF que é só imagem: mande as páginas como fotos.
+
 ## Novidades da 1.18.0
 
 - **Ler em voz alta.** Cada resposta ganhou o botão de alto-falante: a Própons lê o texto com a voz do próprio aparelho (Windows, Android, Mac, iPhone e Linux), pulando código e símbolos. Em Ajustes → Aparência → "Ler em voz alta: toda resposta", a leitura começa enquanto a resposta ainda está sendo escrita, frase por frase; o mesmo botão para.
