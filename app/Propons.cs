@@ -798,6 +798,7 @@ class Janela : Form
             foreach (Match m in Regex.Matches(saida, @"^\s*(Vulkan\d+):\s*(.+?)\s*\(", RegexOptions.Multiline))
             {
                 string id = m.Groups[1].Value, nome = m.Groups[2].Value;
+                if (Regex.IsMatch(nome, "llvmpipe|lavapipe|SwiftShader|Basic Render", RegexOptions.IgnoreCase)) continue;   // "placa" por software: pior que a CPU
                 if (primeiro == null) { primeiro = id; primeiroNome = nome; }
                 bool dedicada = Regex.IsMatch(nome, "NVIDIA|GeForce|RTX|GTX|Radeon RX|Radeon Pro|Arc", RegexOptions.IgnoreCase) && !Regex.IsMatch(nome, @"Radeon\(TM\) Graphics|Radeon Graphics$", RegexOptions.IgnoreCase);
                 if (dedicada) { gpuDispositivo = id; gpuNome = nome; return; }

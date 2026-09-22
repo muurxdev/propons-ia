@@ -28,6 +28,7 @@ Depois: abra **Própons IA** no menu de aplicativos ou digite `propons-ia`.
 | `propons-ia --modelo leve` / `normal` / `avancado` | abre com o modelo escolhido (Lume / Aurora / Ápice) |
 | `propons-ia --visao` / `--sem-visao` | liga/desliga a leitura de fotos (baixa o módulo de visão uma vez) |
 | `propons-ia --voz` / `--voz small` | liga a transcrição de áudio (baixa a voz de 57 ou 190 MB) |
+| `propons-ia --gpu` / `--sem-gpu` | usa a placa de vídeo pelo Vulkan (NVIDIA, AMD ou Intel; baixa o módulo de 30 MB uma vez). Precisa dos drivers Vulkan da distribuição (`mesa-vulkan-drivers` ou o da NVIDIA); sem placa compatível, ou se ela falhar, a IA segue no processador. Gráficos integrados costumam ser mais lentos que o processador — confira com `--diagnostico` |
 | `propons-ia --atualizar` | atualiza para a versão mais nova (instalador da própria versão, com SHA-256) |
 | `propons-ia --parar` | desliga o motor da IA |
 | `propons-ia --apagar-modelo leve` | apaga um modelo baixado |

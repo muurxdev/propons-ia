@@ -30,7 +30,7 @@ url_modelo() { local a="$1"; local repo="${a%-Q4_K_M.gguf}-GGUF"; echo "$URL_BAS
 
 mkdir -p "$MODELOS" "$INTERFACE"
 tem() { command -v "$1" >/dev/null 2>&1; }
-ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"; APAGAR_ID=""; VISAO_ARG=""; VOZ_ARG=""
+ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"; APAGAR_ID=""; VISAO_ARG=""; VOZ_ARG=""; GPU_ARG=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --leve) MODELO_ARG=leve ;;
@@ -45,6 +45,8 @@ while [ $# -gt 0 ]; do
     --visao|--visão) VISAO_ARG=1 ;;
     --sem-visao|--sem-visão) VISAO_ARG=0 ;;
     --voz) VOZ_ARG=base; case "${2:-}" in base|small) VOZ_ARG="$2"; shift ;; esac ;;
+    --gpu) GPU_ARG=1 ;;
+    --sem-gpu) GPU_ARG=0 ;;
     --apagar-modelo) shift; ACAO=apagar; APAGAR_ID="${1:-}" ;;
     -h|--ajuda|--help)
       cat <<EOF
@@ -61,6 +63,8 @@ Própons IA $VERSAO — assistente de estudos que roda no seu computador.
   propons-ia --visao               liga a leitura de fotos (baixa o módulo de visão uma vez) e abre
   propons-ia --sem-visao           desliga a leitura de fotos (usa menos memória)
   propons-ia --voz [base|small]    liga a transcrição de áudio (baixa a voz uma vez: base 57 MB, small 190 MB) e abre
+  propons-ia --gpu                 usa a placa de vídeo (Vulkan: NVIDIA, AMD ou Intel; baixa o módulo de 30 MB uma vez) e abre
+  propons-ia --sem-gpu             volta a usar só o processador
 EOF
       exit 0 ;;
   esac
@@ -82,13 +86,14 @@ campo() { local id="$1" n="$2" l; for l in "${MODELOS_LISTA[@]}"; do [ "${l%%|*}
 ram_bytes() { awk '/MemTotal/ {printf "%d", $2*1024}' /proc/meminfo 2>/dev/null || echo 0; }
 # config: MODELO=id e VISAO=0|1
 ler_config() { [ -f "$CONFIG" ] && sed -n "s/^$1=//p" "$CONFIG" | head -1; }
-gravar_config() { local m v z; m="$(ler_config MODELO)"; v="$(ler_config VISAO)"; z="$(ler_config VOZ)"; [ "$1" = MODELO ] && m="$2"; [ "$1" = VISAO ] && v="$2"; [ "$1" = VOZ ] && z="$2"; printf 'MODELO=%s\nVISAO=%s\nVOZ=%s\n' "$m" "${v:-0}" "$z" >"$CONFIG"; }
+gravar_config() { local m v z g; m="$(ler_config MODELO)"; v="$(ler_config VISAO)"; z="$(ler_config VOZ)"; g="$(ler_config GPU)"; [ "$1" = MODELO ] && m="$2"; [ "$1" = VISAO ] && v="$2"; [ "$1" = VOZ ] && z="$2"; [ "$1" = GPU ] && g="$2"; printf 'MODELO=%s\nVISAO=%s\nVOZ=%s\nGPU=%s\n' "$m" "${v:-0}" "$z" "${g:-0}" >"$CONFIG"; }
 if [ -n "$MODELO_ARG" ]; then
   [ -n "$(campo "$MODELO_ARG" 1)" ] || { echo "Modelo desconhecido: $MODELO_ARG (use: leve, normal ou avancado)"; exit 2; }
   gravar_config MODELO "$MODELO_ARG"
 fi
 [ -n "$VISAO_ARG" ] && gravar_config VISAO "$VISAO_ARG"
 [ -n "$VOZ_ARG" ] && gravar_config VOZ "$VOZ_ARG"
+[ -n "$GPU_ARG" ] && gravar_config GPU "$GPU_ARG"
 MODELO_ID="$(ler_config MODELO)"
 if [ -z "$MODELO_ID" ] || [ -z "$(campo "$MODELO_ID" 1)" ]; then
   [ "$(ram_bytes)" -lt $((6*1024*1024*1024)) ] && MODELO_ID=leve || MODELO_ID=normal
@@ -220,6 +225,31 @@ preparar_voz() {
 }
 visao_ativa() { [ "$VISAO" = 1 ] && [ "$(tamanho "$VISAO_ARQ")" = "$VISAO_TAM" ]; }
 
+# ---------- aceleração por GPU: backend Vulkan do llama.cpp (a build "vulkan" da release é a de CPU + libggml-vulkan.so) ----------
+GPU="$(ler_config GPU)"; GPU_DIR="$DADOS/gpu/b11070"; GPU_SO="$GPU_DIR/libggml-vulkan.so"; GPU_DISP=""; GPU_NOME=""; GPU_ATIVA=0; GPU_FALHOU=0
+case "$(uname -m)" in
+  x86_64) GPU_TGZ="llama-b11070-bin-ubuntu-vulkan-x64.tar.gz"; GPU_TAM=30395544; GPU_SHA=11d15f94a8a8e5d57787c51b65d2d159165df278d980b2de62d57e1ebf34e128 ;;
+  aarch64|arm64) GPU_TGZ="llama-b11070-bin-ubuntu-vulkan-arm64.tar.gz"; GPU_TAM=24341232; GPU_SHA=a99d02bb083c9ef8e0355648f8072d1ce39c6518e8bad944eaef64e8bffbdedd ;;
+  *) GPU_TGZ=""; GPU_TAM=0; GPU_SHA="" ;;
+esac
+gpu_baixada() { [ -s "$GPU_SO" ]; }
+baixar_gpu() {  # baixa o tar.gz da release (SHA-256 conferido), tira só o libggml-vulkan.so e descarta o resto
+  [ -n "$GPU_TGZ" ] || { aviso "GPU indisponível" "Neste processador ($(uname -m)) não há build Vulkan do motor."; return 1; }
+  ( ARQ="$MODELOS/$GPU_TGZ"; TAM="$GPU_TAM"; SHA="$GPU_SHA"; URL="https://github.com/ggml-org/llama.cpp/releases/download/b11070/$GPU_TGZ"; BAIXANDO_NOME="o módulo de GPU (Vulkan)"; baixar_modelo ) || return 1
+  mkdir -p "$GPU_DIR" && tar xzf "$MODELOS/$GPU_TGZ" -C "$GPU_DIR" --strip-components=1 --wildcards '*/libggml-vulkan.so' && rm -f "$MODELOS/$GPU_TGZ"
+}
+escolher_gpu() {  # "llama-server --list-devices" → "  Vulkan0: NVIDIA GeForce ... (6001 MiB, ...)": prefere a placa dedicada à integrada
+  local lista l
+  # GGML_BACKEND_PATH aponta para o ARQUIVO do backend; placas por software (llvmpipe, SwiftShader) não contam
+  lista="$(GGML_BACKEND_PATH="$GPU_SO" "$MOTOR" --list-devices 2>&1 | grep -E '^[[:space:]]*Vulkan[0-9]+:' | grep -viE 'llvmpipe|lavapipe|SwiftShader|Basic Render')"
+  [ -n "$lista" ] || return 1
+  l="$(echo "$lista" | grep -iE 'NVIDIA|GeForce|RTX|GTX|Radeon RX|Radeon Pro|Arc' | grep -viE 'Radeon\(TM\) Graphics|Radeon Graphics \(' | head -1)"
+  [ -n "$l" ] || l="$(echo "$lista" | head -1)"
+  GPU_DISP="$(echo "$l" | sed -E 's/^[[:space:]]*(Vulkan[0-9]+):.*/\1/')"
+  GPU_NOME="$(echo "$l" | sed -E 's/^[[:space:]]*Vulkan[0-9]+:[[:space:]]*(.*[^[:space:]])[[:space:]]*\(.*/\1/')"
+}
+gpu_preparar() { GPU_ATIVA=0; [ "$GPU" = 1 ] && [ "$GPU_FALHOU" = 0 ] && gpu_baixada && escolher_gpu && GPU_ATIVA=1; return 0; }
+
 # ---------- sistema.json (lido pela tela de Diagnóstico e de Modelo) ----------
 escrever_sistema() {
   local so cpu nuc ram livre disco modelos="" l id arq tb ram_min nome desc baixado
@@ -238,6 +268,9 @@ escrever_sistema() {
   printf '{"versao":"%s","so":"%s","cpu":"%s","nucleos":%s,"ramTotal":%s,"ramLivre":%s,"discoLivre":%s,"pastaDados":"%s","pastaModelos":"%s","navegador":"%s","visaoLigada":%s,"visaoAtiva":%s,"temVisao":true,"temTranscricao":%s,"transcricaoUrl":"%s","vozes":[%s],"modelos":[%s]}\n' \
     "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "$MODELOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$([ "$VISAO" = 1 ] && echo true || echo false)" "$(visao_ativa && echo true || echo false)" "$([ -x "$VOZ_EXE" ] && echo true || echo false)" "" "$(json_vozes)" "$modelos" \
     >"$INTERFACE/sistema.json"
+  # estado da GPU (a interface mostra no Diagnóstico; no Linux liga-se pelo comando propons-ia --gpu)
+  local gj; gj="{\"ativa\":$([ "$GPU_ATIVA" = 1 ] && echo true || echo false),\"ligada\":$([ "$GPU" = 1 ] && echo true || echo false),\"baixada\":$(gpu_baixada && echo true || echo false),\"dispositivo\":\"$(echo "$GPU_NOME" | esc_json)\",\"tamanho\":${GPU_TAM:-0},\"comando\":true}"
+  sed -i "s|^{|{\"gpu\":$gj,|" "$INTERFACE/sistema.json"
 }
 preparar_interface() {
   cp -f "$APP_DIR/interface/index.html" "$INTERFACE/index.html"
@@ -273,7 +306,7 @@ baixar_modelo_dentro() {
   while [ "$(tamanho "$parcial")" -lt "$TAM" ]; do
     local antes; antes=$(tamanho "$parcial")
     if no_terminal; then
-      echo "  Baixando a IA ($(campo "$MODELO_ID" 6)) — $((TAM/1048576)) MB, só na primeira vez"
+      echo "  Baixando ${BAIXANDO_NOME:-a IA ($(campo "$MODELO_ID" 6))} — $((TAM/1048576)) MB, só na primeira vez"
       curl -L --fail --retry 3 -C - -o "$parcial" --progress-bar "$URL"; cod=$?
     elif tem zenity; then
       curl -L --fail --retry 3 -C - -s -o "$parcial" "$URL" & local pid=$!
@@ -302,7 +335,9 @@ baixar_modelo_dentro() {
 ligar_motor() {  # usa PORTA e CHAVE já definidas
   # prioridade menor (nice) que a da janela: a interface continua lisa enquanto a IA responde
   local visao=(); visao_ativa && visao=(--mmproj "$VISAO_ARQ" --image-max-tokens 400)
-  nice -n 5 "$MOTOR" -m "$ARQ" "${visao[@]}" --host 127.0.0.1 --port "$PORTA" --path "$INTERFACE" \
+  # GPU: o llama.cpp carrega o backend Vulkan da pasta GGML_BACKEND_PATH; sem GPU a variável fica vazia (só CPU)
+  local gpu=(); if [ "$GPU_ATIVA" = 1 ]; then gpu=(-ngl 999 -dev "$GPU_DISP"); export GGML_BACKEND_PATH="$GPU_SO"; else unset GGML_BACKEND_PATH; fi
+  nice -n 5 "$MOTOR" -m "$ARQ" "${visao[@]}" "${gpu[@]}" --host 127.0.0.1 --port "$PORTA" --path "$INTERFACE" \
     -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key-file "$CHAVEFILE" >>"$LOG" 2>&1 &
   MOTOR_PID=$!
   echo "$MOTOR_PID" >"$PIDFILE"; echo "$PORTA" >"$PORTAFILE"
@@ -329,12 +364,21 @@ if [ "$ACAO" = diagnostico ]; then
   [ "$l" -ge $((1536*1024*1024)) ] && ok "Memória livre agora: $((l/1048576)) MB" || av "Memória livre agora: só $((l/1048576)) MB — feche outros programas (a IA fica bem mais lenta)"
   d=$(df -PB1 "$DADOS" | awk 'NR==2 {print $4}'); [ "$d" -ge $((2*1024*1024*1024)) ] && ok "Espaço livre: $((d/1048576)) MB em $DADOS" || av "Espaço livre: $((d/1048576)) MB (pouco)"
   if motor_ok; then ok "Motor: llama.cpp $("$MOTOR" --version 2>&1 | grep -m1 -o "build [0-9]*")"; else er "Motor não inicia. Bibliotecas que faltam: $(libs_faltando)"; fi
+  if [ "$GPU" = 1 ]; then
+    gpu_preparar
+    if [ "$GPU_ATIVA" = 1 ]; then ok "Aceleração: placa de vídeo $GPU_NOME (Vulkan)"
+    elif gpu_baixada; then av "Aceleração: GPU ligada na configuração, mas nenhuma placa Vulkan foi encontrada (drivers?) — usando o processador"
+    else av "Aceleração: GPU ligada na configuração, mas o módulo ainda não foi baixado — abra a Própons IA uma vez com internet"; fi
+  else ok "Aceleração: processador (para usar a placa de vídeo: propons-ia --gpu)"; fi
   [ -n "$NAV" ] && ok "Navegador para a janela: $NAV" || av "Nenhum Chrome/Chromium/Brave/Edge/Vivaldi: vai abrir no navegador padrão"
   tem sha256sum && ok "sha256sum disponível" || er "sha256sum não encontrado (coreutils)"
   if [ "$(tamanho "$ARQ")" = "$TAM" ]; then
     ok "Modelo: $(campo "$MODELO_ID" 6) baixado ($((TAM/1048576)) MB)"
     if motor_ok; then
+      # motor próprio do diagnóstico: chave, pid e porta em arquivos separados (não mexe num app aberto)
       PORTA=$(porta_livre); CHAVE="diag$$"; LOG="$DADOS/diagnostico.log"; : >"$LOG"
+      CHAVEFILE="$DADOS/diagnostico.chave"; PIDFILE="$DADOS/diagnostico.pid"; PORTAFILE="$DADOS/diagnostico.porta"
+      ( umask 077; echo "$CHAVE" >"$CHAVEFILE" )
       printf '  … medindo a velocidade (carregando o modelo)\r'
       ligar_motor
       if esperar_motor; then
@@ -347,7 +391,7 @@ if [ "$ACAO" = diagnostico ]; then
         else er "Teste de geração falhou: $(echo "$resp" | head -c 200)"; fi
       else er "O motor não carregou o modelo (veja $LOG)"; fi
       kill "$MOTOR_PID" 2>/dev/null; wait "$MOTOR_PID" 2>/dev/null
-  [ -n "$VOZ_PID" ] && kill "$VOZ_PID" 2>/dev/null; rm -f "$PIDFILE" "$PORTAFILE"
+  [ -n "$VOZ_PID" ] && kill "$VOZ_PID" 2>/dev/null; rm -f "$PIDFILE" "$PORTAFILE" "$CHAVEFILE"
     fi
   else av "Modelo $(campo "$MODELO_ID" 6) ainda não baixado (será baixado ao abrir: $((TAM/1048576)) MB)"; fi
   curl -sf --max-time 5 -o /dev/null "https://api.github.com/repos/muurxdev/propons-ia/releases/latest" && ok "Internet: ok" || av "Sem internet (a IA funciona offline depois de baixada)"
@@ -424,7 +468,7 @@ if [ "$(tamanho "$ARQ")" != "$TAM" ]; then
 fi
 if [ -n "$VOZ_ID" ] && [ -x "$VOZ_EXE" ] && [ "$(tamanho "$MODELOS/$(vcampo "$VOZ_ID" 2)")" != "$(vcampo "$VOZ_ID" 3)" ]; then
   no_terminal && echo "  Baixando a $(vcampo "$VOZ_ID" 5) (transcrição) — $(( $(vcampo "$VOZ_ID" 3) / 1048576 )) MB, uma vez só"
-  if ! ( ARQ="$MODELOS/$(vcampo "$VOZ_ID" 2)"; TAM="$(vcampo "$VOZ_ID" 3)"; SHA="$(vcampo "$VOZ_ID" 4)"; URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$(vcampo "$VOZ_ID" 2)"; baixar_modelo ); then
+  if ! ( ARQ="$MODELOS/$(vcampo "$VOZ_ID" 2)"; TAM="$(vcampo "$VOZ_ID" 3)"; SHA="$(vcampo "$VOZ_ID" 4)"; URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$(vcampo "$VOZ_ID" 2)"; BAIXANDO_NOME="a $(vcampo "$VOZ_ID" 5) (transcrição)"; baixar_modelo ); then
     aviso "Não foi possível baixar a voz" "A Própons IA vai abrir sem transcrever áudio. Tente de novo com: propons-ia --voz"
   fi
 elif [ -n "$VOZ_ARG" ] && [ ! -x "$VOZ_EXE" ]; then
@@ -432,9 +476,18 @@ elif [ -n "$VOZ_ARG" ] && [ ! -x "$VOZ_EXE" ]; then
 fi
 if [ "$VISAO" = 1 ] && [ "$(tamanho "$VISAO_ARQ")" != "$VISAO_TAM" ]; then
   no_terminal && echo "  Baixando o módulo de visão (ler fotos) — $((VISAO_TAM/1048576)) MB, uma vez só"
-  if ! ( ARQ="$VISAO_ARQ"; TAM="$VISAO_TAM"; SHA="$VISAO_SHA"; URL="$(visao_url "$MODELO_ID")"; baixar_modelo ); then
+  if ! ( ARQ="$VISAO_ARQ"; TAM="$VISAO_TAM"; SHA="$VISAO_SHA"; URL="$(visao_url "$MODELO_ID")"; BAIXANDO_NOME="o módulo de visão"; baixar_modelo ); then
     aviso "Não foi possível baixar a visão" "A Própons IA vai abrir sem ler fotos. Tente de novo com: propons-ia --visao"
   fi
+fi
+if [ "$GPU" = 1 ] && ! gpu_baixada; then
+  no_terminal && echo "  Baixando o módulo de GPU (Vulkan) — $((GPU_TAM/1048576)) MB, uma vez só"
+  baixar_gpu || aviso "Não foi possível baixar o módulo de GPU" "A Própons IA vai abrir usando o processador. Tente de novo com: propons-ia --gpu"
+fi
+gpu_preparar
+if [ "$GPU" = 1 ] && [ "$GPU_ATIVA" = 0 ] && gpu_baixada; then
+  echo "[gpu] nenhuma placa Vulkan encontrada; usando o processador" >>"$LOG"
+  [ -n "$GPU_ARG" ] && aviso "Nenhuma placa de vídeo Vulkan encontrada" "A IA vai usar o processador. Instale os drivers Vulkan da sua placa (mesa-vulkan-drivers, nvidia) e tente de novo."
 fi
 
 preparar_voz
@@ -457,7 +510,14 @@ trap desligar EXIT
 trap 'exit 130' INT TERM HUP
 
 no_terminal && echo "  Iniciando a Própons IA ($(campo "$MODELO_ID" 6))…"
-if ! esperar_motor; then aviso "O motor da IA não iniciou" "Pode ser falta de memória. Veja os detalhes em $LOG ou use: propons-ia --modelo leve"; exit 1; fi
+if ! esperar_motor; then
+  if [ "$GPU_ATIVA" = 1 ]; then   # a placa não deu certo: cai para o processador nesta abertura (a preferência fica)
+    echo "[gpu] o motor não subiu com a GPU; tentando no processador" >>"$LOG"
+    kill "$MOTOR_PID" 2>/dev/null; GPU_FALHOU=1; gpu_preparar; escrever_sistema; ligar_motor
+    esperar_motor || { aviso "O motor da IA não iniciou" "Pode ser falta de memória. Veja os detalhes em $LOG ou use: propons-ia --modelo leve"; exit 1; }
+    aviso "A placa de vídeo não funcionou" "A IA abriu usando o processador. Veja $LOG; para desligar de vez: propons-ia --sem-gpu"
+  else aviso "O motor da IA não iniciou" "Pode ser falta de memória. Veja os detalhes em $LOG ou use: propons-ia --modelo leve"; exit 1; fi
+fi
 
 # vigia: se o motor cair com a janela aberta, religa na mesma porta e com a mesma chave
 (
@@ -467,6 +527,7 @@ if ! esperar_motor; then aviso "O motor da IA não iniciou" "Pode ser falta de m
     if ! kill -0 "$p" 2>/dev/null; then
       quedas=$((quedas+1)); [ $quedas -gt 5 ] && exit 0
       echo "[vigia] motor caiu; religando ($quedas)" >>"$LOG"
+      if [ "$GPU_ATIVA" = 1 ] && [ $quedas -ge 2 ]; then echo "[gpu] caiu 2x com a GPU; seguindo no processador" >>"$LOG"; GPU_FALHOU=1; gpu_preparar; fi
       ligar_motor; esperar_motor || true
     fi
   done
