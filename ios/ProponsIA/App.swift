@@ -75,7 +75,9 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         web.backgroundColor = .systemBackground
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.scrollView.bounces = false
-        if #available(iOS 16.4, *) { web.isInspectable = true }
+        #if DEBUG
+        if #available(iOS 16.4, *) { web.isInspectable = true }   // inspetor só na compilação de depuração
+        #endif
         let id = UserDefaults.standard.string(forKey: "modelo")
         modelo = ModeloIA.todos.first { $0.id == id && $0.id != "avancado" } ?? (ram < 5_500_000_000 ? ModeloIA.todos[0] : ModeloIA.todos[1])
         // modelo configurado ausente: usa o maior já baixado (sem pedir download de novo)
@@ -221,6 +223,9 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
 
     // MARK: ponte
     func userContentController(_ uc: WKUserContentController, didReceive msg: WKScriptMessage) {
+        // só a nossa página local (arquivo do app), no quadro principal
+        let o = msg.frameInfo.securityOrigin
+        guard msg.frameInfo.isMainFrame, o.protocol == "file" || o.host.isEmpty else { return }
         guard let m = msg.body as? [String: Any] else { return }
         if m["t"] as? String == "tentar" { aoTentar?.resume(); aoTentar = nil; return }
         guard m["t"] as? String == "pedido" else { return }

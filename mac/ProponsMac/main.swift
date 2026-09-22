@@ -145,6 +145,11 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
 
     // MARK: início
     func applicationDidFinishLaunching(_ n: Notification) {
+        // instância única: abrir de novo só traz a janela que já existe (dois apps = dois motores = memória em dobro)
+        if let id = Bundle.main.bundleIdentifier {
+            let outras = NSRunningApplication.runningApplications(withBundleIdentifier: id).filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+            if let outra = outras.first { outra.activate(options: [.activateIgnoringOtherApps]); NSApp.terminate(nil); return }
+        }
         let tela = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
         let w: CGFloat = 480, h: CGFloat = min(760, tela.height - 60)
         janela = NSWindow(contentRect: NSRect(x: tela.midX - w / 2, y: tela.midY - h / 2, width: w, height: h),
@@ -154,7 +159,9 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         let cfg = WKWebViewConfiguration()
         cfg.userContentController.add(self, name: "proponsMac")
         cfg.userContentController.add(self, name: "propons")          // botão "Tentar novamente" da tela de carregamento
-        cfg.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        // inspetor web só em depuração/autoteste (em uso normal ninguém precisa abrir o DevTools da interface)
+        let env = ProcessInfo.processInfo.environment
+        if env["PROPONS_DEPURAR"] == "1" || env["PROPONS_AUTOTESTE"] != nil { cfg.preferences.setValue(true, forKey: "developerExtrasEnabled") }
         web = WKWebView(frame: janela.contentView!.bounds, configuration: cfg)
         web.autoresizingMask = [.width, .height]
         web.navigationDelegate = self; web.uiDelegate = self
@@ -426,6 +433,9 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
 
     // MARK: ponte com a página
     func userContentController(_ uc: WKUserContentController, didReceive msg: WKScriptMessage) {
+        // só a nossa página (quadro principal): a servida pelo motor em 127.0.0.1 ou as locais (about:blank / propons.local)
+        let o = msg.frameInfo.securityOrigin
+        guard msg.frameInfo.isMainFrame, o.host == "127.0.0.1" || o.host == "propons.local" || o.host.isEmpty else { return }
         guard let m = msg.body as? [String: Any] else { return }
         if m["t"] as? String == "tentar" { aoTentar?.resume(); aoTentar = nil; return }
         guard m["t"] as? String == "pedido", msg.name == "proponsMac" else { return }

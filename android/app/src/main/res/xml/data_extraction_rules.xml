@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: backup na nuvem e transferência entre aparelhos — só conversas e preferências. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="dados" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="file" path="modelos" />
+        <exclude domain="file" path="interface" />
+        <exclude domain="file" path="motor.log" />
+        <exclude domain="file" path="motor.pid" />
+        <exclude domain="file" path="motor.chave" />
+        <exclude domain="file" path="audio" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="dados" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="file" path="modelos" />
+        <exclude domain="file" path="interface" />
+        <exclude domain="file" path="motor.log" />
+        <exclude domain="file" path="motor.pid" />
+        <exclude domain="file" path="motor.chave" />
+        <exclude domain="file" path="audio" />
+    </device-transfer>
+</data-extraction-rules>

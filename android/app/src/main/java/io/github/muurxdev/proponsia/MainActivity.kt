@@ -127,6 +127,7 @@ class MainActivity : Activity() {
                 if (u.host == "127.0.0.1" || u.scheme == "file" || u.scheme == "data" || u.scheme == "about") return false
                 abrirLink(u.toString()); return true
             }
+            override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) { urlAtual = url ?: "" }
             override fun onPageFinished(view: WebView, url: String?) { if (cssMargens.isNotEmpty()) view.evaluateJavascript(cssMargens, null) }
         }
         web.webChromeClient = object : WebChromeClient() {
@@ -476,10 +477,14 @@ class MainActivity : Activity() {
     }
 
     // ---------------- ponte com a página ----------------
+    // página carregada no momento: a ponte só atende as nossas (motor em 127.0.0.1, abertura fria em propons.local, assets)
+    @Volatile private var urlAtual = ""
+    private fun paginaNossa(): Boolean { val u = urlAtual; return u.isEmpty() || u.startsWith("http://127.0.0.1:") || u.startsWith("https://propons.local/") || u.startsWith("file:///android_asset/") }
     inner class Ponte {
-        @JavascriptInterface fun tentar() { aoTentar?.invoke() }
+        @JavascriptInterface fun tentar() { if (paginaNossa()) aoTentar?.invoke() }
 
         @JavascriptInterface fun pedido(texto: String) {
+            if (!paginaNossa()) return
             val m = try { JSONObject(texto) } catch (_: Exception) { return }
             if (m.optString("t") == "tentar") { aoTentar?.invoke(); return }
             val id = m.opt("id"); val acao = m.optString("acao"); val args = m.optJSONObject("args") ?: JSONObject()
@@ -633,11 +638,12 @@ class MainActivity : Activity() {
     // confere o SHA-256 de cada modelo baixado; os com defeito são apagados (menos o que está em uso)
     private fun verificarModelos(): JSONArray {
         val r = JSONArray()
-        for (m in modelos) {
+        // confere tudo que foi baixado: os 3 modelos, os módulos de visão e as vozes; o que está em uso não é apagado
+        for (m in modelos + modelos.map { it.visao() } + vozes) {
             val f = acharModelo(m) ?: continue
             if (m.id == baixandoId) continue
             val ok = sha256(f) { v -> evento("verificacao", JSONObject().put("id", m.id).put("nome", m.nome).put("pct", v)) } == m.sha256
-            val apagado = !ok && m.id != modelo.id && f.delete()
+            val apagado = !ok && m.id != modelo.id && m.id != "visao-" + modelo.id && f.delete()
             r.put(JSONObject().put("id", m.id).put("nome", m.nome).put("ok", ok).put("apagado", apagado))
         }
         return r

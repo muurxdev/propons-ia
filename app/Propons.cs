@@ -783,6 +783,9 @@ class Janela : Form
     // ---------- mensagens da página ----------
     void Mensagem(object o, CoreWebView2WebMessageReceivedEventArgs a)
     {
+        // só a nossa página fala com o app: a servida pelo motor (127.0.0.1) ou a local da abertura fria (NavigateToString → about:blank)
+        string origem = a.Source ?? "";
+        if (!origem.StartsWith("http://127.0.0.1:") && origem != "about:blank") return;
         Dictionary<string, object> m;
         try { m = json.Deserialize<Dictionary<string, object>>(a.WebMessageAsJson); } catch { return; }
         object t; if (m == null || !m.TryGetValue("t", out t)) return;
@@ -1040,14 +1043,18 @@ class Janela : Form
     List<object> VerificarModelos()
     {
         List<object> r = new List<object>();
-        foreach (Modelo m in Modelo.Todos)
+        // confere tudo que foi baixado: os 3 modelos, os módulos de visão e as vozes
+        List<Modelo> todos = new List<Modelo>(Modelo.Todos);
+        foreach (Modelo m in Modelo.Todos) todos.Add(m.Visao());
+        todos.AddRange(Vozes.Todas);
+        foreach (Modelo m in todos)
         {
             string p = AcharModelo(m);
             if (p == null || m.Id == baixandoId) continue;
             Modelo mm = m;
             bool ok = ShaArquivo(p, delegate (double v) { BeginInvoke((Action)delegate { Evento("verificacao", Dic("id", mm.Id, "nome", mm.Nome, "pct", v)); }); }) == m.Sha256;
             bool apagado = false;
-            if (!ok && m.Id != modelo.Id) try { File.Delete(p); apagado = true; } catch { }
+            if (!ok && m.Id != modelo.Id && m.Id != "visao-" + modelo.Id) try { File.Delete(p); apagado = true; } catch { }   // o que está em uso não é apagado
             r.Add(Dic("id", m.Id, "nome", m.Nome, "ok", ok, "apagado", apagado));
         }
         return r;

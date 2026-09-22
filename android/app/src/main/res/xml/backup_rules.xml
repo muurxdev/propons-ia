@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backup do Android (até o 11): conversas e preferências sim; modelos (GB), interface copiada e logs não. -->
+<full-backup-content>
+    <include domain="file" path="dados" />
+    <include domain="sharedpref" path="." />
+    <exclude domain="file" path="modelos" />
+    <exclude domain="file" path="interface" />
+    <exclude domain="file" path="motor.log" />
+    <exclude domain="file" path="motor.pid" />
+    <exclude domain="file" path="motor.chave" />
+    <exclude domain="file" path="audio" />
+</full-backup-content>
