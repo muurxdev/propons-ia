@@ -49,20 +49,14 @@ footer a{color:var(--roxo)}
 
 <section class="cartao" data-so="android">
   <div class="topo"><h2>Android</h2><span class="req">Android 9+ · 64 bits</span></div>
-  <a class="botao" id="baixarApk" href="https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Android.apk" download>Baixar APK <span id="tam-apk">(15 MB)</span></a>
-  <div class="dica" id="dicaApk" hidden>
-    <b>Fique nesta página até o download terminar.</b>
-    O Chrome vai perguntar se quer manter o arquivo (<i>"pode prejudicar o dispositivo"</i>). Toque em <b>Baixar mesmo assim</b>.
-    <span class="sub">Ficou parado em 100% na notificação? É o Chrome esperando essa confirmação: volte ao Chrome, ou abra <b>⋮ → Downloads</b> e toque em <b>Manter</b>.</span>
-  </div>
-  <a class="botao sec" href="https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Android.zip" download>Não baixou? Baixar em .zip</a>
-  <p class="req" style="margin:8px 0 0">O .zip baixa sem a pergunta do Chrome. Depois abra o app <b>Arquivos</b> → <b>Downloads</b> → toque em <b>Propons-IA-Android.zip</b> → <b>Extrair</b> e toque no <b>Propons-IA-Android.apk</b> para instalar.</p>
+  <a class="botao" href="https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Android.zip" download>Baixar para Android <span id="tam-zip"></span></a>
   <ol>
-    <li>Toque em <b>Baixar APK</b> e <b>fique nesta página</b>. Quando o Chrome avisar que o arquivo pode ser perigoso, toque em <b>Baixar mesmo assim</b>. (Parou em 100%? Chrome → <b>⋮ → Downloads</b> → <b>Manter</b>.)</li>
-    <li>Abra o arquivo pela notificação ou em <b>Arquivos → Downloads</b>.</li>
-    <li>Se aparecer "instalação bloqueada", toque em <b>Configurações</b>, ative <b>Permitir desta fonte</b>, volte e toque em <b>Instalar</b>.</li>
-    <li>Na primeira abertura a IA baixa o modelo (~0,5 a 1,2 GB). Use Wi-Fi; pode apagar a tela, o download continua.</li>
+    <li>Toque em <b>Baixar para Android</b>. O arquivo .zip baixa direto, sem aviso do Chrome.</li>
+    <li>Abra o app <b>Arquivos</b> → <b>Downloads</b> → toque em <b>Propons-IA-Android.zip</b> → <b>Extrair</b>.</li>
+    <li>Toque em <b>Propons-IA-Android.apk</b>. Se aparecer "instalação bloqueada", toque em <b>Configurações</b>, ative <b>Permitir desta fonte</b>, volte e toque em <b>Instalar</b>.</li>
+    <li>Abra a Própons IA, mande sua primeira mensagem e escolha o modelo. Use Wi-Fi; pode apagar a tela que o download continua.</li>
   </ol>
+  <p class="req" style="margin:8px 0 0">Depois de instalado, as próximas versões chegam pelo próprio app: Ajustes → Atualizações → <b>Atualizar agora</b>.</p>
 </section>
 
 <section class="cartao" data-so="ios">
@@ -100,7 +94,6 @@ footer a{color:var(--roxo)}
   var ua = navigator.userAgent, so = /android/i.test(ua) ? 'android' : /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1) ? 'ios' : /macintosh|mac os x/i.test(ua) ? 'mac' : /windows/i.test(ua) ? 'windows' : /linux|x11/i.test(ua) ? 'linux' : '';
   var seu = so && document.querySelector('[data-so="' + so + '"]');
   if (seu) { seu.classList.add('seu'); seu.querySelector('.topo').insertAdjacentHTML('beforeend', '<span class="selo">seu aparelho</span>'); document.querySelector('header').after(seu); }
-  document.getElementById('baixarApk').addEventListener('click', function () { document.getElementById('dicaApk').hidden = false; });
   document.querySelectorAll('[data-copiar]').forEach(function (b) {
     b.onclick = function () {
       var t = document.getElementById(b.dataset.copiar).textContent;
@@ -111,7 +104,7 @@ footer a{color:var(--roxo)}
     if (!r) return;
     document.getElementById('versao').textContent = 'versão ' + r.tag_name.replace(/^v/, '');
     (r.assets || []).forEach(function (a) {
-      var id = a.name === 'Propons-IA-Android.apk' ? 'tam-apk' : a.name === 'Propons-IA-Windows.exe' ? 'tam-exe' : a.name === 'Propons-IA-Mac.zip' ? 'tam-mac' : '';
+      var id = a.name === 'Propons-IA-Android.zip' ? 'tam-zip' : a.name === 'Propons-IA-Windows.exe' ? 'tam-exe' : a.name === 'Propons-IA-Mac.zip' ? 'tam-mac' : '';
       if (id) document.getElementById(id).textContent = '(' + Math.round(a.size / 1048576) + ' MB)';
     });
   }).catch(function () {});

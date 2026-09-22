@@ -7,7 +7,7 @@
 <title>Própons IA</title>
 <style>
 :root{
-  --bg:#ffffff; --side:#f7f7f9; --surface:#ffffff; --hover:#efeff3; --ink:#111114; --muted:#6b6b76; --faint:#a1a1ab; --line:#e6e6eb;
+  --bg:#ffffff; --side:#ffffff; --surface:#ffffff; --hover:#efeff3; --ink:#111114; --muted:#6b6b76; --faint:#a1a1ab; --line:#e6e6eb;
   --accent:#7c5cff; --accent-hover:#6a48f5; --accent-ink:#ffffff; --accent-soft:#f1edff;
   --user:#f1f1f4; --code:#f6f6f8; --ok:#1f8a4c; --ok-soft:#e7f5ec; --warn:#b7791f; --warn-soft:#fdf3e1; --danger:#d93f3f; --danger-soft:#fdecec;
   --tk-kw:#7c3aed; --tk-str:#0f7b3f; --tk-com:#8b8b96; --tk-num:#c2410c; --tk-fn:#1d5fd1; --tk-tipo:#0e7490; --tk-attr:#b45309; --tk-op:#6b6b76;
@@ -21,7 +21,7 @@
   color-scheme:light;
 }
 :root[data-tema="escuro"]{
-  --bg:#17171b; --side:#111114; --surface:#1f1f24; --hover:#26262c; --ink:#ececf1; --muted:#9d9daa; --faint:#6c6c78; --line:#2b2b32;
+  --bg:#17171b; --side:#17171b; --surface:#1f1f24; --hover:#26262c; --ink:#ececf1; --muted:#9d9daa; --faint:#6c6c78; --line:#2b2b32;
   --accent:#8f76ff; --accent-hover:#a18cff; --accent-ink:#ffffff; --accent-soft:#2a2442;
   --user:#26262c; --code:#121215; --ok:#5fd08a; --ok-soft:#18291f; --warn:#f0b454; --warn-soft:#322713; --danger:#ff6b6b; --danger-soft:#3a1d1f;
   --tk-kw:#c4a7ff; --tk-str:#7fd69b; --tk-com:#6f6f7c; --tk-num:#ffab70; --tk-fn:#7cb2ff; --tk-tipo:#5fd4e0; --tk-attr:#f0b454; --tk-op:#9d9daa;
@@ -182,7 +182,10 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .onda{flex:1;display:flex;align-items:center;justify-content:space-between;gap:2px;height:30px;min-width:0;overflow:hidden}
 .onda i{flex:1 1 0;max-width:4px;min-width:2px;height:28px;border-radius:3px;background:var(--accent);transform:scaleY(.1);transition:transform .1s linear}
 .prog-grav{flex:1;min-width:0}
-.prog-grav .barra{margin:0}
+.prog-grav .barra{margin:0;position:relative}
+.prog-grav .barra.ind i{position:absolute;left:-35%;width:35%;animation:desliza 1.1s ease-in-out infinite}
+@keyframes desliza{to{left:100%}}
+#gravando.transcrevendo b{font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
 .gravando .btn{min-height:34px;padding:6px 14px;border-radius:99px}
 .gravando .btn:disabled{opacity:.6}
 #enviar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);flex:none;transition:background .15s,opacity .15s,transform .1s}
@@ -326,15 +329,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .lm{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;text-align:left;border-top:1px solid var(--line)}
 .lm:hover{background:var(--hover)}
 .lm .mico{width:36px;height:36px;border-radius:10px;font-size:11.5px}
-/* logos dos modelos */
-.mico.logo{color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-.mico.logo svg{width:56%;height:56%;fill:none;stroke:currentColor;stroke-width:1.8}
-.mico.logo.leve{background:linear-gradient(135deg,#2dd4bf,#0ea5e9)}
-.mico.logo.normal{background:linear-gradient(135deg,#a78bfa,#6d28d9)}
-.mico.logo.avancado{background:linear-gradient(135deg,#fb7185,#f59e0b)}
-.mcard.on .mico.logo{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
-.mico.logo.mini{width:18px;height:18px;border-radius:5px;margin-right:2px}
-#logoSeletor{display:contents}
+
 .lm.on .mico{background:var(--accent);color:var(--accent-ink)}
 .lm .pt{flex:1;min-width:0} .lm b{display:block;font-size:14.5px;font-weight:600} .lm small{display:block;font-size:12.5px;color:var(--muted)}
 .lm .st{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -343,6 +338,10 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .chip.foto{padding:3px 5px 3px 3px}
 .fotos-msg{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-bottom:6px;max-width:85%}
 .fotos-msg img{width:120px;height:120px;object-fit:cover;border-radius:14px;border:1px solid var(--line);display:block}
+/* digitação: cursor no fim do texto */
+.digitando .cauda>:last-child::after,.digitando .cauda:empty::after{content:'';display:inline-block;width:.5em;height:1.05em;margin-left:2px;vertical-align:-.15em;border-radius:2px;background:var(--accent);opacity:.8;animation:cursor 1s steps(2,start) infinite}
+.digitando .cauda pre:last-child::after,.digitando .cauda table:last-child::after{display:none}
+@keyframes cursor{to{visibility:hidden}}
 /* bolinha com a porcentagem do download */
 .anel{--p:0;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:conic-gradient(var(--accent) calc(var(--p) * 1%),var(--hover) 0)}
 .anel b{width:32px;height:32px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -422,6 +421,26 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .toast{bottom:calc(88px + var(--sb))}
 }
 @keyframes sobe{from{transform:translateY(100%)}}
+/* PC e tablet: diálogos no centro, menus flutuando ao lado do botão, ajustes numa janela; nada sobe de baixo */
+@media (min-width:761px){
+  .alca{display:none}
+  .dlg-fundo{place-items:center}
+  .dlg{border-radius:18px;border-bottom:1px solid var(--line);max-height:82vh;box-shadow:0 24px 70px rgba(0,0,0,.35);animation:pop .18s cubic-bezier(.16,1,.3,1)}
+  .dlg-topo{padding:18px 0 8px;cursor:default}
+  .folha .dlg-topo{padding:12px 12px 4px}
+  .dlg-fundo.pop{background:rgba(10,10,14,.08)}
+  .dlg-fundo.pop .dlg{position:fixed;width:min(340px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 16px));padding:0 6px 6px;border-radius:16px;box-shadow:var(--shadow),0 16px 48px rgba(0,0,0,.28);animation-duration:.16s}
+  .pop .opcoes{display:flex;flex-direction:column;gap:2px;padding:2px}
+  .pop .opcoes button{flex-direction:row;justify-content:flex-start;gap:12px;padding:7px 10px;border-radius:10px;background:none;font-size:14px}
+  .pop .opcoes button:hover{background:var(--hover)}
+  .pop .opcoes .oi{width:32px;height:32px;background:var(--accent-soft)} .pop .opcoes .oi svg{width:18px;height:18px}
+  .pop .opcoes small{margin:0 0 0 auto;text-align:right}
+  .pop .lista-modelos{margin:2px 2px 0}
+  .painel-fundo{place-items:center}
+  .painel{height:min(680px,calc(100% - 56px));border-radius:22px;border-bottom:1px solid var(--line);box-shadow:0 30px 90px rgba(0,0,0,.42);animation:pop .22s cubic-bezier(.16,1,.3,1)}
+  .p-arrastar{display:none}
+}
+@keyframes pop{from{opacity:0;transform:translateY(6px) scale(.985)}}
 @media (prefers-reduced-motion:reduce){.dlg,.painel,.p-conteudo,#lateral{animation:none!important;transition:none!important}}
 @media (hover:none){.item .mais{opacity:1}}
 </style>
@@ -460,7 +479,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="logoSeletor"></span><span id="nomeModelo">Modelo</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
         <span class="espaco"></span>
         <button class="icone" id="falar" title="Falar e transcrever" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>

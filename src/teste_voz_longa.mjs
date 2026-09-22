@@ -17,7 +17,7 @@ for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 const b = fs.readFileSync(wavArq), PED = 2 * 1048576;
 await js('window.__partes = []; 1');
 for (let i = 0; i < b.length; i += PED) await js(`window.__partes.push('${b.subarray(i, i + PED).toString('base64')}'); 1`);
-await js(`window.__avisos = []; window.__partesVistas = 0; const t0 = toast; toast = (t, ms) => { window.__avisos.push(t); t0(t, ms); }; const b0 = barraGravacao; barraGravacao = (m, t, p) => { const x = /parte \\d+ de (\\d+)/.exec(t || ''); if (x) window.__partesVistas = +x[1]; return b0(m, t, p); }; $('#entrada').value=''; 1`);
+await js(`window.__avisos = []; window.__partesVistas = 0; if (!window.__toast0) { window.__toast0 = toast; toast = (t, ms) => { window.__avisos.push(t); window.__toast0(t, ms); }; } if (!PLATAFORMA.__t0) { PLATAFORMA.__t0 = PLATAFORMA.transcrever; PLATAFORMA.transcrever = function () { window.__partesVistas++; return PLATAFORMA.__t0.apply(this, arguments); }; } $('#entrada').value=''; 1`);
 const t = Date.now();
 await js(`(async()=>{ const bin = window.__partes.map(p => Uint8Array.from(atob(p), c => c.charCodeAt(0))); await transcreverAudio(new Blob(bin, {type:'audio/wav'})); return 1 })()`);
 const seg = (Date.now() - t) / 1000;

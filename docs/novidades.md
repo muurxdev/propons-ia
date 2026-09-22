@@ -1,3 +1,13 @@
+## Novidades da 1.11.0
+
+- **Novos nomes:** os modelos agora são **Própons Lume** (leve e rápido), **Própons Aurora** (médio, equilibrado) e **Própons Ápice** (pesado, o mais inteligente). Sem ícones, sem números.
+- **No PC e no tablet, menus de verdade:** o "+", o seletor de modelo e o menu ⋯ da conversa abrem flutuando ao lado do botão; os diálogos ficam no centro e os Ajustes abrem numa janela. No celular continua tudo subindo de baixo.
+- **Resposta escrita com suavidade:** o texto da IA aparece num ritmo constante, como se estivesse sendo digitado, com o cursor no fim. Nada de vir aos trancos.
+- **Transcrição silenciosa:** enquanto grava mostra só o tempo e as ondas; enquanto transcreve, só "Transcrevendo". Sem porcentagens, sem avisos de "pronto".
+- **Sem "Iniciando":** ao abrir, só a logo e a barra; o chat não fica mais mostrando "carregando" e "preparando".
+- **Menu lateral** com a mesma cor do resto do app.
+- **Site:** a versão Android agora é só o .zip, que baixa sem o Chrome atrapalhar.
+
 ## Novidades da 1.10.0
 
 - **Transcreve áudio de qualquer tamanho:** acabou o limite de 10 minutos. O app divide o áudio em trechos, sempre numa pausa da fala, e mostra "parte 2 de 8". Teste: 20 minutos transcritos por inteiro em 83 s num notebook.

@@ -194,7 +194,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
                 catch { await falha("Sem conexão para baixar a IA", mensagem(error, modelo)); continue }
             }
             if visaoLigada(), acharModelo(modelo.visao()) == nil { _ = try? await baixar(modelo.visao(), naTela: true) }
-            splash(-1, "Iniciando", "")
+            splash(-1, "", "")
             if let e = await ligarMotor() { await falha("Não foi possível abrir a IA", e); continue }
             naSplash = false
             await MainActor.run { web.load(URLRequest(url: URL(string: "http://127.0.0.1:\(porta)/#k=\(chave)")!)) }

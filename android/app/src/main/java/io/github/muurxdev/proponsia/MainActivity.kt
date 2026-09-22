@@ -236,7 +236,7 @@ class MainActivity : Activity() {
                 }
             }
             if (desligando) return
-            splash(-1.0, "Iniciando", "")
+            splash(-1.0, "", "")
             val erro = ligarMotor(arq)
             if (erro == null) { naSplash = false; ui.post { web.loadUrl("http://127.0.0.1:$porta/#k=$chave") }; return }
             splash(-2.0, "Não foi possível abrir a IA", erro); esperarTentar()

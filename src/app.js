@@ -52,6 +52,12 @@ function animarSaida(fundo, folha, depois) {
   if (!fundo || fundo.classList.contains('saindo')) return;
   fundo.classList.add('saindo');
   pausarDesenho(240);
+  if (!estreita()) {   // PC e tablet: some com um fade curto
+    folha.style.transition = 'opacity .14s ease,transform .14s ease'; folha.style.opacity = '0'; folha.style.transform = 'translateY(4px) scale(.985)';
+    fundo.style.transition = 'background-color .14s'; fundo.style.backgroundColor = 'rgba(0,0,0,0)';
+    setTimeout(() => { fundo.remove(); if (depois) depois(); }, 140);
+    return;
+  }
   folha.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)'; folha.style.transform = 'translateY(105%)';
   fundo.style.transition = 'background-color .2s'; fundo.style.backgroundColor = 'rgba(0,0,0,0)';
   setTimeout(() => { fundo.remove(); if (depois) depois(); }, 200);
@@ -59,7 +65,7 @@ function animarSaida(fundo, folha, depois) {
 function folhaArrastavel(fundo, folha, fechar) {
   let y0 = null, dy = 0, t0 = 0, id = null, moveu = false;
   folha.addEventListener('pointerdown', e => {
-    if (e.button > 0) return;
+    if (e.button > 0 || !estreita()) return;
     const zona = e.target.closest('.p-arrastar, .dlg-topo, .p-topo, .p-nav-topo, .folha');
     if (!zona) return;
     if (!e.target.closest('.folha') && e.target.closest('button, input, textarea, select, a')) return;
@@ -206,7 +212,7 @@ $('#busca').addEventListener('input', desenharLista);
 function fecharMenus() { document.querySelectorAll('.menu').forEach(m => m.remove()); document.querySelectorAll('[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
 function menuFlutuante(ancora, itens, titulo) {
   fecharMenus();
-  {   // folha que sobe de baixo, com botões grandes (arrastar para baixo ou X fecha)
+  if (estreita()) {   // celular: folha que sobe de baixo, com botões grandes (arrastar para baixo ou X fecha)
     const f = document.createElement('div'); f.className = 'dlg-fundo';
     f.innerHTML = `<div class="dlg folha">${topoFolha(titulo)}</div>`;
     const folha = f.firstChild, sair = depois => animarSaida(f, folha, depois);
@@ -437,7 +443,9 @@ function barraGravacao(modo, texto, pct) {
   $('#onda').hidden = modo !== 'gravando';
   $('#progGrav').hidden = modo === 'gravando';
   $('#pararGrav').hidden = modo !== 'gravando'; $('#cancelarGrav').hidden = modo !== 'gravando';
+  g.classList.toggle('transcrevendo', modo === 'transcrevendo');
   if (texto !== undefined) $('#tempoGrav').textContent = texto;
+  $('#progGrav .barra').classList.toggle('ind', modo === 'transcrevendo' && pct === undefined);
   if (pct !== undefined) $('#progGrav i').style.width = (pct * 100).toFixed(1) + '%';
 }
 // a voz (whisper) é baixada uma vez: pede confirmação e espera o download
@@ -551,7 +559,7 @@ const limparTranscricao = t => String(t || '').replace(/\[[^\]]{0,40}\]|\((?:m[u
 async function transcreverAudio(blob) {
   if (transcrevendo) return;
   transcrevendo = true;
-  barraGravacao('transcrevendo', 'Preparando o áudio…', 0);
+  barraGravacao('transcrevendo', 'Transcrevendo');
   try {
     let amostras = null;
     try { amostras = await audioPara16k(blob); }
@@ -563,36 +571,29 @@ async function transcreverAudio(blob) {
     if (!amostras) {
       const ext = /mp4|m4a|aac/.test(blob.type) ? 'm4a' : /mpeg|mp3/.test(blob.type) ? 'mp3' : 'wav';
       trechoAtual = { i: 0, n: 1 };
-      const r = await PLATAFORMA.transcrever(new Uint8Array(await blob.arrayBuffer()), ext, p => barraGravacao('transcrevendo', 'Enviando… ' + Math.floor(p * 100) + '%', p * 0.1));
+      const r = await PLATAFORMA.transcrever(new Uint8Array(await blob.arrayBuffer()), ext, null);
       texto = limparTranscricao(r && r.texto);
     } else {
       if (!amostras.length || !temFala(amostras)) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
       const trechos = cortarEmTrechos(amostras), partes = [];
       for (let i = 0; i < trechos.length; i++) {
         trechoAtual = { i, n: trechos.length };
-        const onde = trechos.length > 1 ? ` (parte ${i + 1} de ${trechos.length})` : '';
         if (!temFala(trechos[i])) continue;
-        barraGravacao('transcrevendo', 'Enviando…' + onde, i / trechos.length);
-        const r = await PLATAFORMA.transcrever(wav16k(trechos[i]), 'wav', p => barraGravacao('transcrevendo', 'Enviando… ' + Math.floor(p * 100) + '%' + onde, (i + p * 0.1) / trechos.length));
+        const r = await PLATAFORMA.transcrever(wav16k(trechos[i]), 'wav', null);
         const t = limparTranscricao(r && r.texto);
         if (t) partes.push(t);
       }
       texto = partes.join(' ').replace(/\s+/g, ' ').trim();
     }
-    barraGravacao('transcrevendo', 'Pronto', 1);
     if (!texto) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
     const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
-    toast('Pronto! Confira o texto e envie.', 2500);
     guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto });
   } catch (e) {
     toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : /memory|allocation|RangeError/i.test(e.message || e.name) ? 'Áudio grande demais para a memória deste aparelho.' : 'Não foi possível transcrever: ' + e.message, 4500);
   } finally { transcrevendo = false; trechoAtual = null; barraGravacao(null); }
 }
-PLATAFORMA.ao('transcricao', d => {
-  if (!transcrevendo) return;
-  const t = trechoAtual || { i: 0, n: 1 }, p = d.pct || 0;
-  barraGravacao('transcrevendo', 'Transcrevendo… ' + Math.floor(((t.i + p) / t.n) * 100) + '%' + (t.n > 1 ? ` (parte ${t.i + 1} de ${t.n})` : ''), (t.i + 0.1 + p * 0.9) / t.n);
-});
+// progresso real do whisper (quando o aparelho manda): a barra deixa de ser indeterminada
+PLATAFORMA.ao('transcricao', d => { if (!transcrevendo) return; const t = trechoAtual || { i: 0, n: 1 }; barraGravacao('transcrevendo', undefined, (t.i + (d.pct || 0)) / t.n); });
 $('#falar').onclick = () => iniciarGravacao();
 $('#pararGrav').onclick = () => pararGravacao(true);
 $('#cancelarGrav').onclick = () => { pararGravacao(false); toast('Gravação descartada.'); };
@@ -686,21 +687,25 @@ function abrirMais() {
     else abrirConfig('modelo');
   });
   pausarDesenho();
-  document.body.appendChild(f);
+  document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
+}
+/* PC e tablet: a folha vira um menu flutuante ancorado no botão (abre para cima quando não cabe embaixo) */
+function posicionarPop(f, folha, ancora, lado) {
+  if (estreita() || !ancora) return;
+  f.classList.add('pop');
+  const r = ancora.getBoundingClientRect(), w = folha.offsetWidth, h = folha.offsetHeight;
+  const abaixo = innerHeight - r.bottom - 8, acima = r.top - 8, paraCima = abaixo < Math.min(h, 240) && acima > abaixo;
+  const x = lado === 'fim' ? r.right - w : r.left;
+  folha.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px';
+  if (paraCima) { folha.style.bottom = (innerHeight - r.top + 6) + 'px'; folha.style.transformOrigin = 'bottom left'; }
+  else { folha.style.top = (r.bottom + 6) + 'px'; folha.style.transformOrigin = 'top left'; }
 }
 
-/* ---------------- nomes e logos dos modelos ----------------
-   Própons 0.8B (leve, raio = rápido), Própons 2B (médio, círculo meio cheio = equilíbrio) e
-   Própons 4B (pesado, brilho = mais inteligente). */
-const TAMANHO_MODELO = { leve: '0.8B', normal: '2B', avancado: '4B' };
+/* ---------------- nomes dos modelos ----------------
+   Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado) e Própons Ápice (pesado, o mais capaz). */
+const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
-const nomeModelo = m => 'Própons ' + (TAMANHO_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1'));
-const LOGO_MODELO = {
-  leve: '<path d="M13.2 2.5 5 13.2h6.1l-1.3 8.3 8.2-10.7h-6.1z" fill="currentColor" stroke="none"/>',
-  normal: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/>',
-  avancado: '<path d="M12 2.8c.7 4.6 2.6 6.5 7.2 7.2-4.6.7-6.5 2.6-7.2 7.2-.7-4.6-2.6-6.5-7.2-7.2 4.6-.7 6.5-2.6 7.2-7.2z" fill="currentColor" stroke="none"/><path d="M18.6 15.6c.3 1.9 1 2.6 2.9 2.9-1.9.3-2.6 1-2.9 2.9-.3-1.9-1-2.6-2.9-2.9 1.9-.3 2.6-1 2.9-2.9z" fill="currentColor" stroke="none"/>',
-};
-const logoModelo = (id, extra = '') => `<span class="mico logo ${esc(id)}${extra}" aria-hidden="true"><svg viewBox="0 0 24 24">${LOGO_MODELO[id] || LOGO_MODELO.normal}</svg></span>`;
+const nomeModelo = m => 'Própons ' + (NOME_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1'));
 // bolinha com a porcentagem do download
 const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, Math.floor(pct * 100)))}"><b>${Math.floor(pct * 100)}%</b></span>`;
 
@@ -739,7 +744,6 @@ async function responderPendente() {
 function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
   $('#nomeModelo').textContent = ESCOLHER ? 'Escolher modelo' : a ? nomeModelo(a) : 'Modelo';
-  $('#logoSeletor').innerHTML = !ESCOLHER && a ? logoModelo(a.id, ' mini') : '';
 }
 async function abrirSeletorModelo(motivo) {
   document.querySelectorAll('.dlg.modelos').forEach(x => x.closest('.dlg-fundo').remove());
@@ -753,9 +757,9 @@ async function abrirSeletorModelo(motivo) {
   folha.querySelector('[data-x]').onclick = sair;
   const g = folha.querySelector('[data-gerenciar]'); if (g) g.onclick = () => { sair(); abrirConfig('modelo'); };
   folhaArrastavel(f, folha, sair);
-  pausarDesenho(); document.body.appendChild(f);
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
   await lerSistema(); atualizarSeletorModelo();
-  desenharListaModelos(folha);
+  desenharListaModelos(folha); posicionarPop(f, folha, $('#seletorModelo'));
 }
 function desenharListaModelos(folha) {
   const lm = folha.querySelector('.lista-modelos'), sis = sistemaCache; if (!lm) return;
@@ -767,7 +771,7 @@ function desenharListaModelos(folha) {
     const st = b ? anel(b.pct || 0) : m.bloqueado ? `<span class="st-txt">${esc(m.bloqueado)}</span>` : emUso ? '<span class="st-txt on">Em uso</span>'
       : `<span class="btn-mini">${m.baixado ? 'Usar' : 'Baixar'}</span>`;
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
-      ${logoModelo(m.id)}<span class="pt"><b>${esc(nomeModelo(m))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
+      <span class="pt"><b>${esc(nomeModelo(m))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
       <small>${PESO_MODELO[m.id] || ''} · ${gbBonito(m.tamanho)}</small></span><span class="st">${st}</span></button>`;
   }).join('');
   lm.querySelectorAll('[data-m]').forEach(bt => bt.onclick = async () => {
@@ -994,20 +998,43 @@ async function responder(conv, continuacao) {
     }
     return ultimo;
   };
-  const render = () => {
-    tRender = 0;
-    const el = geracao && geracao.el; if (!el || !el.isConnected) return;
-    const espera = pausaDesenhoAte - performance.now();
-    if (espera > 0) { tRender = setTimeout(() => requestAnimationFrame(render), espera); return; }
-    const t0 = performance.now(), s = inicio + novo;
-    if (!fixoEl || !fixoEl.isConnected) { el.innerHTML = '<div class="fixo"></div><div class="cauda"></div>'; fixoEl = el.firstChild; caudaEl = el.lastChild; fixoAte = 0; }
+  // digitação suave: o texto aparece aos poucos, num ritmo constante; quando chega muito texto de uma vez,
+  // o ritmo acelera para não ficar para trás (35 caracteres/s + 2,5x o que falta mostrar)
+  let mostrado = inicio.length, tAnt = 0, terminou = false, aoAlcancar = null;
+  const desenhar = s => {
+    const t0 = performance.now();
+    if (!fixoEl || !fixoEl.isConnected) { alvo.innerHTML = '<div class="fixo"></div><div class="cauda"></div>'; fixoEl = alvo.firstChild; caudaEl = alvo.lastChild; fixoAte = 0; }
     const corte = pontoFixo(s);
     if (corte > fixoAte) { fixoEl.insertAdjacentHTML('beforeend', md(s.slice(fixoAte, corte))); fixoAte = corte; }
     caudaEl.innerHTML = md(s.slice(fixoAte));
     rolar();
     custo = custo * 0.7 + (performance.now() - t0) * 0.3;
   };
-  const agendar = () => { if (!tRender) tRender = setTimeout(() => requestAnimationFrame(render), Math.max(50, Math.min(400, custo * 4))); };
+  const passo = agora => {
+    tRender = 0;
+    if (!alvo || !alvo.isConnected) { if (aoAlcancar) aoAlcancar(); return; }
+    const espera = pausaDesenhoAte - performance.now();
+    if (espera > 0) { tRender = setTimeout(() => requestAnimationFrame(passo), espera); return; }
+    const total = inicio + novo, falta = total.length - mostrado;
+    const dt = tAnt ? Math.min(100, agora - tAnt) : 16; tAnt = agora;
+    if (falta > 0) {
+      mostrado = Math.min(total.length, mostrado + Math.max(1, (35 + falta * 2.5) * dt / 1000));
+      let ate = Math.floor(mostrado);
+      if (ate < total.length && /[\uD800-\uDBFF]/.test(total[ate - 1] || '')) ate++;   // não corta emoji no meio
+      desenhar(total.slice(0, ate));
+    }
+    if (Math.floor(mostrado) >= total.length) { tAnt = 0; if (terminou && aoAlcancar) aoAlcancar(); return; }
+    // aparelho lento: desenha menos vezes por segundo, mas o ritmo da digitação continua o mesmo
+    if (custo > 10) tRender = setTimeout(() => requestAnimationFrame(passo), Math.min(200, custo * 2));
+    else tRender = requestAnimationFrame(passo);
+  };
+  const agendar = () => { if (!tRender) tRender = requestAnimationFrame(passo); };
+  // espera a digitação alcançar o fim (no máximo 3 s; se a pessoa tocou em parar, termina na hora)
+  const alcancar = () => new Promise(res => {
+    terminou = true;
+    if (!alvo || ctrl.signal.aborted || Math.floor(mostrado) >= (inicio + novo).length) return res();
+    aoAlcancar = res; agendar(); setTimeout(res, 3000);
+  });
   try {
     const r = await PLATAFORMA.gerar([{ role: 'system', content: SYSTEM }, ...historico],
       { temperatura: pedeCodigo ? 0.2 : 0.35, repeticao: pedeCodigo ? 1.0 : 1.05, maxTokens, continuar: !!continuacao }, t => {
@@ -1019,7 +1046,8 @@ async function responder(conv, continuacao) {
   } catch (e) {
     if (e.name !== 'AbortError') erro = e.message || String(e);
   } finally {
-    clearTimeout(tRender);
+    if (!erro) await alcancar();
+    clearTimeout(tRender); cancelAnimationFrame(tRender);
     geracao = null;
     PLATAFORMA.ocupado(false);
     $('#enviar').classList.remove('gerando'); $('#enviar').title = 'Enviar'; ajustar();
@@ -1209,7 +1237,7 @@ let trocandoPara = null;    // id do modelo que está sendo ligado
 const textoDownload = b => b.fase === 'verificando' ? 'Conferindo o arquivo…' : `Baixando ${Math.floor(b.pct * 100)}% · ${Math.round(b.feito / 1048576)} de ${Math.round(b.total / 1048576)} MB`;
 
 function cartaoModelo(m, ram, rec) {
-  const [perfil, tam] = PERFIL_MODELO[m.id] || ['', ''];
+  const [perfil] = PERFIL_MODELO[m.id] || [''];
   const b = baixando[m.id], ligando = trocandoPara === m.id && !b, web = PLATAFORMA.tipo === 'web';
   const pouca = ram && m.ramMin && ram < m.ramMin * GB * 0.93;
   const usar = rot => `<button class="btn primario" data-acao="usar" data-id="${m.id}" data-modelo="${m.id}">${rot}</button>`;
@@ -1222,7 +1250,7 @@ function cartaoModelo(m, ram, rec) {
   if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
   const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? `<span class="selo cinza">${esc(m.bloqueado)}</span>` : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
-    <div class="mtopo">${logoModelo(m.id)}<div class="pt"><b>${esc(nomeModelo(m))}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
+    <div class="mtopo"><div class="pt"><b>${esc(nomeModelo(m))}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
     <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${m.ramMin} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;
@@ -1645,12 +1673,11 @@ async function verificar(imediato) {
     aquecer();
   } else if (!ok) {
     online = false;
-    estado(jaFicouOnline ? 'reconectando' : 'carregando');
+    if (jaFicouOnline) estado('reconectando');
   }
   tVerificar = setTimeout(verificar, ok ? 5000 : 1500);
 }
 async function aquecer() {
-  estado('preparando');
   // processa o texto de sistema uma vez para a primeira resposta sair rápida
   try { await PLATAFORMA.gerar([{ role: 'system', content: SYSTEM }, { role: 'user', content: 'oi' }], { temperatura: 0, maxTokens: 1 }, () => {}); } catch (e) {}
   if (online) estado('');

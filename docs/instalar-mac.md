@@ -17,7 +17,7 @@
 ## O que funciona no Mac
 
 - Chat, código com cores, anexos, **fotos** (a IA lê fotos e prints; a webcam também funciona) e **🎤 transcrição** de áudio de qualquer tamanho
-- **Modelos de IA** em Ajustes: Leve, Normal ou Avançado (Macs com 8 GB ou mais)
+- **Modelos de IA** em Ajustes: Própons Lume (leve), Aurora (médio) ou Ápice (pesado, Macs com 8 GB ou mais)
 - **Atualizações:** a Própons IA avisa quando sai versão nova e se atualiza sozinha (troca o app e abre de novo)
 - Enquanto baixa ou responde, o Mac não entra em repouso
 

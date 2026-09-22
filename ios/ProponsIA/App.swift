@@ -118,7 +118,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
                 catch { await mostrarFalha(titulo: "Sem conexão para baixar a IA", texto: mensagem(erro: error)); continue }
             }
             await esperarAtivo()
-            splash(-1, "Iniciando", "")
+            splash(-1, "", "")
             do {
                 try await carregarMotor()
                 naSplash = false
