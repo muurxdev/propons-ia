@@ -1,3 +1,8 @@
+## Novidades da 1.13.1
+
+- **Limites de memória medidos de verdade.** Medimos o pico do motor com cada modelo (carregado + resposta): Lume 0,9 GB, Aurora 2,0 GB (2,6 com visão), Ápice 4,4 GB (5,1 com visão). Com o que o sistema e o app ocupam, os mínimos ficaram: **PC 3 / 4 / 8 GB** e **celular 3 / 6 / 12 GB** (no celular de 8 GB sobram só ~4,5 GB para apps, por isso o Ápice fechava). O Aurora volta a funcionar em celulares de 6 e 8 GB.
+- **Bloqueio real:** abaixo do mínimo o modelo fica bloqueado com o motivo ("precisa de 12 GB de RAM (este tem 7,6 GB)"), sem o "baixar mesmo assim". Só o Lume nunca é bloqueado.
+
 ## Novidades da 1.13.0
 
 - **Gravação no estilo do app do Claude:** ao tocar no 🎤, a caixa de texto vira uma barra com o **X** (descartar), as **ondas** do som, o botão de **parar** (transcreve para a caixa) e a **seta** (transcreve e já envia). No meio da transcrição aparece só Transcrevendo; depois a caixa de texto volta.

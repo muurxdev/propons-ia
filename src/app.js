@@ -805,7 +805,7 @@ function desenharListaModelos(folha) {
     const m = sis.modelos.find(x => x.id === bt.dataset.m); if (!m || bt.disabled) return;
     if (ESCOLHER) {
       if (escolhendoId) return;
-      if (ram && ram < ramNecessaria(m) * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${ramNecessaria(m)} GB. Ele pode ficar lento ou fechar.`, 'Baixar mesmo assim')) return;
+      if (semRam(m, ram)) { toast(`O ${nomeModelo(m)} precisa de ${ramNecessaria(m)} GB de memória; este aparelho tem ${gbBonito(ram)}.`, 4500); return; }
       escolhendoId = m.id; desenharListaModelos(folha); estado('baixando 0%');
       try { await PLATAFORMA.escolherModelo(m.id); } catch (e) { escolhendoId = null; estado(''); toast('Não foi possível: ' + e.message, 4000); desenharListaModelos(folha); }
       return;
@@ -1185,14 +1185,22 @@ const PAGINAS = [
 ];
 const TITULOS = Object.fromEntries(PAGINAS.flat().map(([k, t]) => [k, t]));
 let sistemaCache = null;
-// no celular a memória é apertada (sistema + tela): cada modelo pede 1,5x o mínimo (8 GB → 12 GB), senão o app fecha sozinho.
-// O Lume nunca é bloqueado: é o que cabe em qualquer aparelho.
-const RAM_FATOR = PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios' ? 1.5 : 1;
-const ramNecessaria = m => (m.id || m) === 'leve' ? (m.ramMin || 0) : Math.ceil((m.ramMin || 0) * RAM_FATOR);
+/* memória de verdade que cada modelo precisa (medido: pico do motor carregado + resposta gerada, llama.cpp b11070)
+     Lume 0,9 GB · Aurora 2,0 GB (2,6 com visão) · Ápice 4,4 GB (5,1 com visão).
+     PC: + ~2,5 GB de sistema e app → 3 / 4 / 8 GB. Celular: + ~3 GB de sistema e tela, e o Android fecha apps quando
+     aperta → 3 / 6 / 12 GB. Abaixo disso o modelo fica bloqueado (sem "baixar mesmo assim"); só o Lume nunca é bloqueado. */
+const CELULAR = PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios';
+const RAM_MIN = CELULAR ? { leve: 3, normal: 6, avancado: 12 } : { leve: 3, normal: 4, avancado: 8 };
+const ramNecessaria = m => RAM_MIN[m.id || m] || (m.ramMin || 0);
+const semRam = (m, ram) => !!(ram && (m.id || m) !== 'leve' && ram < ramNecessaria(m) * GB * 0.93);
 async function lerSistema() {
   const s = await PLATAFORMA.sistema().catch(() => null);
   if (s) {
-    if (RAM_FATOR > 1 && s.ramTotal) (s.modelos || []).forEach(m => { if (!m.bloqueado && m.id !== 'leve' && m.ramMin && s.ramTotal < ramNecessaria(m) * GB * 0.93) m.bloqueado = `precisa de ${ramNecessaria(m)} GB de RAM`; });
+    (s.modelos || []).forEach(m => {
+      m.ramMin = ramNecessaria(m);
+      if (m.bloqueado && /precisa de/.test(m.bloqueado)) delete m.bloqueado;   // a regra de memória é esta aqui, não a do aparelho
+      if (!m.bloqueado && semRam(m, s.ramTotal)) m.bloqueado = `precisa de ${ramNecessaria(m)} GB de RAM (este tem ${gbBonito(s.ramTotal)})`;
+    });
     sistemaCache = s;
   }
   return sistemaCache;
@@ -1360,7 +1368,7 @@ async function acaoModelo(acao, m, ram) {
     desenharAba(); return;
   }
   if (Object.keys(baixando).length || trocandoPara) { toast('Espere o download ou a troca atual terminar.'); return; }
-  if (ram && ram < ramNecessaria(m) * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${ramNecessaria(m)} GB. Ele pode ficar lento ou fechar.`, 'Continuar mesmo assim')) return;
+  if (semRam(m, ram)) { toast(`O ${nomeModelo(m)} precisa de ${ramNecessaria(m)} GB de memória; este aparelho tem ${gbBonito(ram)}.`, 4500); return; }
   if (!m.baixado && !await confirmar(`Baixar o ${nomeModelo(m)}?`, `São ${gbBonito(m.tamanho)}, baixados uma vez só. De preferência use Wi-Fi.`, 'Baixar')) return;
   try {
     if (acao === 'baixar') { baixando[m.id] = { pct: 0, feito: 0, total: m.tamanho }; desenharAba(); await PLATAFORMA.baixarModelo(m.id); return; }
