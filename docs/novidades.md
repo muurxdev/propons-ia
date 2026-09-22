@@ -1,3 +1,11 @@
+## Novidades da 1.12.0
+
+- **Menu lateral flutuante:** no PC e no tablet, o menu de conversas e a área do chat viram dois cartões arredondados (24 px) soltos sobre um fundo um tom mais escuro, com sombra suave, como no HPV Vision e no OmniFetch. No celular, a gaveta abre flutuando com margem e cantos redondos.
+- **X à esquerda em tudo:** todos os diálogos, folhas e menus agora têm o X à esquerda e o título no centro, inclusive os Ajustes no celular.
+- **Ajustes no celular** no tamanho normal: a folha ocupa só o espaço do conteúdo, com linhas mais compactas.
+- **Diálogo em cima de diálogo:** ao abrir um item da Biblioteca (ou qualquer diálogo por cima de outro), o de trás some enquanto o da frente está aberto. Nada mais fica cortado ou sobreposto no PC.
+- Correção: no PC, um menu "Renomear/Apagar" podia aparecer no canto ao abrir o app (sobra do pré-carregamento dos menus).
+
 ## Novidades da 1.11.2
 
 - **Folhas no estilo do app do Claude:** X à esquerda e título no centro. No **"+"**, três cartões (Câmera, Fotos, Arquivos) e, embaixo, as linhas Áudio e Biblioteca. No **seletor**, cada modelo com uma descrição curta, o que está em uso em destaque com ✓, e "Gerenciar modelos" como uma linha embaixo.

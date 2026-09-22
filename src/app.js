@@ -94,7 +94,7 @@ function folhaArrastavel(fundo, folha, fechar) {
   folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
 }
 const topoCentro = titulo => `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="Fechar">${ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
-const topoFolha = titulo => `<div class="dlg-topo"><span class="alca"></span><h3>${esc(titulo || '')}</h3><button class="icone" data-x aria-label="Fechar">${ICO.fechar}</button></div>`;
+const topoFolha = topoCentro;
 
 /* diálogo próprio (folha que sobe de baixo). botoes: [[rótulo, valor, 'primario'|'perigo'|'']]; devolve o valor escolhido (null ao fechar) */
 function perguntar(titulo, html, botoes) {
@@ -121,6 +121,10 @@ function perguntarTexto(titulo, valor) {
   inp.onkeydown = e => { if (e.key === 'Enter') inp.closest('.dlg').querySelector('.primario').click(); };
   return p.then(v => v === 'ok' ? inp.value.trim() : null);
 }
+new MutationObserver(() => {
+  const abertos = [...document.querySelectorAll('.dlg-fundo:not(.saindo)')];
+  abertos.forEach((f, i) => f.classList.toggle('atras', i < abertos.length - 1));
+}).observe(document.body, { childList: true });
 function fecharDialogo() { const d = [...document.querySelectorAll('.dlg-fundo:not(.saindo)')].pop(); if (d) { d.fechar ? d.fechar() : animarSaida(d, d.firstChild); return true; } return false; }
 function estado(txt, erro) { const e = $('#estado'); if (txt) { e.textContent = txt; e.hidden = false; e.classList.toggle('erro', !!erro); } else e.hidden = true; }
 function copiarTexto(t) {
@@ -1123,7 +1127,7 @@ window.__proponsVoltar = () => {
     const p = e.touches[0], dx = p.clientX - ini.x, dy = p.clientY - ini.y;
     if (ini.travado === null && Math.hypot(dx, dy) > 8) ini.travado = Math.abs(dx) > Math.abs(dy);
     if (!ini.travado) return;
-    const l = $('#lateral'), w = l.offsetWidth; ini.dx = dx;
+    const l = $('#lateral'), w = l.offsetWidth + 16; ini.dx = dx;   // +16: a gaveta flutua a 12 px da borda
     const pos = Math.max(-w, Math.min(0, (ini.aberta ? 0 : -w) + dx));
     l.classList.add('arrastando'); l.classList.remove('fechada'); l.style.transform = `translateX(${pos}px)`;
   }, { passive: true });
@@ -1181,7 +1185,7 @@ function subtitulo(k) {
 }
 function desenharNav() {
   const n = $('#pNav'); if (!n) return;
-  n.innerHTML = `<div class="p-nav-topo"><h2>Ajustes</h2><button class="icone" data-fechar aria-label="Fechar">${ICO.fechar}</button></div>` +
+  n.innerHTML = `<div class="p-nav-topo"><button class="icone" data-fechar aria-label="Fechar">${ICO.fechar}</button><h2>Ajustes</h2><span class="vazio-x"></span></div>` +
     PAGINAS.map(g => `<div class="p-grupo">${g.map(([k, t, ic]) => `<button class="p-item${k === abaAtual ? ' on' : ''}" data-aba="${k}"><span class="pi">${ic}</span><span class="pt"><b>${t}</b><small>${esc(subtitulo(k))}</small></span>${k === 'atualizacoes' && atualizacao ? '<i class="ponto"></i>' : ''}<span class="seta">${ICO.seta}</span></button>`).join('')}</div>`).join('');
   n.querySelectorAll('[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
   n.querySelector('[data-fechar]').onclick = () => fecharModal();
@@ -1663,8 +1667,8 @@ function aquecerFolhas() {
     abrirConfig(estreita() ? undefined : abaAtual);
     perguntar('Própons IA', '<p>…</p>', [['Ok', 0, 'primario']]);
     menuFlutuante(document.body, [[ICO.renomear, 'Renomear', () => {}], [ICO.apagar, 'Apagar', () => {}, true]], 'Própons IA');
-    const folhas = document.querySelectorAll('.painel-fundo, .dlg-fundo');
-    folhas.forEach(f => { f.style.opacity = '0.001'; f.style.pointerEvents = 'none'; f.style.animation = 'none'; if (f.firstChild) f.firstChild.style.animation = 'none'; });
+    const folhas = document.querySelectorAll('.painel-fundo, .dlg-fundo, .menu');
+    folhas.forEach(f => { f.style.opacity = '0.001'; f.style.pointerEvents = 'none'; f.style.animation = 'none'; f.classList.remove('atras'); if (f.firstChild) f.firstChild.style.animation = 'none'; });
     requestAnimationFrame(() => requestAnimationFrame(() => { folhas.forEach(f => f.remove()); abaAtual = abaAntes; }));
   });
 }

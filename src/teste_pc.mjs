@@ -14,7 +14,8 @@ const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  �
 for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 console.log('   janela:', await js('innerWidth + "x" + innerHeight'), '· estreita:', await js('estreita()'));
 ok('sem texto de estado ao abrir', await js(`$('#estado').hidden`), await js(`$('#estado').textContent`));
-ok('menu lateral da mesma cor do fundo', await js(`getComputedStyle($('#lateral')).backgroundColor === getComputedStyle(document.body).backgroundColor`));
+await js('abrirLateral(); 1'); await espera(350);
+ok('menu lateral e chat são cartões flutuantes da mesma cor, sobre um fundo mais escuro', await js(`(() => { const l = getComputedStyle($('#lateral')), m = getComputedStyle(document.querySelector('main')); return l.backgroundColor === m.backgroundColor && l.backgroundColor !== getComputedStyle(document.body).backgroundColor && parseInt(l.borderRadius) >= 20 && parseInt(m.borderRadius) >= 20 && $('#lateral').getBoundingClientRect().left >= 10 })()`));
 await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(400);
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
