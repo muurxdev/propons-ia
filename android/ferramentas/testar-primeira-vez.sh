@@ -25,4 +25,13 @@ adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
 adb exec-out screencap -p >"$SAIDA/0-aberto.png"
 node "$RAIZ/src/teste_escolher.mjs" 9444 "$SAIDA" "$MODELO"; R=$?
 adb exec-out screencap -p >"$SAIDA/9-final.png"
+# abertura fria: com o modelo já baixado, o app abre no chat sem ligar a IA; a primeira mensagem liga e é respondida
+if [ $R -eq 0 ]; then
+  echo "== abertura fria"
+  adb shell am force-stop $PKG; sleep 1
+  adb shell am start -n $PKG/.MainActivity >/dev/null
+  for i in $(seq 1 60); do PID=$(adb shell pidof $PKG | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
+  sleep 3; adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
+  node "$RAIZ/src/teste_frio.mjs" 9444 "$SAIDA" || R=1
+fi
 exit $R

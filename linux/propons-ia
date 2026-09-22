@@ -4,7 +4,7 @@
 # numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.13.2"
+VERSAO="1.14.0"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"

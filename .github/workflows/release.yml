@@ -175,5 +175,6 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           V="${GITHUB_REF_NAME}"
+          awk '/^## /{n++} n<=1' docs/novidades.md > notas.md   # só a seção da versão nova
           gh release create "$V" arte/Propons-IA-* arte/propons-ia* arte/altstore-source.json arte/SHA256SUMS \
-            --title "Própons IA ${V#v}" --notes-file docs/novidades.md --latest
+            --title "Própons IA ${V#v}" --notes-file notas.md --latest

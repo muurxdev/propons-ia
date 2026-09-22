@@ -33,7 +33,7 @@ echo "== instalar e abrir"
 adb install -r -g "$APK" >/dev/null || exit 1
 adb shell am force-stop $PKG; adb logcat -c
 T0=$(date +%s)
-adb shell am start -n $PKG/.MainActivity >/dev/null
+adb shell am start -n $PKG/.MainActivity --ez ligar true >/dev/null
 # espera a IA ficar pronta (motor respondendo dentro do celular)
 PRONTO=0
 for i in $(seq 1 600); do

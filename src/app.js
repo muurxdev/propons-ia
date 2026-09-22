@@ -93,14 +93,14 @@ function folhaArrastavel(fundo, folha, fechar) {
   };
   folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
 }
-const topoCentro = titulo => `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="Fechar">${ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
+const topoCentro = (titulo, voltar) => `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="${voltar ? 'Voltar' : 'Fechar'}">${voltar ? ICO.voltar : ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
 const topoFolha = topoCentro;
 
 /* diálogo próprio (folha que sobe de baixo). botoes: [[rótulo, valor, 'primario'|'perigo'|'']]; devolve o valor escolhido (null ao fechar) */
-function perguntar(titulo, html, botoes) {
+function perguntar(titulo, html, botoes, opcoes) {
   return new Promise(ok => {
     const f = document.createElement('div'); f.className = 'dlg-fundo';
-    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}">${topoFolha(titulo)}${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
+    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}">${topoFolha(titulo, !!(opcoes && opcoes.voltar))}${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
     let resolvido = false;
     const fim = v => { if (resolvido) return; resolvido = true; ok(v); animarSaida(f, f.firstChild); };
     f.querySelector('[data-x]').onclick = () => fim(null);
@@ -438,15 +438,15 @@ $('#anexar').onclick = () => abrirMais();
    Áudio longo é cortado em trechos (nos silêncios) e transcrito um por um; áudio curtinho ganha silêncio
    em volta, porque o whisper ignora trechos com menos de 1 segundo. */
 const TRECHO = PLATAFORMA.tipo === 'ios' ? 50 : 180;   // segundos por trecho (o reconhecimento do iPhone aceita ~1 min)
-let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null, enviarAoTranscrever = false;
+let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null;
 const mmss = s => (s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') : Math.floor(s / 60)) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 function barraGravacao(modo, texto, pct) {
   const g = $('#gravando');
   if (!modo) { g.hidden = true; return; }
   g.hidden = false;
   const grav = modo === 'gravando';
-  $('#cancelarGrav').disabled = !grav; $('#pararGrav').hidden = !grav;
-  $('#enviarGrav').disabled = !grav; $('#enviarGrav').classList.toggle('carregando', !grav);
+  $('#cancelarGrav').disabled = !grav;
+  $('#pararGrav').disabled = !grav; $('#pararGrav').classList.toggle('carregando', !grav);
   g.classList.toggle('transcrevendo', !grav);
   if (!grav) $('#tempoGrav').textContent = 'Transcrevendo'; else if (texto !== undefined) $('#tempoGrav').textContent = texto;
 }
@@ -590,17 +590,15 @@ async function transcreverAudio(blob) {
     if (!texto) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
     const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
     guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto });
-    if (enviarAoTranscrever) { enviarAoTranscrever = false; transcrevendo = false; barraGravacao(null); enviar(e.value); return; }
   } catch (e) {
     toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : /memory|allocation|RangeError/i.test(e.message || e.name) ? 'Áudio grande demais para a memória deste aparelho.' : 'Não foi possível transcrever: ' + e.message, 4500);
-  } finally { transcrevendo = false; trechoAtual = null; enviarAoTranscrever = false; barraGravacao(null); }
+  } finally { transcrevendo = false; trechoAtual = null; barraGravacao(null); }
 }
 // progresso real do whisper (quando o aparelho manda): a barra deixa de ser indeterminada
 PLATAFORMA.ao('transcricao', d => { if (!transcrevendo) return; const t = trechoAtual || { i: 0, n: 1 }; barraGravacao('transcrevendo', undefined, (t.i + (d.pct || 0)) / t.n); });
 $('#falar').onclick = () => iniciarGravacao();
 $('#pararGrav').onclick = () => pararGravacao(true);
-$('#enviarGrav').onclick = () => { enviarAoTranscrever = true; pararGravacao(true); };   // seta: transcreve e já envia
-$('#cancelarGrav').onclick = () => { enviarAoTranscrever = false; pararGravacao(false); };
+$('#cancelarGrav').onclick = () => pararGravacao(false);
 $('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { transcreverAudio(f); } };
 
 /* ---------------- biblioteca da sessão ----------------
@@ -648,7 +646,7 @@ async function verItemBiblioteca(i, folha) {
   const previa = i.tipo === 'imagem' ? `<img src="${esc(i.dataUrl || i.miniatura)}" alt="" style="width:100%;max-height:52vh;object-fit:contain;border-radius:14px;background:var(--code);display:block">`
     : `<pre style="max-height:40vh;overflow:auto;white-space:pre-wrap;font:12.5px var(--mono);background:var(--code);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0">${esc((i.tipo === 'audio' ? i.texto : i.conteudo || '').slice(0, 20000))}</pre>`;
   const acao = await perguntar(i.nome, `<p style="margin:0 0 10px">${esc(descBib(i))}</p>${previa}`,
-    [['Apagar', 'apagar', 'perigo'], ...(i.tipo === 'imagem' ? [] : [['Copiar', 'copiar', '']]), ['Usar na mensagem', 'usar', 'primario']]);
+    [['Apagar', 'apagar', 'perigo'], ...(i.tipo === 'imagem' ? [] : [['Copiar', 'copiar', '']]), ['Usar na mensagem', 'usar', 'primario']], { voltar: true });
   if (acao === 'apagar') { biblioteca = biblioteca.filter(x => x !== i); desenharBiblioteca(folha); toast('Apagado da biblioteca.'); }
   else if (acao === 'copiar') copiarTexto(i.tipo === 'audio' ? i.texto : i.conteudo).then(() => toast('Copiado.'));
   else if (acao === 'usar') {
@@ -717,7 +715,7 @@ const esforco = () => ESFORCO[pref('esforco')] ? pref('esforco') : 'medio';
 ICO.esforco = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
 function abrirEsforco(depois) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço')}<div class="lista-modelos">${Object.entries(ESFORCO).map(([k, [r, d]]) =>
+  f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço', true)}<div class="lista-modelos">${Object.entries(ESFORCO).map(([k, [r, d]]) =>
     `<button class="lm${k === esforco() ? ' on' : ''}" data-e="${k}"><span class="pt"><b>${r}</b><small>${d}</small></span><span class="st">${k === esforco() ? `<span class="check">${ICO.check}</span>` : ''}</span></button>`).join('')}</div></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
@@ -736,6 +734,15 @@ const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, M
    sobe a lista de modelos; ao tocar em Baixar, aparece a bolinha com a %; quando termina, o app liga a IA,
    abre o chat de novo e a IA responde a mensagem que ficou esperando. */
 const ESCOLHER = !!window.PROPONS_ESCOLHER || /[#&]escolher\b/.test(location.hash);
+// abertura fria: a IA ainda não foi ligada. Se já há um modelo baixado (MODELO_INICIAL), o chat abre normal e a IA liga
+// na primeira mensagem; se não há, a primeira mensagem abre a lista para escolher e baixar.
+const MODELO_INICIAL = window.PROPONS_MODELO || (location.hash.match(/[#&]modelo=([a-z]+)/) || [])[1] || null;
+async function ligarInicial() {
+  escolhendoId = MODELO_INICIAL;
+  const alvo = addIa({ texto: '', interno: true }, false); if (alvo) alvo.classList.add('digitando');
+  try { await PLATAFORMA.escolherModelo(MODELO_INICIAL); }
+  catch (e) { escolhendoId = null; if (alvo) alvo.parentNode.remove(); toast('Não foi possível ligar a IA: ' + e.message, 4000); }
+}
 let escolhendoId = null;
 PLATAFORMA.ao('download', d => {
   const id = d.id;
@@ -751,8 +758,8 @@ PLATAFORMA.ao('download-fim', d => {
 });
 PLATAFORMA.ao('motor', d => {
   if (!ESCOLHER) return;
-  if (d.estado === 'ligando') { estado('ligando a IA'); document.querySelectorAll('.lista-modelos .st .anel').forEach(a => a.outerHTML = '<span class="anel girando"><b></b></span>'); }
-  if (d.estado === 'erro') { escolhendoId = null; estado('erro', true); toast(d.mensagem || 'Não foi possível ligar a IA.', 5000); }
+  if (d.estado === 'ligando') document.querySelectorAll('.lista-modelos .st .anel').forEach(a => a.outerHTML = '<span class="anel girando"><b></b></span>');
+  if (d.estado === 'erro') { escolhendoId = null; document.querySelectorAll('.msg.ia .txt.digitando').forEach(t => t.parentNode.remove()); toast(d.mensagem || 'Não foi possível ligar a IA.', 5000); const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f); }
 });
 // depois que a IA liga, responde a mensagem que ficou esperando o download
 async function responderPendente() {
@@ -765,7 +772,7 @@ async function responderPendente() {
 /* ---------------- seletor de modelo (ao lado do "+", como no Claude) ---------------- */
 function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
-  $('#nomeModelo').textContent = ESCOLHER ? 'Escolher modelo' : a ? nomeModelo(a) : 'Modelo';
+  $('#nomeModelo').textContent = ESCOLHER ? (MODELO_INICIAL ? nomeModelo(MODELO_INICIAL) : 'Escolher modelo') : a ? nomeModelo(a) : 'Modelo';
   const p = $('#pillEsforco'); if (p) { p.textContent = ESFORCO[esforco()][0]; p.hidden = ESCOLHER || esforco() === 'medio'; }
 }
 async function abrirSeletorModelo(motivo) {
@@ -795,7 +802,7 @@ function desenharListaModelos(folha) {
     const b = baixando[m.id] || (escolhendoId === m.id ? { pct: 0 } : null);
     const emUso = !ESCOLHER && m.atual && !trocandoPara, ligando = !ESCOLHER && trocandoPara === m.id;
     const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b></b></span>' : m.bloqueado ? '' : emUso ? `<span class="check">${ICO.check}</span>`
-      : ESCOLHER ? '<span class="btn-mini">Baixar</span>' : '';
+      : ESCOLHER ? `<span class="btn-mini">${m.baixado ? 'Usar' : 'Baixar'}</span>` : '';
     const desc = m.bloqueado ? m.bloqueado : (DESC_MODELO[m.id] || PESO_MODELO[m.id] || '') + (m.baixado ? '' : ' · ' + gbBonito(m.tamanho) + (ESCOLHER ? '' : ' para baixar'));
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
       <span class="pt"><b>${esc(nomeModelo(m))}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
@@ -936,7 +943,7 @@ async function enviar(texto) {
   }
   atual.msgs.push(m); atual.atualizada = Date.now();
   conversas = [atual, ...conversas.filter(c => c !== atual)];
-  if (ESCOLHER) { m.pendente = true; addEu(m, true); desenharLista(); salvar(true); abrirSeletorModelo('enviar'); return; }
+  if (ESCOLHER) { m.pendente = true; addEu(m, true); desenharLista(); salvar(true); if (escolhendoId) return; if (MODELO_INICIAL) ligarInicial(); else abrirSeletorModelo('enviar'); return; }
   addEu(m, true); desenharLista(); salvar();
   await responder(atual);
 }
@@ -1564,8 +1571,11 @@ function tempoAtras(ts) {
   return s < 90 ? 'agora há pouco' : s < 3600 ? `há ${Math.round(s / 60)} min` : s < 86400 ? `há ${Math.round(s / 3600)} h` : 'em ' + new Date(ts).toLocaleDateString('pt-BR');
 }
 // notas da versão (vêm de docs/novidades.md): sem o título e sem a tabela de downloads
+// só a seção da versão nova; itens marcados como de outra plataforma ("- **PC:**", "- **Celular:**") não aparecem
 function limparNotas(s) {
-  return s.replace(/\r/g, '').replace(/^\s*#{1,3}\s[^\n]*\n/, '').split(/\n#{1,3}\s*(?:Baixar|Downloads?|Instalar)\b/i)[0].trim().slice(0, 2500);
+  const linhas = s.replace(/\r/g, '').replace(/^\s*#{1,3}\s[^\n]*\n/, '').split(/\n#{1,3}\s*(?:Baixar|Downloads?|Instalar|Novidades)\b/i)[0].split('\n');
+  const outra = CELULAR ? /^\s*-\s*\*\*(PC|Windows|Mac|Linux|Computador)\b/i : /^\s*-\s*\*\*(Celular|Android|iPhone|iOS|Mobile)\b/i;
+  return linhas.filter(l => !outra.test(l)).join('\n').trim().slice(0, 2500);
 }
 function rotuloAtualizar() {
   return ({ ios: 'Atualizar pelo SideStore/AltStore', web: 'Como atualizar', windows: 'Atualizar agora', android: 'Atualizar agora', mac: 'Atualizar agora' })[PLATAFORMA.tipo];
@@ -1745,7 +1755,7 @@ if (!estreita()) abrirLateral();
   if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
   await carregarHistorico();
   lerSistema().then(atualizarSeletorModelo);
-  if (ESCOLHER) { atualizarSeletorModelo(); return; }   // sem modelo ainda: o motor liga depois da escolha
+  if (ESCOLHER) { atualizarSeletorModelo(); setTimeout(avisoAutomatico, 4000); return; }   // a IA liga na primeira mensagem
   verificar();
   // Linux: a transcrição existe se o pacote trouxe o whisper (sistema.json)
   if (PLATAFORMA.tipo === 'web') lerSistema().then(s => { if (s && s.temTranscricao) { PLATAFORMA.temTranscricao = true; PLATAFORMA.urlTranscricao = s.transcricaoUrl || ''; } });

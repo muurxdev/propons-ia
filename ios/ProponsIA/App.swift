@@ -101,12 +101,13 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     private var aoTentar: CheckedContinuation<Void, Never>?
 
     private func iniciar() async {
-        // primeira abertura: abre a interface para a pessoa escolher o modelo (nada é baixado antes)
-        if acharModelo(modelo) == nil {
+        // abertura fria: a interface abre na hora, sem carregar a IA; ela carrega na primeira mensagem
+        do {
             escolhendo = true; naSplash = false
+            let temModelo = acharModelo(modelo) != nil
             await MainActor.run {
                 let dir = Bundle.main.resourceURL!.appendingPathComponent("interface", isDirectory: true)
-                let u = URL(string: dir.appendingPathComponent("index.html").absoluteString + "#escolher")!
+                let u = URL(string: dir.appendingPathComponent("index.html").absoluteString + "#escolher" + (temModelo ? "&modelo=" + modelo.id : ""))!
                 web.loadFileURL(u, allowingReadAccessTo: dir)
             }
             return

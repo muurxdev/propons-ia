@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.13.2";
+    public const string Versao = "1.14.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -416,12 +416,15 @@ class Janela : Form
         }
         catch (Exception ex) { Program.Log("webview: " + ex); Falha("Este PC não tem o componente de janela do Windows (WebView2)."); return; }
 
-        // primeira abertura (nenhum modelo baixado): abre a interface para a pessoa escolher o modelo
-        if (forcar == null && AcharModelo(modelo) == null)
+        // abertura fria: a interface abre na hora, sem ligar a IA; ela liga na primeira mensagem (ou, sem modelo
+        // baixado, depois da escolha). Nos testes (PROPONS_DEPURAR sem PROPONS_FRIO) liga já, como antes.
+        bool teste = Environment.GetEnvironmentVariable("PROPONS_DEPURAR") == "1" && Environment.GetEnvironmentVariable("PROPONS_FRIO") != "1";
+        if (forcar == null && (!teste || AcharModelo(modelo) == null))
         {
             escolhendo = true;
             string html = File.ReadAllText(Path.Combine(pasta, @"interface\index.html"), Encoding.UTF8);
-            await Navegar(html.Replace("<head>", "<head><script>window.PROPONS_ESCOLHER=true</script>"));
+            string ini = AcharModelo(modelo) != null ? "window.PROPONS_MODELO=" + json.Serialize(modelo.Id) + ";" : "";
+            await Navegar(html.Replace("<head>", "<head><script>window.PROPONS_ESCOLHER=true;" + ini + "</script>"));
             return;
         }
         await PrepararModeloEMotor(true);

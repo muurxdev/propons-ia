@@ -181,10 +181,13 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
 
     func iniciar() async {
         // primeira abertura: abre a interface para a pessoa escolher o modelo (nada é baixado antes)
-        if acharModelo(modelo) == nil && ProcessInfo.processInfo.environment["PROPONS_MODELO"] == nil,
+        // abertura fria: a interface abre na hora, sem ligar a IA; ela liga na primeira mensagem. O autoteste liga já.
+        let env = ProcessInfo.processInfo.environment
+        if env["PROPONS_MODELO"] == nil && (env["PROPONS_AUTOTESTE"] == nil || acharModelo(modelo) == nil),
            var html = try? String(contentsOf: recursos.appendingPathComponent("interface/index.html"), encoding: .utf8) {
             escolhendo = true; naSplash = false
-            html = html.replacingOccurrences(of: "<head>", with: "<head><script>window.PROPONS_ESCOLHER=true</script>")
+            let ini = acharModelo(modelo) != nil ? "window.PROPONS_MODELO=" + jsonTexto(modelo.id) + ";" : ""
+            html = html.replacingOccurrences(of: "<head>", with: "<head><script>window.PROPONS_ESCOLHER=true;" + ini + "</script>")
             await MainActor.run { web.loadHTMLString(html, baseURL: URL(string: "https://propons.local/")) }
             return
         }

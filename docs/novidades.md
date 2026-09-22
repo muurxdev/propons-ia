@@ -1,3 +1,13 @@
+## Novidades da 1.14.0
+
+- **Abre na hora:** o app não liga mais a IA ao abrir. O chat aparece já com o modelo salvo e a IA liga na primeira mensagem (a resposta chega logo em seguida). Sem modelo baixado, a primeira mensagem abre a lista para escolher.
+- **A transcrição nunca envia sozinha:** a seta da barra de gravação transcreve para a caixa de texto; você confere e envia.
+- **Voltar em vez de fechar:** folha que abre por cima de outra (Esforço, item da Biblioteca) tem a seta de voltar.
+- **Folhas compactas** no celular, no tamanho da de Ajustes; caixas de diálogo e listas menores e mais objetivas.
+- **Atualizações:** a lista mostra só as novidades da versão nova, e só as que valem para o seu aparelho (itens de PC não aparecem no celular, e vice-versa).
+- **PC:** abrindo em modo de teste a IA continua ligando na hora, para os testes automáticos.
+- **Celular:** o botão de abrir e fechar o menu e as folhas ficaram mais leves.
+
 ## Novidades da 1.13.2
 
 - **Windows: o modelo não "some" mais depois de reiniciar.** A escolha do modelo ficava só numa pasta `dados` ao lado do .exe; se ela se perdia (exe numa pasta temporária, pendrive tirado, perfil limpo), o app voltava ao padrão, não achava o modelo e pedia para baixar de novo, embora o arquivo continuasse em `AppData`. Agora a configuração é gravada também em `AppData` e, se mesmo assim faltar, o app usa automaticamente o melhor modelo que já está baixado.

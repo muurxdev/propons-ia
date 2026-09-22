@@ -207,10 +207,13 @@ class MainActivity : Activity() {
     private fun iniciar() {
         try { copiarInterface() } catch (e: Exception) { splash(-2.0, "Não foi possível abrir", "Falha ao preparar os arquivos: ${e.message}"); return }
         modelo = modelos.firstOrNull { it.id == prefs.getString("modelo", null) } ?: if (ramTotal < 6L shl 30) modelos[0] else modelos[1]
-        if (acharModelo(modelo) == null) {
-            // primeira abertura: abre a interface para a pessoa escolher o modelo (nada é baixado antes)
+        // abertura fria: a interface abre na hora, sem ligar a IA; ela liga na primeira mensagem (ou, sem modelo baixado,
+        // depois da escolha). Os testes abrem com o extra "ligar" para ligar já.
+        val ligarAgora = intent?.getBooleanExtra("ligar", false) == true
+        if (acharModelo(modelo) == null || !ligarAgora) {
             escolhendo = true; naSplash = false
-            val html = File(pastaInterface, "index.html").readText().replaceFirst("<head>", "<head><script>window.PROPONS_ESCOLHER=true</script>")
+            val ini = if (acharModelo(modelo) != null) "window.PROPONS_MODELO=" + JSONObject.quote(modelo.id) + ";" else ""
+            val html = File(pastaInterface, "index.html").readText().replaceFirst("<head>", "<head><script>window.PROPONS_ESCOLHER=true;$ini</script>")
             ui.post { web.loadDataWithBaseURL("https://propons.local/", html, "text/html", "utf-8", null) }
             return
         }

@@ -443,7 +443,15 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .macoes .btn{flex:1}
 
   .dlg-fundo{place-items:end stretch}
-  .dlg{width:100%;border-left:0;border-right:0;padding:0 18px calc(var(--sb) + 18px)}
+  .dlg{width:100%;border-left:0;border-right:0;padding:0 16px calc(var(--sb) + 14px)}
+  .folha{padding:0 8px calc(var(--sb) + 10px)}
+  .dlg-topo.centro{padding:20px 0 10px} .folha .dlg-topo.centro{padding:20px 4px 10px}
+  .dlg-topo.centro h3{font-size:16px}
+  .dlg .dlg-txt{font-size:14px;margin-bottom:12px}
+  .lm{padding:11px 14px} .lm b{font-size:15px} .lm small{font-size:13px}
+  .opcoes.linhas button{padding:10px 12px} .opcoes.linhas .oi{width:36px;height:36px} .opcoes.linhas b{font-size:14.5px} .opcoes.linhas small{font-size:12.5px}
+  .opcoes.cartoes{gap:8px} .opcoes.cartoes button{padding:14px 6px 12px;font-size:14px} .opcoes.cartoes .oi svg{width:24px;height:24px}
+  .dlg .botoes{margin-top:4px} .dlg .botoes .btn{min-height:42px}
   .dlg .botoes{flex-direction:column-reverse}
   .dlg .botoes .btn{width:100%}
   .toast{bottom:calc(88px + var(--sb))}
@@ -504,8 +512,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
         <button class="redondo" id="cancelarGrav" title="Descartar" aria-label="Descartar gravação"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         <b id="tempoGrav">0:00</b>
         <span class="onda" id="onda"></span>
-        <button class="redondo" id="pararGrav" title="Parar e transcrever" aria-label="Parar e transcrever"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/></svg></button>
-        <button class="redondo enviar" id="enviarGrav" title="Transcrever e enviar" aria-label="Transcrever e enviar"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        <button class="redondo enviar" id="pararGrav" title="Transcrever" aria-label="Parar e transcrever para a caixa"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">

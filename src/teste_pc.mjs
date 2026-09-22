@@ -73,11 +73,12 @@ await js('fecharModal(true); 1'); await espera(200);
 // gravação: só "Gravando"/"Transcrevendo", sem porcentagens nem toast de "Pronto"
 await js(`window.__avisos = []; if (!window.__toast0) { window.__toast0 = toast; toast = (t, ms) => { window.__avisos.push(t); window.__toast0(t, ms); }; } nova(); $('#entrada').value=''; $('#falar').click(); 1`);
 await espera(11500); await foto('p7-gravando');
-ok('barra de gravação: X · ondas · parar · enviar (botões redondos)', await js(`!$('#cancelarGrav').disabled && !$('#pararGrav').hidden && !$('#enviarGrav').disabled && getComputedStyle($('#enviarGrav')).borderRadius === '50%'`));
+ok('barra de gravação: X · tempo · ondas · seta redonda (transcreve para a caixa, não envia)', await js(`!$('#cancelarGrav').disabled && !$('#pararGrav').disabled && getComputedStyle($('#pararGrav')).borderRadius === '50%' && !$('#enviarGrav')`));
 await js(`$('#pararGrav').click(); 1`); await espera(700);
-ok('transcrevendo: a barra continua (ondas paradas), "Transcrevendo" no lugar do tempo, seta com anel', await js(`$('#gravando').classList.contains('transcrevendo') && $('#tempoGrav').textContent === 'Transcrevendo' && !$('#onda').hidden && $('#pararGrav').hidden && $('#enviarGrav').classList.contains('carregando')`));
+ok('transcrevendo: a barra continua (ondas paradas), "Transcrevendo" no lugar do tempo, seta com anel', await js(`$('#gravando').classList.contains('transcrevendo') && $('#tempoGrav').textContent === 'Transcrevendo' && !$('#onda').hidden && $('#pararGrav').disabled && $('#pararGrav').classList.contains('carregando')`));
 await foto('p8-transcrevendo');
 for (let i = 0; i < 200 && (await js('transcrevendo')); i++) await espera(200);
+ok('depois de transcrever, o texto fica na caixa e NÃO é enviado', await js(`!geracao && !!$('#entrada').value && !(atual && atual.msgs.length)`));
 ok('texto na caixa, sem aviso "Pronto"', /capital do brasil/i.test(await js(`$('#entrada').value`)) && !(await js('window.__avisos')).some(t => /Pronto/.test(t)), JSON.stringify([await js(`$('#entrada').value`), await js('window.__avisos')]));
 await js(`$('#entrada').value=''; ajustar(); 1`);
 ws.close();
