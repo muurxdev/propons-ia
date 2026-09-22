@@ -4,5 +4,7 @@ linux/propons-ia text eol=lf
 linux/*.desktop text eol=lf
 linux/PKGBUILD text eol=lf
 *.ps1 text eol=crlf
+src/vendor/*.js text eol=lf
+src/vendor/*.mjs text eol=lf
 *.png binary
 *.ico binary

@@ -27,6 +27,14 @@ await foto('3-codigo');
 await js(`adicionarArquivos([new File(['print(sum([1, 2, 3]))\\n'], 'soma.py', {type: 'text/plain'})])`);
 m = await pergunta('o que esse arquivo imprime?');
 ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto.slice(0, 100));   // Lume (0.8B) varia; basta falar do arquivo
+// PDF anexado vira texto (pdf.js embutido, carregado por blob no WebView do Android)
+{
+  const pdfB64 = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFs0IDAgUiA2IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago0IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgMyAwIFIgPj4gPj4gL0NvbnRlbnRzIDUgMCBSID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggOTIgPj4Kc3RyZWFtCkJUIC9GMSAxNCBUZiA2MCA3MjAgVGQgKEEgZm90b3NzaW50ZXNlIHRyYW5zZm9ybWEgbHV6IGVtIGVuZXJnaWEgcXVpbWljYSBuYXMgcGxhbnRhcy4pIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNiAwIG9iago8PCAvVHlwZSAvUGFnZSAvUGFyZW50IDIgMCBSIC9NZWRpYUJveCBbMCAwIDYxMiA3OTJdIC9SZXNvdXJjZXMgPDwgL0ZvbnQgPDwgL0YxIDMgMCBSID4+ID4+IC9Db250ZW50cyA3IDAgUiA+PgplbmRvYmoKNyAwIG9iago8PCAvTGVuZ3RoIDkzID4+CnN0cmVhbQpCVCAvRjEgMTQgVGYgNjAgNzIwIFRkIChTZWd1bmRhIHBhZ2luYTogbyBxdWljayBzb3J0IGVzY29saGUgdW0gcGl2byBlIGRpdmlkZSBhIGxpc3RhLikgVGogRVQKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgOAowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTIxIDAwMDAwIG4gCjAwMDAwMDAxOTEgMDAwMDAgbiAKMDAwMDAwMDMxNyAwMDAwMCBuIAowMDAwMDAwNDU5IDAwMDAwIG4gCjAwMDAwMDA1ODUgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA4IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo3MjgKJSVFT0YK';
+  await js(`anexos = []; desenharChips(); adicionarArquivos([new File([Uint8Array.from(atob('${pdfB64}'), c => c.charCodeAt(0))], 'teste.pdf', { type: 'application/pdf' })])`);
+  const a = await js(`anexos.map(x => ({ paginas: x.paginas, texto: x.conteudo }))`);
+  ok('PDF anexado vira texto (pdf.js no WebView)', a.length === 1 && a[0].paginas === 2 && /fotossintese/i.test(a[0].texto), JSON.stringify(a[0] && a[0].texto).slice(0, 100));
+  await js(`anexos = []; desenharChips(); 1`);
+}
 // ler em voz alta pela ponte (TextToSpeech do Android): botão presente e o sintetizador responde (fim ou erro sem travar)
 ok('resposta tem o botão de ouvir', await js(`!!document.querySelector('.msg.ia .acao.ler')`));
 const fala = await js(`new Promise(res => { let fim = false; PLATAFORMA.ao('fala', d => { if (d.id === 'tcel' && !fim) { fim = true; res(d); } }); PLATAFORMA.falar('Teste de voz.', 'tcel').catch(e => res({ estado: 'erro', erro: e.message })); setTimeout(() => !fim && res({ estado: 'sem resposta' }), 15000); })`);
