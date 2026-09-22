@@ -1,3 +1,8 @@
+## Novidades da 1.20.0
+
+- **Organização:** fixar conversas no topo e mover para pastas (menu ⋯ da conversa); apagou sem querer? "Desfazer" no aviso.
+- **Memória:** diga "lembre que estou no 3º ano" e a IA passa a saber disso em toda resposta; "esqueça …" apaga. Tudo editável em Ajustes → Memória, e fica só no aparelho.
+
 ## Novidades da 1.19.0
 
 - **Modos de estudo** no "+": **Flashcards** (cartões de pergunta e resposta que você vira tocando; "Guardar no baralho" e revisão com repetição espaçada em Ajustes → Estudo — o que você erra volta em 10 minutos, o que acerta volta em dias; exporta para o Anki), **Quiz** (múltipla escolha com correção na hora, explicação e "Explicar o que errei"), **Corrigir redação** (nota por competência do ENEM, comentários, pontos fortes, o que melhorar e a versão reescrita) e **Resumo**. Cole o conteúdo ou diga o tema, envie, pronto. O motor garante a estrutura do resultado (JSON por gramática), então os cartões e questões nunca vêm quebrados.

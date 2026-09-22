@@ -185,6 +185,7 @@ function validar(lista) {
     id: (() => { const id = /^[a-z0-9]{4,40}$/i.test(c.id) && !ids.has(c.id) ? c.id : novoId(); ids.add(id); return id; })(),
     titulo: txt(c.titulo).slice(0, 120) || 'Conversa',
     criada: +c.criada || Date.now(), atualizada: +c.atualizada || +c.criada || Date.now(),
+    ...(c.fixada ? { fixada: true } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
       ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
@@ -229,10 +230,12 @@ function desenharLista() {
   const l = $('#lista'), q = $('#busca').value.trim().toLowerCase();
   const lista = !q ? conversas : conversas.filter(c => c.titulo.toLowerCase().includes(q) || c.msgs.some(m => m.texto.toLowerCase().includes(q)));
   if (!lista.length) { l.innerHTML = `<div class="vazio">${q ? 'Nada encontrado.' : 'Nenhuma conversa ainda.'}</div>`; return; }
+  // ordem: fixadas, depois as pastas (em ordem alfabética), depois as outras por data
+  const fixadas = lista.filter(c => c.fixada), emPasta = lista.filter(c => !c.fixada && c.pasta).sort((a, b) => a.pasta.localeCompare(b.pasta, 'pt') || b.atualizada - a.atualizada), soltas = lista.filter(c => !c.fixada && !c.pasta);
   let g = '', html = '';
-  for (const c of lista) {
-    const gr = grupoData(c.atualizada);
-    if (gr !== g) { g = gr; html += `<div class="grupo">${gr}</div>`; }
+  for (const c of [...fixadas, ...emPasta, ...soltas]) {
+    const gr = c.fixada ? 'Fixadas' : c.pasta ? '📁 ' + c.pasta : grupoData(c.atualizada);
+    if (gr !== g) { g = gr; html += `<div class="grupo">${esc(gr)}</div>`; }
     html += `<div class="item${atual && c.id === atual.id ? ' atual' : ''}" data-id="${esc(c.id)}" role="button" tabindex="0" title="${esc(c.titulo)}"><span>${esc(c.titulo)}</span><button class="mais" data-menu="${esc(c.id)}" aria-label="Opções da conversa">${ICO.mais}</button></div>`;
   }
   l.innerHTML = html;
@@ -284,6 +287,13 @@ function menuConversa(botao, id) {
   const c = conversas.find(x => x.id === id); if (!c) return;
   menuFlutuante(botao, [
     [ICO.renomear, 'Renomear', () => renomear(id)],
+    [ICO.fixar, c.fixada ? 'Desafixar' : 'Fixar no topo', () => { c.fixada = !c.fixada; salvar(); desenharLista(); }],
+    [ICO.pasta, c.pasta ? `Pasta: ${c.pasta}` : 'Mover para pasta…', async () => {
+      const outras = [...new Set(conversas.map(x => x.pasta).filter(Boolean))].filter(p => p !== c.pasta);
+      const nome = await perguntarTexto(`Pasta da conversa${outras.length ? ' (existem: ' + outras.slice(0, 5).join(', ') + ')' : ''}`, c.pasta || '');
+      if (nome === null) return;
+      c.pasta = nome.trim().slice(0, 40); if (!c.pasta) delete c.pasta; salvar(); desenharLista();
+    }],
     ...(PLATAFORMA.podeCompartilhar ? [[ICO.compartilhar, 'Compartilhar', () => PLATAFORMA.compartilhar(conversaEmMarkdown(c)).catch(() => {})]] : []),
     [ICO.exportar, 'Exportar (.md)', () => exportarConversa(c)],
     [ICO.apagar, 'Apagar', async () => { if (await confirmar('Apagar conversa?', `"${esc(c.titulo)}" será apagada deste aparelho.`, 'Apagar', true)) apagar(id); }, true],
@@ -316,9 +326,11 @@ function nomeArquivo(t) { return (t.normalize('NFD').replace(/[̀-ͯ]/g, '').rep
 function exportarConversa(c) { PLATAFORMA.salvarArquivo(nomeArquivo(c.titulo) + '.md', conversaEmMarkdown(c), 'text/markdown').then(r => r !== false && toast('Conversa exportada.')).catch(e => toast('Não deu para exportar: ' + e.message)); }
 function apagar(id) {
   if (geracao && geracao.conv.id === id) geracao.ctrl.abort();
+  const idx = conversas.findIndex(c => c.id === id), apagada = conversas[idx];
   conversas = conversas.filter(c => c.id !== id);
   if (atual && atual.id === id) nova(); else desenharLista();
   salvar(true);
+  if (apagada) toastAcao('Conversa apagada.', 'Desfazer', () => { conversas.splice(Math.min(idx, conversas.length), 0, apagada); salvar(true); desenharLista(); abrir(apagada.id); });
 }
 
 /* ---------------- conversa na tela ---------------- */
@@ -411,6 +423,52 @@ ICO.cartoes = '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="11"
 ICO.quiz = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg>';
 ICO.redacao = '<svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 16l9.5-9.5a2 2 0 0 1 3 3L9 19H6z"/></svg>';
 ICO.resumo = '<svg viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h9M5 18h6"/></svg>';
+ICO.fixar = '<svg viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/></svg>';
+ICO.pasta = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+ICO.memoria = '<svg viewBox="0 0 24 24"><path d="M12 4a7 7 0 0 1 7 7c0 2.5-1.3 4-2.5 5.5S15 19 15 20H9c0-1-.3-2-1.5-3.5S5 13.5 5 11a7 7 0 0 1 7-7z"/><path d="M9.5 20v1.5h5V20"/></svg>';
+
+/* ---------------- memória: o que a IA sabe sobre quem estuda (lista editável, entra no texto de sistema) ----------------
+   "lembre que …" / "anote que …" guarda sem passar pela IA; "esqueça …" apaga. Tudo fica só neste aparelho. */
+const RE_LEMBRAR = /^(?:lembre|lembra|anote|anota|guarde|guarda)(?:-se)?\s+(?:que|de que|disso:|:)?\s*(.+)$/i, RE_ESQUECER = /^(?:esque[çc]a|esquece|apague|apaga)\s+(?:que\s+|isso:\s*|:\s*)?(.+)$/i;
+function memoria() { try { const m = JSON.parse(pref('memoria') || '[]'); return Array.isArray(m) ? m.filter(x => typeof x === 'string').slice(0, 40) : []; } catch (e) { return []; } }
+function salvarMemoria(m) { pref('memoria', JSON.stringify(m.slice(0, 40))); }
+function lembrar(texto) { const t = String(texto).trim().replace(/[.!]+$/, '').slice(0, 200); if (!t) return false; const m = memoria(); if (m.some(x => x.toLowerCase() === t.toLowerCase())) return false; m.push(t); salvarMemoria(m); return true; }
+function textoMemoria() { const m = memoria(); return m.length ? '\n\nSobre quem está estudando com você (use quando for útil, sem repetir à toa):\n- ' + m.join('\n- ') : ''; }
+// mensagem "lembre que…" / "esqueça…": responde na hora, sem a IA; devolve true se tratou
+function tratarMemoria(texto) {
+  let m = texto.match(RE_LEMBRAR);
+  if (m) { const ok = lembrar(m[1]); respostaLocal(ok ? `Anotado: **${m[1].trim().replace(/[.!]+$/, '')}**. Fica em Ajustes → Memória; você pode editar ou apagar quando quiser.` : 'Isso eu já sabia. Está em Ajustes → Memória.'); return true; }
+  m = texto.match(RE_ESQUECER);
+  if (m) {
+    const alvo = m[1].trim().toLowerCase(), antes = memoria();
+    const depois = /^tudo$/.test(alvo) ? [] : antes.filter(x => !x.toLowerCase().includes(alvo));
+    if (depois.length === antes.length) { if (!antes.length) return false; respostaLocal('Não achei isso na memória. Veja o que eu sei em Ajustes → Memória.'); return true; }
+    salvarMemoria(depois); respostaLocal(`Esqueci ${antes.length - depois.length === 1 ? 'isso' : (antes.length - depois.length) + ' itens'}.`); return true;
+  }
+  return false;
+}
+function respostaLocal(texto) {   // resposta do próprio app (sem passar pela IA), gravada na conversa
+  const msg = { role: 'assistant', texto, llm: texto };
+  atual.msgs.push(msg); atual.atualizada = Date.now(); addIa(msg, true); salvar(); desenharLista();
+}
+function abaMemoria(c) {
+  const m = memoria();
+  c.innerHTML = `<p class="info" style="margin:0 12px 10px">O que a IA sabe sobre você entra em toda resposta. Diga "lembre que…" no chat ou escreva aqui. Fica só neste aparelho.</p>
+    <div class="cartao"><div class="mem-lista">${m.length ? m.map((x, i) => `<div class="mem-item"><span>${esc(x)}</span><button class="icone" data-mem-rm="${i}" aria-label="Apagar">${ICO.apagar}</button></div>`).join('') : '<p class="info" style="margin:8px 12px">Nada ainda. Exemplo: "lembre que estou no 3º ano e vou fazer o ENEM".</p>'}</div>
+      <div class="mem-novo"><input id="memNovo" placeholder="Adicionar: ex. estudo engenharia, prefiro exemplos com código" maxlength="200"><button class="btn primario" id="memAdd">Adicionar</button></div></div>
+    ${m.length ? `<div class="secao" style="margin-top:14px"><div class="botoes"><button class="btn perigo" id="memLimpar">Esquecer tudo</button></div></div>` : ''}`;
+  c.querySelectorAll('[data-mem-rm]').forEach(b => b.onclick = () => { const l = memoria(); l.splice(+b.dataset.memRm, 1); salvarMemoria(l); desenharAba(); desenharNav(); });
+  const add = () => { const v = c.querySelector('#memNovo').value; if (lembrar(v)) { desenharAba(); desenharNav(); } else if (v.trim()) toast('Isso já está na memória.'); };
+  c.querySelector('#memAdd').onclick = add; c.querySelector('#memNovo').onkeydown = e => { if (e.key === 'Enter') add(); };
+  const lim = c.querySelector('#memLimpar'); if (lim) lim.onclick = async () => { if (await confirmar('Esquecer tudo?', '<p>A IA deixa de saber essas coisas sobre você.</p>', 'Esquecer')) { salvarMemoria([]); desenharAba(); desenharNav(); } };
+}
+// aviso com um botão (ex.: "Desfazer")
+function toastAcao(texto, rotulo, fn, ms = 6000) {
+  const d = document.createElement('div'); d.className = 'toast acao-toast'; d.setAttribute('role', 'status');
+  d.innerHTML = `<span>${esc(texto)}</span><button>${esc(rotulo)}</button>`;
+  d.querySelector('button').onclick = () => { d.remove(); fn(); };
+  document.body.appendChild(d); setTimeout(() => d.remove(), ms);
+}
 const ESQ_TXT = { type: 'string' };
 const MODOS = {
   flashcards: { nome: 'Flashcards', desc: 'Cartões de pergunta e resposta para revisar depois', ico: 'cartoes', campo: 'cartoes', placeholder: 'Cole o conteúdo ou diga o tema dos flashcards…', espera: 'Montando os flashcards…',
@@ -1311,6 +1369,7 @@ async function enviar(texto) {
   conversas = [atual, ...conversas.filter(c => c !== atual)];
   if (ESCOLHER) { m.pendente = true; addEu(m, true); desenharLista(); salvar(true); if (escolhendoId) return; if (MODELO_INICIAL) ligarInicial(); else abrirSeletorModelo('enviar'); return; }
   addEu(m, true); desenharLista(); salvar();
+  if (!todos.length && !m.modo && tratarMemoria(texto)) return;   // "lembre que…" / "esqueça…": o app responde na hora
   await responder(atual);
 }
 
@@ -1365,7 +1424,7 @@ async function responder(conv, continuacao) {
 
   const nivel = esforco();
   const maxTokens = nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;
-  const SISTEMA = SYSTEM + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.' : nivel === 'alto' ? '\n\nAntes de responder, pense com cuidado: entenda o que foi pedido, resolva passo a passo e confira o resultado. Depois responda de forma completa, organizada e correta.' : '');
+  const SISTEMA = SYSTEM + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.' : nivel === 'alto' ? '\n\nAntes de responder, pense com cuidado: entenda o que foi pedido, resolva passo a passo e confira o resultado. Depois responda de forma completa, organizada e correta.' : '');
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
   const historico = montarHistorico(conv, maxTokens);
   // continuar só a partir do texto inteiro: se a resposta cortada não coube na memória da IA, continuar dela sairia errado
@@ -1573,7 +1632,7 @@ const GB = 1073741824;
 let abaAtual = 'modelo';
 const PAGINAS = [
   [['modelo', 'Modelos de IA', ICO.chip], ['atualizacoes', 'Atualizações', ICO.atualizar]],
-  [['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo]],
+  [['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria]],
   [['diagnostico', 'Diagnóstico', ICO.diagnostico], ['sobre', 'Sobre', ICO.sobre]],
 ];
 const TITULOS = Object.fromEntries(PAGINAS.flat().map(([k, t]) => [k, t]));
@@ -1606,6 +1665,7 @@ function subtitulo(k) {
     case 'atualizacoes': return atualizacao ? `Versão ${atualizacao.versao} disponível` : `Versão ${VERSAO}`;
     case 'geral': return ({ sistema: 'Tema do sistema', claro: 'Tema claro', escuro: 'Tema escuro' })[pref('tema') || 'sistema'] + ' · letra ' + ({ p: 'pequena', m: 'média', g: 'grande' })[pref('fonte') || 'm'] + (PLATAFORMA.temFala ? (pref('lerRespostas') === 'sim' ? ' · lê em voz alta' : ' · voz') : '');
     case 'conversas': return `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · backup e limpeza`;
+    case 'memoria': { const n = memoria().length; return n ? `${n} ${n === 1 ? 'coisa que a IA sabe' : 'coisas que a IA sabe'} sobre você` : 'O que a IA sabe sobre você'; }
     case 'estudo': { const b = baralho(), n = paraRevisar(b).length; return b.cartoes.length ? `${n ? n + ' para revisar hoje' : 'nada para revisar hoje'} · ${b.cartoes.length} cartões` : 'Flashcards, quiz e redação'; }
     case 'diagnostico': return 'Testar tudo e medir a velocidade';
     case 'sobre': return 'Própons IA ' + VERSAO;
@@ -1655,7 +1715,7 @@ $('#abrirConfig').onclick = () => abrirConfig();
 
 function desenharAba() {
   const c = $('#corpoConfig'); if (!c) return;
-  ({ geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
+  ({ geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
 }
 function seg(nome, opcoes, atualV) {
   return `<div class="seg" data-seg="${nome}" role="radiogroup">${opcoes.map(([v, r]) => `<button data-v="${v}" role="radio" aria-checked="${v === atualV}" class="${v === atualV ? 'on' : ''}">${r}</button>`).join('')}</div>`;

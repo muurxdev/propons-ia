@@ -182,6 +182,28 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('redação: 5 notas de 0 a 200 e widget com o total', r.redacao && r.redacao.length === 5 && r.redacao.every(n => n >= 0 && n <= 200) && !r.erro && (await js(`!!document.querySelector('.msg.ia:last-child .rd-total b')`)), JSON.stringify(r));
   await js(`definirModo(null); nova(); 1`);
 }
+// 1.19: organização (fixar, pastas, desfazer exclusão) e memória ("lembre que…")
+{
+  await js(`conversas.unshift({ id: 'orgA', titulo: 'Org A', criada: Date.now(), atualizada: Date.now(), msgs: [] }, { id: 'orgB', titulo: 'Org B', criada: Date.now(), atualizada: Date.now(), msgs: [] }); const a = conversas.find(c => c.id === 'orgA'); a.fixada = true; const b = conversas.find(c => c.id === 'orgB'); b.pasta = 'Biologia'; desenharLista(); 1`);
+  const grupos = await js(`[...document.querySelectorAll('#lista .grupo')].map(g => g.textContent)`);
+  ok('lista: "Fixadas" primeiro e a pasta como grupo', grupos[0] === 'Fixadas' && grupos.some(g => /Biologia/.test(g)), JSON.stringify(grupos));
+  await js(`window.__avisos = []; apagar('orgB'); 1`); await espera(200);
+  ok('apagar mostra "Desfazer"', await js(`!!document.querySelector('.toast.acao-toast button') && !conversas.some(c => c.id === 'orgB')`));
+  await js(`document.querySelector('.toast.acao-toast button').click(); 1`); await espera(200);
+  ok('desfazer devolve a conversa (com a pasta)', await js(`(()=>{ const c = conversas.find(c => c.id === 'orgB'); return !!c && c.pasta === 'Biologia' })()`));
+  await js(`conversas = conversas.filter(c => !/^org[AB]$/.test(c.id)); nova(); pref('memoria', ''); 1`);
+  await js(`(()=>{ const e=$('#entrada'); e.value='lembre que eu estou no 3º ano e vou fazer o ENEM'; ajustar(); $('#enviar').click(); })(); 1`); await espera(400);
+  const mem = await js(`({ mem: memoria(), ultima: atual.msgs[atual.msgs.length - 1].texto, gerou: !!geracao })`);
+  ok('"lembre que…" guarda na memória e responde sem a IA', mem.mem.length === 1 && /3º ano/.test(mem.mem[0]) && /Anotado/.test(mem.ultima) && !mem.gerou, JSON.stringify(mem));
+  ok('a memória entra no texto de sistema', /3º ano/.test(await js(`textoMemoria()`)));
+  await js(`(()=>{ const e=$('#entrada'); e.value='esqueça o ENEM'; ajustar(); $('#enviar').click(); })(); 1`); await espera(400);
+  ok('"esqueça…" apaga o item', (await js(`memoria().length`)) === 0);
+  await js(`abrirConfig('memoria'); 1`); await espera(600);
+  ok('ajustes → Memória com campo para adicionar', await js(`!!$('#memNovo') && !!$('#memAdd')`));
+  await js(`$('#memNovo').value = 'prefiro exemplos com Python'; $('#memAdd').click(); 1`); await espera(200);
+  ok('adicionar pela tela', (await js(`memoria()`))[0] === 'prefiro exemplos com Python');
+  await js(`fecharModal(true); pref('memoria', ''); nova(); 1`);
+}
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
 ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));

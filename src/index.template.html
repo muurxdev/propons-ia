@@ -151,6 +151,11 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .acao svg{width:16px;height:16px}
 .acao.feito{color:var(--ok)}
 .acao.on{color:var(--accent)}
+/* memória e aviso com ação */
+.mem-lista{display:flex;flex-direction:column}
+.mem-item{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-top:1px solid var(--line);font-size:14px} .mem-item:first-child{border-top:0} .mem-item span{flex:1}
+.mem-novo{display:flex;gap:8px;padding:8px 12px 10px;border-top:1px solid var(--line)} .mem-novo input{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:var(--bg);outline:0} .mem-novo input:focus{border-color:var(--accent)}
+.toast.acao-toast{display:flex;align-items:center;gap:14px} .toast.acao-toast button{color:var(--accent);font-weight:600;padding:2px 4px}
 /* modos de estudo */
 .chip.modo{background:var(--accent-soft);color:var(--accent)} .chip.modo svg{width:14px;height:14px}
 .txt.widget{max-width:none}
