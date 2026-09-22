@@ -1,5 +1,6 @@
 ## Novidades da 1.19.0
 
+- **Modos de estudo** no "+": **Flashcards** (cartões de pergunta e resposta que você vira tocando; "Guardar no baralho" e revisão com repetição espaçada em Ajustes → Estudo — o que você erra volta em 10 minutos, o que acerta volta em dias; exporta para o Anki), **Quiz** (múltipla escolha com correção na hora, explicação e "Explicar o que errei"), **Corrigir redação** (nota por competência do ENEM, comentários, pontos fortes, o que melhorar e a versão reescrita) e **Resumo**. Cole o conteúdo ou diga o tema, envie, pronto. O motor garante a estrutura do resultado (JSON por gramática), então os cartões e questões nunca vêm quebrados.
 - **PDF e DOCX no "+"**: o texto é extraído no próprio aparelho (sem internet) e vai para a IA, com a marca de cada página. Documento longo: a Própons avisa que parte dele cabe na memória da IA nesta conversa (a busca por trechos em documentos grandes vem na próxima versão). PDF que é só imagem: mande as páginas como fotos.
 
 ## Novidades da 1.18.0

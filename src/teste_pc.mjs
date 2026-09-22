@@ -143,6 +143,45 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   const resp = await js(`atual.msgs[atual.msgs.length - 1].texto`);
   ok('a IA responde sobre o conteúdo do PDF', /fotoss[ií]ntese|planta|luz|energia/i.test(resp), resp.slice(0, 120));
 }
+// 1.19: modos de estudo — flashcards (JSON por gramática → cartões → baralho → revisão), quiz e correção de redação
+{
+  const CONTEUDO = 'A fotossíntese é o processo em que as plantas usam a luz do sol, água e gás carbônico para produzir glicose e oxigênio. Acontece nos cloroplastos, que contêm clorofila. A fase clara depende da luz e produz ATP; a fase escura (ciclo de Calvin) fixa o carbono.';
+  const gerar = async (modo, texto) => {
+    await js(`nova(); definirModo('${modo}'); $('#entrada').value = ${JSON.stringify(texto)}; ajustar(); $('#enviar').click(); 1`);
+    for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
+    for (let i = 0; i < 960 && (await js('!!geracao')); i++) await espera(250);
+    return js(`(() => { const m = atual.msgs[atual.msgs.length - 1]; return { modo: atual.msgs[atual.msgs.length - 2].modo, erro: m.erro || '', cartoes: (m.cartoes || []).length, quiz: m.quiz ? m.quiz.questoes.length : 0, redacao: m.redacao ? m.redacao.notas : null, texto: (m.texto || '').slice(0, 80) } })()`);
+  };
+  ok('"+" tem Modos de estudo', await js(`(()=>{ abrirMais(); const b = document.querySelector('.dlg [data-modos]'); const r = !!b; fecharDialogo(); return r })()`));
+  await js(`definirModo('flashcards'); 1`);
+  ok('modo ativo vira chip na caixa e muda o placeholder', await js(`!!document.querySelector('#chips .chip.modo') && /flashcards/i.test($('#entrada').placeholder)`));
+  let r = await gerar('flashcards', CONTEUDO);
+  ok('flashcards: pergunta guarda o modo e a resposta traz cartões', r.modo === 'flashcards' && r.cartoes >= 3 && !r.erro, JSON.stringify(r));
+  ok('flashcards: chip do modo some depois de enviar', !(await js(`document.querySelector('#chips .chip.modo')`)));
+  ok('flashcards: widget com os cartões e Markdown equivalente', (await js(`document.querySelectorAll('.msg.ia:last-child .fc').length`)) === r.cartoes && /Flashcards/.test(r.texto));
+  await js(`document.querySelector('.msg.ia:last-child .fc').click(); 1`);
+  ok('flashcards: tocar vira o cartão (mostra o verso)', await js(`document.querySelector('.msg.ia:last-child .fc').classList.contains('virado') && getComputedStyle(document.querySelector('.msg.ia:last-child .fc .fc-verso')).display !== 'none'`));
+  await js(`pref('baralho', ''); document.querySelector('.msg.ia:last-child [data-fc="salvar"]').click(); 1`); await espera(300);
+  ok('flashcards: guardar no baralho', (await js(`baralho().cartoes.length`)) === r.cartoes);
+  await js(`abrirRevisao(); 1`); await espera(400);
+  ok('revisão: abre com o primeiro cartão e "Mostrar resposta"', await js(`!!document.querySelector('.dlg.revisao .rv-frente') && !!document.querySelector('.dlg.revisao [data-rv="mostrar"]')`));
+  await js(`document.querySelector('.dlg.revisao [data-rv="mostrar"]').click(); document.querySelector('.dlg.revisao [data-q="4"]').click(); 1`); await espera(200);
+  const b1 = await js(`(() => { const b = baralho(); return { rev: b.revisoes, agendados: b.cartoes.filter(c => c.prox > Date.now() + 3600000).length, conta: document.querySelector('.dlg.revisao .rv-conta') && document.querySelector('.dlg.revisao .rv-conta').textContent } })()`);
+  ok('revisão: "Bom" agenda o cartão para outro dia e passa ao próximo', b1.rev === 1 && b1.agendados === 1 && /^2 de/.test(b1.conta || ''), JSON.stringify(b1));
+  await js(`fecharDialogo(); 1`); await espera(300);
+  await js(`abrirConfig('estudo'); 1`); await espera(700);
+  ok('ajustes → Estudo mostra o baralho e a revisão', await js(`/cart(ão|ões) no baralho/.test($('#corpoConfig').textContent) && !!$('#revisarHoje')`));
+  await js(`fecharModal(true); 1`);
+  r = await gerar('quiz', CONTEUDO);
+  ok('quiz: questões com 4 alternativas', r.quiz >= 2 && !r.erro, JSON.stringify(r));
+  const q0 = await js(`atual.msgs[atual.msgs.length - 1].quiz.questoes[0].correta`);
+  await js(`document.querySelector('.msg.ia:last-child .qz[data-q="0"] .alt[data-a="${q0}"]').click(); 1`); await espera(200);
+  ok('quiz: responder marca a certa e mostra a explicação', await js(`(()=>{ const q = document.querySelector('.msg.ia:last-child .qz[data-q="0"]'); return q.classList.contains('respondida') && q.querySelector('.alt.certa') && !q.querySelector('.qz-exp').hidden && /Acertou/.test(q.querySelector('.qz-exp').textContent) })()`));
+  ok('quiz: resposta fica guardada na conversa', (await js(`atual.msgs[atual.msgs.length - 1].quiz.respostas[0]`)) === q0);
+  r = await gerar('redacao', 'Tema: o impacto das redes sociais nos estudos. Redação: As redes sociais mudaram a forma como os jovens estudam. Por um lado, facilitam o acesso a conteúdos e grupos de estudo. Por outro, a distração constante reduz a concentração. Portanto, é preciso equilíbrio. O governo e as escolas devem promover educação digital, ensinando o uso consciente das redes, com campanhas e aulas, para que a tecnologia ajude em vez de atrapalhar.');
+  ok('redação: 5 notas de 0 a 200 e widget com o total', r.redacao && r.redacao.length === 5 && r.redacao.every(n => n >= 0 && n <= 200) && !r.erro && (await js(`!!document.querySelector('.msg.ia:last-child .rd-total b')`)), JSON.stringify(r));
+  await js(`definirModo(null); nova(); 1`);
+}
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
 ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));

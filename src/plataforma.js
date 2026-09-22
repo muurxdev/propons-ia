@@ -114,6 +114,8 @@ const PLATAFORMA = (() => {
     if (op.continuar && mensagens.length && mensagens[mensagens.length - 1].role === 'assistant') return continuarHTTP(mensagens, op, aoToken, sinal);
     const corpo = { messages: mensagens, stream: true, ...amostragem(op), max_tokens: op.maxTokens, cache_prompt: true,
       chat_template_kwargs: { enable_thinking: false }, timings_per_token: false };
+    // modos de estudo: a resposta segue um esquema JSON (o motor força pela gramática — nunca vem JSON quebrado)
+    if (op.esquema) corpo.response_format = { type: 'json_schema', json_schema: { name: 'resposta', schema: op.esquema } };
     const r = await fetch(base + '/v1/chat/completions', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify(corpo) });
     if (!r.ok) throw await erroHTTP(r);
     let fim = null, timings = null;
