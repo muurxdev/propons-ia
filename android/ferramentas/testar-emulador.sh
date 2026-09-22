@@ -48,7 +48,7 @@ if ! adb shell "run-as $PKG sh -c 'ls files/modelos 2>/dev/null'" 2>/dev/null | 
 fi
 adb shell am start -n $PKG/.MainActivity --ez ligar true >/dev/null
 # espera a IA ficar pronta (motor respondendo dentro do celular)
-PRONTO=0
+PRONTO=0; PORTA=8765
 for i in $(seq 1 600); do
   if adb shell "run-as $PKG sh -c 'ls files/modelos 2>/dev/null'" 2>/dev/null | grep -q '\.gguf$'; then
     adb forward tcp:9765 tcp:8765 >/dev/null 2>&1
