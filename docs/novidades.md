@@ -1,3 +1,10 @@
+## Novidades da 1.18.0
+
+- **Ler em voz alta.** Cada resposta ganhou o botão de alto-falante: a Própons lê o texto com a voz do próprio aparelho (Windows, Android, Mac, iPhone e Linux), pulando código e símbolos. Em Ajustes → Aparência → "Ler em voz alta: toda resposta", a leitura começa enquanto a resposta ainda está sendo escrita, frase por frase; o mesmo botão para.
+- **Linux: aceleração pela placa de vídeo** com `propons-ia --gpu` (Vulkan, NVIDIA/AMD/Intel; baixa o módulo de 30 MB uma vez) e `--sem-gpu` para voltar. Sem placa compatível, ou se ela falhar, a IA segue no processador. O `--diagnostico` mostra o que está em uso.
+- **Linux:** `propons-ia --diagnostico` voltou a medir a velocidade (o motor de medição não achava o arquivo da chave desde a 1.15).
+- **PC:** "placas" por software (llvmpipe, SwiftShader) não são escolhidas para a aceleração.
+
 ## Novidades da 1.17.0
 
 - **PC: aceleração pela placa de vídeo (Vulkan).** Em Ajustes → Modelos de IA → "Aceleração por GPU", a Própons baixa o módulo (31 MB, uma vez), mede o processador, liga a placa e mede de novo: só fica ligada se for mais rápida. Com uma placa dedicada a resposta sai 3 a 4 vezes mais rápido (RTX 3050: Aurora 20 → 75 tokens/s, Lume 45 → 139) e o Ápice passa a usar menos memória RAM. Funciona com NVIDIA, AMD e Intel sem instalar nada (gráficos integrados costumam ser mais lentos que o processador e são recusados no teste). Se a placa falhar, a IA volta para o processador sozinha. O Diagnóstico mostra o que está em uso.

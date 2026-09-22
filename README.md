@@ -71,6 +71,7 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Chat** com histórico, busca, renomear, exportar (.md), editar e reenviar a pergunta, backup e importação
 - **Código completo** quando você pede, com **cores** por linguagem, rótulo e botão copiar; botão **Continuar** se a resposta for cortada
 - **Botão "+"**: câmera, fotos, arquivos (texto e código) e troca rápida de modelo
+- **Lê as respostas em voz alta** com a voz do aparelho (botão em cada resposta; opção de ler toda resposta enquanto ela chega)
 - **Fala vira texto**: 🎤 grava ou "+" → Áudio transcreve áudio de qualquer tamanho, no próprio aparelho (voz Base 57 MB ou Small 190 MB; no Linux: `propons-ia --voz`)
 - **Biblioteca da sessão** ("+" → Biblioteca): fotos, arquivos e áudios transcritos que você mandou, para ver, usar de novo, copiar ou apagar; some ao fechar o app
 - **Lê fotos e prints** (exercício, conta, gráfico, código) com o módulo de visão, baixado na primeira foto; no Linux: `propons-ia --visao`

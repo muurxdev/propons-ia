@@ -556,6 +556,8 @@ class MainActivity : Activity() {
                             "atualizar" -> atualizar(args.optString("versao"))
                             "ocupado" -> { ocupado(args.optBoolean("sim")); true }
                             "compartilhar" -> { val t = args.optString("texto"); ui.post { compartilhar(t) }; true }
+                            "falar" -> { val tx = args.optString("texto"); val i = args.optString("id"); ui.post { falar(tx, i) }; true }
+                            "pararFala" -> { ui.post { pararFala() }; true }
                             else -> throw Exception("ação desconhecida: $acao")
                         }
                         responder(id, dados)
@@ -809,6 +811,34 @@ class MainActivity : Activity() {
     @Volatile private var emPrimeiroPlano = true
     private var travaResposta: android.os.PowerManager.WakeLock? = null
     // enquanto a IA responde, a CPU continua acordada mesmo com a tela apagada (máx. 10 min por resposta)
+    // ---------- ler em voz alta: TextToSpeech do Android (o WebView não tem sintetizador de voz) ----------
+    private var tts: android.speech.tts.TextToSpeech? = null
+    @Volatile private var ttsPronto = false
+    private val ttsFila = ArrayList<Pair<String, String>>()   // falas pedidas antes de o sintetizador ficar pronto
+    private fun falar(texto: String, id: String) {
+        if (tts == null) {
+            synchronized(ttsFila) { ttsFila.add(texto to id) }
+            tts = android.speech.tts.TextToSpeech(this) { st ->
+                if (st == android.speech.tts.TextToSpeech.SUCCESS) {
+                    tts?.let { x -> if (x.setLanguage(java.util.Locale("pt", "BR")) < 0) x.setLanguage(java.util.Locale.getDefault()) }
+                    tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                        override fun onStart(u: String?) {}
+                        override fun onDone(u: String?) { evento("fala", JSONObject().put("id", u ?: "").put("estado", "fim")) }
+                        @Deprecated("Deprecated in Java") override fun onError(u: String?) { evento("fala", JSONObject().put("id", u ?: "").put("estado", "erro")) }
+                    })
+                    ttsPronto = true
+                    synchronized(ttsFila) { for ((tx, i) in ttsFila) tts?.speak(tx, android.speech.tts.TextToSpeech.QUEUE_ADD, null, i); ttsFila.clear() }
+                } else {
+                    synchronized(ttsFila) { for ((_, i) in ttsFila) evento("fala", JSONObject().put("id", i).put("estado", "erro")); ttsFila.clear() }
+                    tts = null
+                }
+            }
+            return
+        }
+        if (ttsPronto) tts?.speak(texto, android.speech.tts.TextToSpeech.QUEUE_ADD, null, id) else synchronized(ttsFila) { ttsFila.add(texto to id) }
+    }
+    private fun pararFala() { synchronized(ttsFila) { ttsFila.clear() }; tts?.stop() }
+
     private fun ocupado(sim: Boolean) {
         val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
         if (travaResposta == null) travaResposta = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ProponsIA:resposta").apply { setReferenceCounted(false) }
@@ -881,6 +911,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         if (isFinishing) { desligando = true; pararMotor() }
+        try { tts?.stop(); tts?.shutdown() } catch (_: Exception) {}
         ocupado(false)
         web.destroy()
         super.onDestroy()

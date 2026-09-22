@@ -13,6 +13,11 @@
     <!-- 🎤 falar e transcrever (o áudio fica no aparelho) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Android 11+: para enxergar o sintetizador de voz do sistema (ler respostas em voz alta) -->
+    <queries>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"

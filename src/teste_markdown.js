@@ -2,8 +2,8 @@
 const fs = require('fs'), vm = require('vm');
 const ctx = { esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) };
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(__dirname + '/destaque.js', 'utf8') + '\n' + fs.readFileSync(__dirname + '/markdown.js', 'utf8') + ';this.md=md;this.D=DESTAQUE;this.analisarResposta=analisarResposta;', ctx);
-const { md, D, analisarResposta } = ctx;
+vm.runInContext(fs.readFileSync(__dirname + '/destaque.js', 'utf8') + '\n' + fs.readFileSync(__dirname + '/markdown.js', 'utf8') + ';this.md=md;this.D=DESTAQUE;this.analisarResposta=analisarResposta;this.textoParaFala=textoParaFala;', ctx);
+const { md, D, analisarResposta, textoParaFala } = ctx;
 let falhas = 0, total = 0;
 const ok = (nome, cond, extra) => { total++; if (!cond) { falhas++; console.log('FALHOU:', nome, extra !== undefined ? '\n   ' + extra : ''); } };
 
@@ -79,5 +79,10 @@ a = analisarResposta('```py\nx\n```\ndepois');
 ok('streaming: fim do bloco de código é ponto fixo', !a.cerca && a.fixo === 12, JSON.stringify(a));
 a = analisarResposta('1. um\n\n2. dois\n');
 ok('streaming: linha em branco antes de item não separa a lista', a.fixo === 0, JSON.stringify(a));
+
+// texto para ler em voz alta
+let f = textoParaFala('# Título\n\nO **quick sort** usa um *pivô*. Veja [o site](https://x.y/z) e https://a.b/c\n\n```python\nprint(1)\n```\n\n- item `um`\n- item dois\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n---\n\n> citação');
+ok('fala: sem símbolos, código omitido, tabela em linhas', f === 'Título. O quick sort usa um pivô. Veja o site e endereço na internet. (trecho de código omitido) item um. item dois. a, b. 1, 2. citação.', f);
+ok('fala: bloco de código aberto (streaming) também some', textoParaFala('Olha:\n\n```js\nlet x') === 'Olha: (trecho de código omitido)', textoParaFala('Olha:\n\n```js\nlet x'));
 console.log(`${total - falhas}/${total} testes OK`);
 process.exit(falhas ? 1 : 0);

@@ -27,6 +27,21 @@ const PLATAFORMA = (() => {
   };
   window.__proponsMsg = receber;
   if (wv2) wv2.addEventListener('message', e => receber(e.data));
+  const emitir = (nome, dados) => (ouvintes[nome] || []).forEach(f => { try { f(dados); } catch (e) {} });
+
+  /* voz de saída (ler em voz alta): Web Speech do próprio WebView (WebView2, WKWebView, Chromium) ou, no Android,
+     o TextToSpeech pela ponte (o WebView do Android não tem sintetizador). Cada frase é uma fala com id;
+     o evento 'fala' {id, estado: 'fim'|'erro'} avisa quando termina. */
+  const temFala = tipo === 'android' ? true : !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
+  let vozPt = null;
+  const acharVozPt = () => { try { const v = speechSynthesis.getVoices(); vozPt = v.find(x => /^pt[-_]BR/i.test(x.lang)) || v.find(x => /^pt/i.test(x.lang)) || null; } catch (e) {} };
+  if (temFala && tipo !== 'android') { acharVozPt(); try { speechSynthesis.onvoiceschanged = acharVozPt; } catch (e) {} }
+  function falarWeb(texto, id) {
+    const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; u.rate = 1.05; if (vozPt) u.voice = vozPt;
+    u.onend = () => emitir('fala', { id, estado: 'fim' });
+    u.onerror = e => emitir('fala', { id, estado: /interrupted|canceled/.test(e.error || '') ? 'fim' : 'erro', erro: e.error });
+    speechSynthesis.speak(u);
+  }
 
   const enviarPonte = obj => {
     if (wv2) wv2.postMessage(obj);
@@ -177,6 +192,10 @@ const PLATAFORMA = (() => {
     temVisao: tipo !== 'ios',
     ligarVisao(ligar) { return pedir('visao', { ligar: !!ligar }, 10000); },
     apagarVisao(id) { return pedir('apagarVisao', { id }, 15000); },
+    // ler em voz alta
+    temFala,
+    falar(texto, id) { if (tipo === 'android') return pedir('falar', { texto, id }, 5000); try { falarWeb(texto, id); } catch (e) { emitir('fala', { id, estado: 'erro', erro: e.message }); } return Promise.resolve(true); },
+    pararFala() { if (tipo === 'android') return pedir('pararFala', {}, 5000).catch(() => {}); try { speechSynthesis.cancel(); } catch (e) {} return Promise.resolve(true); },
     // aceleração por GPU (Windows): módulo Vulkan baixado sob demanda; ligar/desligar religa o motor
     baixarGpu() { return pedir('baixarGpu', {}, 10000); },
     ligarGpu(ligar) { return pedir('ligarGpu', { ligar: !!ligar }, 240000); },

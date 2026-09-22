@@ -49,10 +49,11 @@ await foto('p2-seletor');
 }
 await js('fecharDialogo(); 1'); await espera(300);
 // menu da conversa (⋯) no PC é ancorado
-await js(`$('#entrada').value='Diga apenas: olá'; ajustar(); $('#enviar').click(); 1`);
-for (let i = 0; i < 20 && !(await js('!!geracao')); i++) await espera(200);
-await espera(250); await foto('p3-digitando');
-ok('cursor de digitação enquanto responde', await js(`!!document.querySelector('.digitando')`));
+await js(`$('#entrada').value='Explique em duas frases o que é um algoritmo.'; ajustar(); $('#enviar').click(); 1`);
+// com a GPU a resposta curta sai em menos de 1 s: procura o cursor enquanto a geração está em andamento
+let viuCursor = false; for (let i = 0; i < 60 && !viuCursor; i++) { await espera(50); viuCursor = await js(`!!document.querySelector('.digitando')`); }
+await foto('p3-digitando');
+ok('cursor de digitação enquanto responde', viuCursor);
 for (let i = 0; i < 300 && (await js('!!geracao')); i++) await espera(300);
 await js(`document.querySelector('.item [data-menu]').click(); 1`); await espera(300);
 ok('menu ⋯ da conversa é flutuante ao lado do botão', await js(`!!document.querySelector('.menu') && !document.querySelector('.dlg-fundo')`));
@@ -111,6 +112,19 @@ await js(`conversas.unshift({ id: 'testeB', titulo: 'B', criada: Date.now(), atu
 const r1 = await js(`$('#entrada').value`); await js(`abrir('testeA'); 1`); const r2 = await js(`$('#entrada').value`);
 ok('rascunho fica na conversa (B vazia, A recupera)', r1 === '' && r2 === 'rascunho da A', JSON.stringify([r1, r2]));
 await js(`conversas = conversas.filter(c => !/^teste[AB]$/.test(c.id)); nova(); $('#entrada').value=''; ajustar(); 1`);
+// 1.18: ler em voz alta — botão em cada resposta (toca/para) e leitura automática enquanto a resposta chega
+await js(`pref('lerRespostas', 'nao'); nova(); atual = { id: novoId(), titulo: 'Voz', criada: Date.now(), atualizada: Date.now(), msgs: [{ role: 'user', texto: 'x', llm: 'x' }, { role: 'assistant', texto: 'Primeira frase da resposta. Segunda frase, um pouco mais longa, para dar tempo. Terceira e última.', llm: '' }] }; conversas.unshift(atual); abrir(atual.id); 1`);
+ok('resposta tem o botão de ouvir', await js(`!!document.querySelector('.msg.ia .acao.ler')`));
+await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(900);
+ok('ouvir: começa a falar e o botão vira "parar"', await js(`speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !!falaAtual`));
+await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(400);
+ok('parar: silêncio e botão volta ao normal', await js(`!speechSynthesis.speaking && !document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !falaAtual`));
+await js(`pref('lerRespostas', 'sim'); window.__falas = []; window.__falar0 = window.__falar0 || PLATAFORMA.falar; PLATAFORMA.falar = (t, id) => { window.__falas.push(t); return window.__falar0(t, id); }; (()=>{ nova(); const e=$('#entrada'); e.value='Explique em três frases curtas o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
+let falouDurante = false; for (let i = 0; i < 240; i++) { await espera(250); if (!(await js('!!geracao'))) { if (i > 4) break; continue; } if (await js('window.__falas.length > 0 && speechSynthesis.speaking')) falouDurante = true; }
+for (let i = 0; i < 120 && (await js('!!geracao')); i++) await espera(250);
+ok('leitura automática: começa a falar enquanto a resposta ainda chega', falouDurante, JSON.stringify(await js('window.__falas')).slice(0, 160));
+ok('leitura automática: frases inteiras, sem símbolos de Markdown', await js(`window.__falas.length > 0 && window.__falas.every(f => !/[*#\`]/.test(f))`), await js('window.__falas.length'));
+await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window.__falar0; conversas = conversas.filter(c => c.titulo !== 'Voz'); nova(); 1`);
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
 ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));

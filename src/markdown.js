@@ -45,6 +45,27 @@ function analisarResposta(s) {
   return { fixo, cerca };
 }
 
+/* resposta em Markdown → texto para ler em voz alta: blocos de código viram "trecho de código", tabelas viram
+   linhas, símbolos de formatação somem, links viram só o texto; cada parágrafo termina com pausa. */
+function textoParaFala(src) {
+  const linhas = String(src || '').replace(/\r\n?/g, '\n').split('\n');
+  const out = []; let cerca = null, avisouCodigo = false;
+  for (const l of linhas) {
+    if (cerca) { if (cercaFecha(cerca, l)) cerca = null; continue; }
+    const f = l.match(CERCA_ABRE);
+    if (f) { cerca = f[1]; if (!avisouCodigo) { out.push('(trecho de código omitido)'); avisouCodigo = true; } continue; }
+    let t = l;
+    if (/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(t)) continue;   // separador de tabela
+    if (/^ {0,3}([-*_])(\s*\1){2,}\s*$/.test(t)) continue;                        // linha horizontal
+    t = t.replace(/^ {0,3}#{1,6}\s+/, '').replace(/^ {0,3}>\s?/, '').replace(/^\s*(?:[-*+]|\d{1,9}[.)])\s+/, '');
+    t = t.replace(/\[([^\]\n]+)\]\((?:https?:\/\/)[^\s)]+\)/g, '$1').replace(/https?:\/\/[^\s<]+/g, 'endereço na internet');
+    t = t.replace(/`+([^`]*)`+/g, '$1').replace(/\*\*|__|~~/g, '').replace(/(^|[^\w])[*_](?=\S)/g, '$1').replace(/(\S)[*_](?=[^\w]|$)/g, '$1');
+    t = t.replace(/\s*\|\s*/g, ', ').replace(/^, |, $/g, '').replace(/\s+/g, ' ').trim();
+    if (t) out.push(/[.!?…:;,]$/.test(t) ? t : t + '.');
+  }
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
 function md(src) {
   const linhas = String(src).replace(/\r\n?/g, '\n').split('\n');
   let i = 0;
