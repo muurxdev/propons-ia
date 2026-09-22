@@ -46,6 +46,9 @@ android {
         release {
             isMinifyEnabled = false
             val cfg = signingConfigs.getByName("release")
+            // sem chave de release: só é aceitável em build local de teste. Numa release de verdade (CI com tag) é erro,
+            // porque um APK assinado com a chave de debug impede quem já tem o app de atualizar.
+            if (cfg.storeFile == null && System.getenv("PROPONS_EXIGIR_ASSINATURA") == "1") throw GradleException("release sem a chave de assinatura (PROPONS_KEYSTORE)")
             signingConfig = if (cfg.storeFile != null) cfg else signingConfigs.getByName("debug")
         }
     }

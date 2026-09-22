@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.14.0";
+    public const string Versao = "1.15.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -279,6 +279,7 @@ class Janela : Form
         try
         {
             Rectangle r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+            Directory.CreateDirectory(Path.GetDirectoryName(ArquivoJanela()));
             File.WriteAllText(ArquivoJanela(), r.X + "," + r.Y + "," + r.Width + "," + r.Height + "," + (WindowState == FormWindowState.Maximized ? "1" : "0"));
         }
         catch { }
@@ -354,6 +355,24 @@ class Janela : Form
         if (File.Exists(p)) File.Replace(tmp, p, p + ".bak", true); else File.Move(tmp, p);
     }
 
+    int RegistrarFalhaBoot()
+    {
+        Dictionary<string, object> c = LerConfig(); int f = 0; object v;
+        if (c.TryGetValue("falhasBoot", out v)) { try { f = Convert.ToInt32(v); } catch { } }
+        c["falhasBoot"] = ++f; SalvarConfig(c); return f;
+    }
+    // o maior modelo já baixado que cabe na memória deste PC (Lume 3 GB, Aurora 4 GB, Ápice 8 GB), diferente de "exceto"
+    static Modelo MelhorBaixado(Modelo exceto)
+    {
+        Modelo melhor = null; double ram = RamGB();
+        foreach (Modelo m in Modelo.Todos)
+        {
+            if (exceto != null && m.Id == exceto.Id) continue;
+            int precisa = m.Id == "leve" ? 3 : m.Id == "normal" ? 4 : 8;
+            if (AcharModelo(m) != null && (m.Id == "leve" || ram == 0 || ram >= precisa * 0.93)) melhor = m;
+        }
+        return melhor;
+    }
     Modelo EscolherModelo()
     {
         if (forcar != null) return Modelo.PorId(forcar) ?? Modelo.Normal;
@@ -361,13 +380,7 @@ class Janela : Form
         Modelo escolhido = c.TryGetValue("modelo", out id) ? Modelo.PorId(id as string) : null;
         if (escolhido == null || AcharModelo(escolhido) == null)
         {
-            // o maior modelo já baixado que cabe na memória deste PC (Lume 3 GB, Aurora 4 GB, Ápice 8 GB)
-            Modelo melhor = null; double ram = RamGB();
-            foreach (Modelo m in Modelo.Todos)
-            {
-                int precisa = m.Id == "leve" ? 3 : m.Id == "normal" ? 4 : 8;
-                if (AcharModelo(m) != null && (m.Id == "leve" || ram == 0 || ram >= precisa * 0.93)) melhor = m;
-            }
+            Modelo melhor = MelhorBaixado(null);
             if (melhor != null) { Program.Log("modelo configurado ausente; usando o já baixado: " + melhor.Id); c["modelo"] = melhor.Id; SalvarConfig(c); return melhor; }
         }
         if (escolhido != null) return escolhido;
@@ -454,9 +467,15 @@ class Janela : Form
             string erro = await LigarMotor();
             if (erro == null)
             {
+                Dictionary<string, object> c0 = LerConfig(); if (!(c0.ContainsKey("falhasBoot") && Convert.ToInt32(c0["falhasBoot"]) == 0)) { c0["falhasBoot"] = 0; SalvarConfig(c0); }
                 if (naSplash) web.CoreWebView2.Navigate("http://127.0.0.1:" + porta + "/#k=" + chave);
                 else Evento("motor", Dic("estado", "pronto", "nome", modelo.Nome));
                 return;
+            }
+            if (RegistrarFalhaBoot() >= 2)
+            {   // caiu duas vezes seguidas ao abrir: tenta o melhor modelo já baixado que cabe na memória (ou o Lume)
+                Modelo menor = MelhorBaixado(modelo);
+                if (menor != null) { Program.Log("boot: " + modelo.Id + " falhou 2x; trocando para " + menor.Id); modelo = menor; Dictionary<string, object> c1 = LerConfig(); c1["modelo"] = menor.Id; c1["falhasBoot"] = 0; SalvarConfig(c1); continue; }
             }
             if (!naSplash) { Evento("motor", Dic("estado", "erro", "mensagem", erro)); return; }
             Splash(-2, "Não foi possível abrir a IA", erro);
@@ -630,7 +649,7 @@ class Janela : Form
             ProcessStartInfo psi = new ProcessStartInfo(exe,
                 "-m \"" + arquivoModelo + "\" --host 127.0.0.1 --port " + porta +
                 " --path \"" + Path.Combine(pasta, "interface") + "\"" +
-                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key " + chave + ArgsVisao());
+                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao());
             psi.WorkingDirectory = pasta; psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
             psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
             Process p = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -643,17 +662,27 @@ class Janela : Form
             Job.Prender(p);
             motor = p;
         }
-        catch (Exception ex) { Program.Log("motor: " + ex); return "O motor da IA foi bloqueado neste PC (antivírus)."; }
+        catch (Exception ex) { Program.Log("motor: " + ex); MotorFalhou(); return "O motor da IA foi bloqueado neste PC (antivírus)."; }
 
         DateTime ini = DateTime.Now;
         while ((DateTime.Now - ini).TotalSeconds < 180)
         {
-            if (motor.HasExited) return "O motor da IA fechou sozinho neste PC. Pode ser falta de memória ou bloqueio do antivírus.";
+            if (motor.HasExited) { MotorFalhou(); return "O motor da IA fechou sozinho neste PC. Pode ser falta de memória ou bloqueio do antivírus."; }
             if (await Saudavel(porta)) return null;
             await Task.Delay(250);
         }
-        return "A IA demorou demais para iniciar neste PC.";
+        MotorFalhou(); return "A IA demorou demais para iniciar neste PC.";
     }
+    // a chave do motor vai num arquivo (só este usuário lê), não na linha de comando (que qualquer processo vê)
+    string ArquivoChave()
+    {
+        string p = Path.Combine(Raiz(), @"dados\motor.chave");
+        Directory.CreateDirectory(Path.GetDirectoryName(p)); File.WriteAllText(p, chave + "\n", new UTF8Encoding(false));
+        return p;
+    }
+    // motor que não subiu (pendurado ou morto): mata antes de tentar de novo, sem o vigia achar que foi queda
+    Process ignorarSaida;
+    void MotorFalhou() { ignorarSaida = motor; PararMotor(); }
 
     bool visaoAtiva;
     bool VisaoLigada() { object v; return LerConfig().TryGetValue("visao", out v) && v is bool && (bool)v; }
@@ -700,6 +729,7 @@ class Janela : Form
     // vigia: se o motor cair sem a gente pedir, religa na mesma porta (até 5 vezes em 3 minutos)
     void MotorSaiu(object o, EventArgs e)
     {
+        if (o == ignorarSaida) return;
         if (desligando || trocando || o != motor) return;
         BeginInvoke((Action)async delegate
         {
@@ -720,20 +750,26 @@ class Janela : Form
         trocando = true;
         try
         {
-            Dictionary<string, object> c = LerConfig(); c["modelo"] = novo.Id; SalvarConfig(c);
+            Dictionary<string, object> c = LerConfig();
             Modelo antigo = modelo; modelo = novo;
             if (AcharModelo(novo) == null)
             {
                 string falha = null;
                 baixandoId = novo.Id; cancelarBaixar = false;
                 try { await Baixar(novo, false); } catch (Exception ex) { falha = ex is OperationCanceledException ? "cancelado" : ex.Message; } finally { baixandoId = null; }
-                if (falha != null) { modelo = antigo; c["modelo"] = antigo.Id; SalvarConfig(c); Evento("motor", Dic("estado", "erro", "mensagem", MensagemDownload(falha, novo))); return; }
+                if (falha != null) { modelo = antigo; Evento("motor", Dic("estado", "erro", "mensagem", MensagemDownload(falha, novo))); return; }
             }
             Evento("motor", Dic("estado", "trocando"));
             PararMotor();
             arquivoModelo = AcharModelo(novo);
             string erro = await LigarMotor();
-            if (erro != null) { Evento("motor", Dic("estado", "erro", "mensagem", erro)); return; }
+            if (erro != null)
+            {   // o modelo novo não subiu (memória?): volta o anterior, que funcionava, e não grava a escolha
+                modelo = antigo; arquivoModelo = AcharModelo(antigo);
+                if (arquivoModelo != null) await LigarMotor();
+                Evento("motor", Dic("estado", "erro", "mensagem", erro)); return;
+            }
+            c["modelo"] = novo.Id; SalvarConfig(c);
             Evento("motor", Dic("estado", "pronto", "nome", novo.Nome));
         }
         finally { trocando = false; }
@@ -958,7 +994,7 @@ class Janela : Form
     // primeira abertura: baixa o modelo escolhido, liga a IA e abre o chat
     async Task EscolherPrimeiroModelo(Modelo m)
     {
-        Dictionary<string, object> c = LerConfig(); c["modelo"] = m.Id; SalvarConfig(c); modelo = m;
+        modelo = m;
         if (AcharModelo(m) == null)
         {
             baixandoId = m.Id; cancelarBaixar = false; string falha = null;
@@ -970,7 +1006,8 @@ class Janela : Form
         arquivoModelo = AcharModelo(m);
         Evento("motor", Dic("estado", "ligando"));
         string erro = await LigarMotor();
-        if (erro != null) { Evento("motor", Dic("estado", "erro", "mensagem", erro)); return; }
+        if (erro != null) { RegistrarFalhaBoot(); Evento("motor", Dic("estado", "erro", "mensagem", erro)); return; }
+        Dictionary<string, object> c = LerConfig(); c["modelo"] = m.Id; c["falhasBoot"] = 0; SalvarConfig(c);
         escolhendo = false;
         web.CoreWebView2.Navigate("http://127.0.0.1:" + porta + "/#k=" + chave);
     }

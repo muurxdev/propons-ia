@@ -1,3 +1,16 @@
+## Novidades da 1.15.0
+
+Versão de fundações: nada visível de novo, muita coisa por baixo para a atualização, o motor e os dados serem à prova de falha.
+
+- **Atualização protegida:** a release só sai se o APK do Android estiver assinado com a chave oficial (antes, sem a chave, saía assinado com a chave de teste e ninguém conseguia atualizar). No Linux, `propons-ia --atualizar` baixa o instalador da própria versão nova e confere o **SHA-256** do pacote com a lista publicada (`install.sh` e `PKGBUILD` também).
+- **Versão única:** `ferramentas/versao.js` grava a versão nos 6 arquivos e o CI confere que tag, versão e novidades batem antes de compilar.
+- **Binários de terceiros conferidos:** llama.cpp, whisper.cpp e WebView2 são baixados com SHA-256 fixo (`ferramentas/terceiros.sums`) em todos os builds, com cache no CI.
+- **Motor sem órfão:** no Android e no Mac, se o app morrer sem fechar o motor, o próximo start mata o motor antigo antes de subir outro (antes ficavam dois na memória). Em todas as plataformas um motor que não sobe é morto antes de tentar de novo.
+- **Trocar de modelo nunca quebra o app:** a escolha só é gravada quando o modelo novo liga; se não liga (memória), volta o anterior. Duas falhas seguidas ao abrir rebaixam para o melhor modelo baixado que cabe.
+- **Chave do motor fora da linha de comando** (`--api-key-file`) e, no Linux, o endereço da transcrição sai do `sistema.json` e a chave sai do comando do navegador.
+- **Testes no CI:** todos os testes de lógica, o app real do Windows (abre, conversa, código, anexo, diagnóstico) e o instalador em 4 distros Linux (Docker) rodam a cada release; o emulador Android passa a ser obrigatório na tag.
+- **PC:** a janela lembra o tamanho mesmo sem modelo escolhido.
+
 ## Novidades da 1.14.0
 
 - **Abre na hora:** o app não liga mais a IA ao abrir. O chat aparece já com o modelo salvo e a IA liga na primeira mensagem (a resposta chega logo em seguida). Sem modelo baixado, a primeira mensagem abre a lista para escolher.

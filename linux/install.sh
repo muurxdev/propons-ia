@@ -43,10 +43,20 @@ if [ "$FALTA" = 1 ]; then
 fi
 
 # ---- baixa e instala ----
-URL="${PROPONS_URL:-https://github.com/$REPO/releases/latest/download}/propons-ia-linux-$ARCH.tar.gz"
+# PROPONS_VERSAO=1.15.0 instala essa versão (é como o "propons-ia --atualizar" chama); sem ela, a mais recente
+if [ -n "${PROPONS_VERSAO:-}" ]; then BASE="${PROPONS_URL:-https://github.com/$REPO/releases/download/v$PROPONS_VERSAO}"
+else BASE="${PROPONS_URL:-https://github.com/$REPO/releases/latest/download}"; fi
+URL="$BASE/propons-ia-linux-$ARCH.tar.gz"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 cor "Baixando a Própons IA ($ARCH)…"
-curl -fL --progress-bar -o "$TMP/p.tgz" "$URL" || erro "não consegui baixar $URL"
+curl -fL --retry 3 --retry-all-errors --progress-bar -o "$TMP/p.tgz" "$URL" || erro "não consegui baixar $URL"
+# confere o SHA-256 com a lista publicada junto com a release (transferência corrompida ou arquivo trocado = para aqui)
+curl -fsL --retry 3 -o "$TMP/SHA256SUMS" "$BASE/SHA256SUMS" || erro "não consegui baixar a lista de conferência (SHA256SUMS) em $BASE"
+ESPERADO="$(grep " propons-ia-linux-$ARCH.tar.gz$" "$TMP/SHA256SUMS" | awk '{print $1}')"
+[ -n "$ESPERADO" ] || erro "SHA256SUMS não tem o pacote propons-ia-linux-$ARCH.tar.gz"
+OBTIDO="$(sha256sum "$TMP/p.tgz" | awk '{print $1}')"
+[ "$OBTIDO" = "$ESPERADO" ] || erro "o pacote baixado não confere (SHA-256 esperado $ESPERADO, obtido $OBTIDO). Tente de novo."
+cor "Pacote conferido (SHA-256 ok)."
 "$DEST/propons-ia" --parar >/dev/null 2>&1 || true
 rm -rf "$DEST"; mkdir -p "$DEST" "$BIN" "$APPS" "$ICONES/256x256/apps" "$ICONES/scalable/apps"
 tar xzf "$TMP/p.tgz" -C "$DEST" --strip-components=1

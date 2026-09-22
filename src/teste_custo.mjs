@@ -6,7 +6,7 @@ const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.on
 let seq = 0; const pend = new Map();
 ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
 const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
-const js = async e => (await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.result?.value;
+const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error('na página: ' + JSON.stringify(r.result.exceptionDetails).slice(0, 300)); return r.result?.result?.value; };
 const espera = ms => new Promise(r => setTimeout(r, ms));
 await cdp('Emulation.setCPUThrottlingRate', { rate: +(process.env.LENTO || 6) });
 await js(`window.__l=[]; new PerformanceObserver(l => l.getEntries().forEach(e => window.__l.push(Math.round(e.duration)))).observe({ type: 'long-animation-frame' }); 1`);

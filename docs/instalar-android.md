@@ -29,7 +29,7 @@ Use o **[Obtainium](https://obtainium.imranr.dev/)** (grátis, código aberto):
 
 ## Dicas
 
-- **Modelos de IA** (no seletor ao lado do "+" ou em Ajustes): Própons Lume (leve e rápido), Aurora (médio, padrão) ou Ápice (pesado, só celulares com 8 GB+). Dá para baixar, trocar e apagar os modelos.
+- **Modelos de IA** (no seletor ao lado do "+" ou em Ajustes): Própons Lume (leve e rápido), Aurora (médio, padrão) ou Ápice (pesado, só celulares com 12 GB+). Dá para baixar, trocar e apagar os modelos.
 - **Ajustes → Diagnóstico:** mostra memória, velocidade real da IA e se está tudo funcionando.
 - O botão **voltar** fecha o menu/janela aberta; se não houver nada aberto, o app vai para segundo plano.
 - Se o Android fechar a IA em segundo plano, ela religa sozinha quando você volta ao app.

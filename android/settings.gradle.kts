@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "PropnsIA"
+rootProject.name = "ProponsIA"
 include(":app")

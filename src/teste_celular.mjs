@@ -1,17 +1,9 @@
 // Testes da interface dentro do app de celular (WebView do Android via CDP).
 // Uso: node src/teste_celular.mjs <porta-cdp> <pasta-saida>
 import fs from 'node:fs';
+import { conectar, espera, relatorio } from './testes/cdp.mjs';
 const [porta, saida] = process.argv.slice(2);
-const alvos = await (await fetch(`http://127.0.0.1:${porta}/json`)).json();
-const pag = alvos.find(a => a.type === 'page' && /127\.0\.0\.1/.test(a.url)) || alvos.find(a => a.type === 'page');
-if (!pag) { console.log('nenhuma página', alvos); process.exit(1); }
-const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);
-let seq = 0; const pend = new Map();
-ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
-const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
-const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0, 400)); return r.result?.result?.value; };
-const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
-const espera = ms => new Promise(r => setTimeout(r, ms));
+const { js, foto, fechar, cdp } = await conectar({ porta, saida, filtro: u => /127.0.0.1/.test(u) });
 const resultados = [];
 const ok = (nome, cond, det = '') => { resultados.push([cond ? 'OK ' : 'FALHOU', nome, det]); console.log(cond ? '  ✔' : '  ✘', nome, det ? '— ' + String(det).slice(0, 160) : ''); };
 const pergunta = async (t, max = 240) => {
@@ -133,7 +125,7 @@ if (process.env.TESTAR_INSTALADOR) {
   ok('atualização: cancelar no instalador volta ao app com aviso', !!erro, erro);
 }
 fs.writeFileSync(`${saida}/resultado.json`, JSON.stringify({ resultados, diagnostico: diag, sistema: sis }, null, 1));
-ws.close();
+fechar();
 const falhas = resultados.filter(r => r[0] !== 'OK ').length;
 console.log(falhas ? `${falhas} falha(s)` : 'todos os testes passaram');
 process.exit(falhas ? 1 : 0);

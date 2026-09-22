@@ -8,7 +8,8 @@ AQUI="$(cd "$(dirname "$0")" && pwd)"; RAIZ="$(dirname "$AQUI")"
 mkdir -p "$AQUI/Frameworks" "$AQUI/Recursos/interface"
 if [ ! -d "$AQUI/Frameworks/llama.xcframework" ]; then
   Z="$RAIZ/linux/vendor/llama-xcframework.zip"; mkdir -p "$(dirname "$Z")"
-  [ -f "$Z" ] || curl -fL -o "$Z" "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-xcframework.zip"
+  . "$RAIZ/ferramentas/baixar.sh"   # downloads conferidos por SHA-256
+  baixar_verificado "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-xcframework.zip" "$Z"
   T="$(mktemp -d)"; unzip -q "$Z" -d "$T"
   mv "$T/build-apple/llama.xcframework" "$AQUI/Frameworks/"; rm -rf "$T"
 fi

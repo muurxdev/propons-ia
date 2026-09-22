@@ -165,7 +165,8 @@ const PLATAFORMA = (() => {
     podeCompartilhar: tipo === 'android' || tipo === 'ios',
     // transcrever áudio: a página manda o áudio em partes (base64) e o app roda o whisper (no iPhone, o reconhecimento de voz do iOS)
     temTranscricao: tipo === 'windows' || tipo === 'android' || tipo === 'ios' || tipo === 'mac',
-    urlTranscricao: '',
+    // Linux: o endereço (secreto) do whisper-server vem no # da página, junto com a chave do motor
+    urlTranscricao: decodeURIComponent((location.hash.match(/[#&]voz=([^&]+)/) || [])[1] || ''),
     async transcrever(bytes, ext, aoEnviar) {
       if (tipo === 'web') {   // Linux: whisper-server local num endereço secreto (vem no sistema.json)
         if (!this.urlTranscricao) throw new Error('transcrição desligada: rode propons-ia --voz');

@@ -10,6 +10,7 @@ NDK="${ANDROID_NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | t
 [ -d "$NDK" ] || { echo "NDK não encontrado (instale ndk;27.2.12479018)"; exit 1; }
 FONTE="${TMPDIR:-/tmp}/whisper.cpp-$VERSAO_WHISPER"
 [ -d "$FONTE" ] || git clone -q --depth 1 --branch "$VERSAO_WHISPER" https://github.com/ggml-org/whisper.cpp "$FONTE"
+[ "$(git -C "$FONTE" rev-parse HEAD)" = 927cfce34f31707e17f2bff35c349632fb9e2c3a ] || { echo "whisper.cpp $VERSAO_WHISPER: commit inesperado"; exit 1; }
 ABIS=("$@"); [ ${#ABIS[@]} -gt 0 ] || ABIS=(arm64-v8a)
 for ABI in "${ABIS[@]}"; do
   case "$ABI" in arm64-v8a) NOME=android-arm64 ;; x86_64) NOME=android-x86_64 ;; *) echo "ABI desconhecida: $ABI"; exit 1 ;; esac

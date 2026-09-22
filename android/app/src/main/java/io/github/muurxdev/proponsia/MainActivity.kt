@@ -206,7 +206,9 @@ class MainActivity : Activity() {
     // ---------------- inicialização ----------------
     private fun iniciar() {
         try { copiarInterface() } catch (e: Exception) { splash(-2.0, "Não foi possível abrir", "Falha ao preparar os arquivos: ${e.message}"); return }
+        matarOrfaos()
         modelo = modelos.firstOrNull { it.id == prefs.getString("modelo", null) } ?: if (ramTotal < 6L shl 30) modelos[0] else modelos[1]
+        if (acharModelo(modelo) == null) melhorBaixado(null)?.let { modelo = it; prefs.edit().putString("modelo", it.id).apply() }
         // abertura fria: a interface abre na hora, sem ligar a IA; ela liga na primeira mensagem (ou, sem modelo baixado,
         // depois da escolha). Os testes abrem com o extra "ligar" para ligar já.
         val ligarAgora = intent?.getBooleanExtra("ligar", false) == true
@@ -230,6 +232,17 @@ class MainActivity : Activity() {
         marca.writeText("$versao")
     }
 
+    private fun registrarFalhaBoot(): Int { val f = prefs.getInt("falhasBoot", 0) + 1; prefs.edit().putInt("falhasBoot", f).apply(); return f }
+    // o maior modelo já baixado que cabe na memória deste celular (Lume 3 GB, Aurora 6 GB, Ápice 12 GB), diferente de "exceto"
+    private fun melhorBaixado(exceto: Modelo?): Modelo? {
+        var melhor: Modelo? = null
+        for (m in modelos) {
+            if (m.id == exceto?.id) continue
+            val precisa = when (m.id) { "leve" -> 3; "normal" -> 6; else -> 12 }
+            if (acharModelo(m) != null && (m.id == "leve" || ramTotal >= precisa * 1073741824L * 0.93)) melhor = m
+        }
+        return melhor
+    }
     private fun prepararModeloEMotor() {
         while (true) {
             var arq = acharModelo(modelo)
@@ -242,8 +255,10 @@ class MainActivity : Activity() {
             if (desligando) return
             splash(-1.0, "", "")
             val erro = ligarMotor(arq)
-            if (erro == null) { naSplash = false; ui.post { web.loadUrl("http://127.0.0.1:$porta/#k=$chave") }; return }
-            splash(-2.0, "Não foi possível abrir a IA", erro); esperarTentar()
+            if (erro == null) { prefs.edit().putInt("falhasBoot", 0).apply(); naSplash = false; ui.post { web.loadUrl("http://127.0.0.1:$porta/#k=$chave") }; return }
+            if (registrarFalhaBoot() >= 2) melhorBaixado(modelo)?.let { menor ->   // caiu 2x seguidas: tenta o melhor modelo baixado que cabe (ou o Lume)
+                modelo = menor; prefs.edit().putString("modelo", menor.id).putInt("falhasBoot", 0).apply(); return@let null
+            } ?: run { splash(-2.0, "Não foi possível abrir a IA", erro); esperarTentar() }
         }
     }
 
@@ -330,6 +345,19 @@ class MainActivity : Activity() {
     // ---------------- motor ----------------
     private fun portaLivre(): Int { for (p in 8765..8795) try { ServerSocket(p).close(); return p } catch (_: Exception) {}; return 8765 }
 
+    // pid do processo filho (para matar órfãos de uma abertura anterior que morreu sem fechar o motor)
+    private fun pidDe(p: Process): Int = try { p.javaClass.getDeclaredField("pid").let { it.isAccessible = true; it.getInt(p) } } catch (_: Exception) { -1 }
+    private fun ehNossoMotor(pid: Int): Boolean = try { File("/proc/$pid/cmdline").readText().contains("libllama_server.so") } catch (_: Exception) { false }
+    private fun matarOrfaos() {
+        val f = File(filesDir, "motor.pid")
+        try { val pid = f.readText().trim().toInt(); if (pid > 0 && ehNossoMotor(pid)) { android.os.Process.killProcess(pid); Thread.sleep(200) } } catch (_: Exception) {}
+        f.delete()
+        // varredura (só os processos do nosso usuário são legíveis): qualquer llama_server nosso que sobrou
+        try { File("/proc").listFiles { d -> d.name.all { it.isDigit() } }?.forEach { d -> val pid = d.name.toInt(); if (pid != android.os.Process.myPid() && ehNossoMotor(pid)) android.os.Process.killProcess(pid) } } catch (_: Exception) {}
+    }
+    // motor que não subiu (pendurado ou morto): mata antes de tentar de novo; a porta da página continua a mesma
+    private fun motorFalhou() { motor?.let { try { it.destroy(); it.waitFor() } catch (_: Exception) {} } }
+    private fun arquivoChave(): File = File(filesDir, "motor.chave").apply { writeText(chave + "\n") }   // só este app lê
     private fun ligarMotor(arq: File): String? {
         if (motor == null) porta = portaLivre()
         val dir = applicationInfo.nativeLibraryDir
@@ -340,18 +368,19 @@ class MainActivity : Activity() {
         val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
         val pb = ProcessBuilder(*nice, exe.path, "-m", arq.path, "--host", "127.0.0.1", "--port", "$porta", "--path", pastaInterface.path,
             "-c", "4096", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning", "off", "--reasoning-budget", "0",
-            "--api-key", chave, "-t", "$threads", *argsVisao())
+            "--api-key-file", arquivoChave().path, "-t", "$threads", *argsVisao())
         pb.environment()["LD_LIBRARY_PATH"] = dir
         pb.directory(filesDir); pb.redirectErrorStream(true); pb.redirectOutput(File(filesDir, "motor.log"))
         val p = try { pb.start() } catch (e: Exception) { return "O motor da IA não pôde ser iniciado: ${e.message}" }
         motor = p
+        try { File(filesDir, "motor.pid").writeText("${pidDe(p)}") } catch (_: Exception) {}
         val inicio = System.currentTimeMillis()
         while (System.currentTimeMillis() - inicio < 180_000) {
-            if (!p.isAlive) return "O motor da IA fechou sozinho. Pode ser falta de memória — tente o modelo Leve."
+            if (!p.isAlive) { motorFalhou(); return "O motor da IA fechou sozinho. Pode ser falta de memória — tente o modelo Leve." }
             if (saudavel()) { vigiar(p); return null }
             Thread.sleep(300)
         }
-        return "A IA demorou demais para iniciar."
+        motorFalhou(); return "A IA demorou demais para iniciar."
     }
 
     @Volatile private var visaoAtiva = false
@@ -426,18 +455,23 @@ class MainActivity : Activity() {
         trocando = true
         try {
             val antigo = modelo
-            prefs.edit().putString("modelo", novo.id).apply(); modelo = novo
+            modelo = novo
             if (acharModelo(novo) == null) {
                 baixandoId = novo.id; cancelarBaixar = false
                 try { baixar(novo, false) } catch (e: Exception) {
-                    modelo = antigo; prefs.edit().putString("modelo", antigo.id).apply()
+                    modelo = antigo
                     evento("motor", JSONObject().put("estado", "erro").put("mensagem", mensagemFalha(e.message ?: "", novo))); return@execute
                 } finally { baixandoId = null }
             }
             evento("motor", JSONObject().put("estado", "trocando"))
             pararMotor()
             val erro = ligarMotor(acharModelo(novo)!!)
-            evento("motor", if (erro == null) JSONObject().put("estado", "pronto").put("nome", novo.nome) else JSONObject().put("estado", "erro").put("mensagem", erro))
+            if (erro != null) {   // o modelo novo não subiu (memória?): volta o anterior e não grava a escolha
+                modelo = antigo; acharModelo(antigo)?.let { ligarMotor(it) }
+                evento("motor", JSONObject().put("estado", "erro").put("mensagem", erro)); return@execute
+            }
+            prefs.edit().putString("modelo", novo.id).putInt("falhasBoot", 0).apply()
+            evento("motor", JSONObject().put("estado", "pronto").put("nome", novo.nome))
         } finally { trocando = false }
     }
 
@@ -560,7 +594,7 @@ class MainActivity : Activity() {
 
     // primeira abertura: baixa o modelo escolhido (com notificação), liga a IA e abre o chat
     private fun escolherPrimeiro(m: Modelo) = trabalho.execute {
-        prefs.edit().putString("modelo", m.id).apply(); modelo = m
+        modelo = m
         if (acharModelo(m) == null) {
             baixandoId = m.id; cancelarBaixar = false
             try { baixar(m, false) } catch (e: Exception) {
@@ -572,7 +606,8 @@ class MainActivity : Activity() {
         }
         evento("motor", JSONObject().put("estado", "ligando"))
         val erro = ligarMotor(acharModelo(m)!!)
-        if (erro != null) { evento("motor", JSONObject().put("estado", "erro").put("mensagem", erro)); return@execute }
+        if (erro != null) { registrarFalhaBoot(); evento("motor", JSONObject().put("estado", "erro").put("mensagem", erro)); return@execute }
+        prefs.edit().putString("modelo", m.id).putInt("falhasBoot", 0).apply()
         escolhendo = false
         ui.post { web.loadUrl("http://127.0.0.1:$porta/#k=$chave") }
     }

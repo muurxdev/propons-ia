@@ -5,9 +5,10 @@
 #   propons-ia.x86_64.rpm           propons-ia.aarch64.rpm            (Fedora, Nobara, openSUSE, RHEL…)
 # Requer: bash, tar, curl, dpkg-deb, rpmbuild (Ubuntu: apt install dpkg-dev rpm)
 set -euo pipefail
-VERSAO="1.14.0"
+VERSAO="1.15.0"
 LLAMA="b11070"
 WHISPER="b5130"
+. "$(cd "$(dirname "$0")/.." && pwd)/ferramentas/baixar.sh"   # downloads conferidos por SHA-256 (ferramentas/terceiros.sums)
 AQUI="$(cd "$(dirname "$0")" && pwd)"
 RAIZ="$(dirname "$AQUI")"
 SAIDA="$RAIZ/dist/linux"
@@ -19,7 +20,7 @@ node "$RAIZ/src/montar.js" || { echo "Instale o Node.js para montar a interface 
 for par in "x64 x86_64 amd64" "arm64 aarch64 arm64"; do
   set -- $par; LA="$1"; ARCH="$2"; DEBARCH="$3"
   TGZ="$AQUI/vendor/llama-ubuntu-$LA.tar.gz"
-  [ -f "$TGZ" ] || curl -fL -o "$TGZ" "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-bin-ubuntu-$LA.tar.gz"
+  baixar_verificado "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-bin-ubuntu-$LA.tar.gz" "$TGZ"
 
   # ---- árvore do aplicativo ----
   APP="$TMP/$ARCH/propons-ia"; mkdir -p "$APP/motor" "$APP/interface"
@@ -36,7 +37,7 @@ for par in "x64 x86_64 amd64" "arm64 aarch64 arm64"; do
   # transcrição de áudio (whisper.cpp): só há binário pronto para x86_64
   if [ "$ARCH" = x86_64 ]; then
     WTGZ="$AQUI/vendor/whisper-ubuntu-x64.tar.gz"
-    [ -f "$WTGZ" ] || curl -fL -o "$WTGZ" "https://github.com/ggml-org/whisper.cpp/releases/download/$WHISPER/whisper-bin-ubuntu-x64.tar.gz"
+    baixar_verificado "https://github.com/ggml-org/whisper.cpp/releases/download/$WHISPER/whisper-bin-ubuntu-x64.tar.gz" "$WTGZ"
     mkdir -p "$TMP/whisper" "$APP/voz"; tar xzf "$WTGZ" -C "$TMP/whisper"
     WSRC="$TMP/whisper/whisper-bin-ubuntu-x64"
     cp -a "$WSRC/whisper-server" "$APP/voz/"

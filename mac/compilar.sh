@@ -5,9 +5,10 @@
 #  - voz: whisper-cli universal (arm64 + x86_64), compilado aqui (ggml estático)
 #  - app: Swift/AppKit (mac/ProponsMac/main.swift), universal, assinado localmente (ad hoc)
 set -euo pipefail
-LLAMA=b11070; WHISPER=b5130
+LLAMA=b11070; WHISPER=b5130; WHISPER_COMMIT=927cfce34f31707e17f2bff35c349632fb9e2c3a
 AQUI="$(cd "$(dirname "$0")" && pwd)"; RAIZ="$(dirname "$AQUI")"
 VERSAO="$(tr -d '[:space:]' < "$RAIZ/VERSAO")"
+. "$RAIZ/ferramentas/baixar.sh"   # downloads conferidos por SHA-256
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 SAIDA="$RAIZ/dist/mac"; APP="$SAIDA/Própons IA.app"
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$RAIZ/linux/vendor"
@@ -18,7 +19,7 @@ node "$RAIZ/src/montar.js"
 for par in "arm64 arm64" "x64 x64"; do
   set -- $par; LA="$1"; DEST="$APP/Contents/Resources/motor-$2"
   TGZ="$RAIZ/linux/vendor/llama-macos-$LA.tar.gz"
-  [ -f "$TGZ" ] || curl -fL -o "$TGZ" "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-bin-macos-$LA.tar.gz"
+  baixar_verificado "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-bin-macos-$LA.tar.gz" "$TGZ"
   mkdir -p "$T/llama-$LA" "$DEST"; tar xzf "$TGZ" -C "$T/llama-$LA"
   SRV="$(find "$T/llama-$LA" -name llama-server -type f | head -1)"; DIR="$(dirname "$SRV")"
   cp "$SRV" "$DEST/"
@@ -31,6 +32,7 @@ done
 W="$RAIZ/linux/vendor/mac-whisper/whisper-cli"
 if [ ! -f "$W" ]; then
   git clone -q --depth 1 --branch "$WHISPER" https://github.com/ggml-org/whisper.cpp "$T/whisper"
+  [ "$(git -C "$T/whisper" rev-parse HEAD)" = "$WHISPER_COMMIT" ] || { echo "whisper.cpp $WHISPER: commit inesperado $(git -C "$T/whisper" rev-parse HEAD)"; exit 1; }
   cmake -S "$T/whisper" -B "$T/whisper/b" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
     -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_METAL=OFF -DGGML_OPENMP=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF \
     -DWHISPER_BUILD_EXAMPLES=ON -DWHISPER_SDL2=OFF -DWHISPER_CURL=OFF >/dev/null

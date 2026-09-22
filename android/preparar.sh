@@ -8,7 +8,8 @@ LLAMA="b11070"
 AQUI="$(cd "$(dirname "$0")" && pwd)"; RAIZ="$(dirname "$AQUI")"
 VENDOR="$RAIZ/linux/vendor"; mkdir -p "$VENDOR"
 TGZ="$VENDOR/llama-android-arm64.tar.gz"
-[ -f "$TGZ" ] || curl -fL -o "$TGZ" "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-bin-android-arm64.tar.gz"
+. "$RAIZ/ferramentas/baixar.sh"   # downloads conferidos por SHA-256
+baixar_verificado "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-bin-android-arm64.tar.gz" "$TGZ"
 
 STRIP=""
 for s in "${ANDROID_NDK_HOME:-/nonexistent}"/toolchains/llvm/prebuilt/*/bin/llvm-strip "${ANDROID_NDK_ROOT:-/nonexistent}"/toolchains/llvm/prebuilt/*/bin/llvm-strip llvm-strip aarch64-linux-gnu-strip; do

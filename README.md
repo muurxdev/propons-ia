@@ -13,11 +13,11 @@ Chat com histórico, código completo com cores, anexar arquivos e cálculo exat
 
 | | |
 |---|---|
-| **Windows 10/11** | baixe **[Propons-IA-Windows.exe](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Windows.exe)** e abra — funciona direto do pendrive, sem instalar |
+| **Windows 10/11** | baixe **[Propons-IA-Windows.exe](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Windows.exe)** e abra — funciona direto do pendrive, sem instalar — [passo a passo](docs/instalar-windows.md) |
 | **Mac (macOS 12+)** | baixe **[Propons-IA-Mac.zip](https://github.com/muurxdev/propons-ia/releases/latest/download/Propons-IA-Mac.zip)**, arraste para Aplicativos e abra com botão direito → Abrir — [passo a passo](docs/instalar-mac.md) |
 | **Android 9+** | abra **[muurxdev.github.io/propons-ia/](https://muurxdev.github.io/propons-ia/)** no celular e toque em **Baixar para Android** (.zip → Extrair → instalar o .apk) — [passo a passo](docs/instalar-android.md) |
 | **iPhone / iPad (iOS 16+)** | pelo **SideStore** ou **AltStore** — [passo a passo](docs/instalar-ios.md) |
-| **Linux** | um comando (abaixo) ou `.deb` / `.rpm` |
+| **Linux** | um comando (abaixo) ou `.deb` / `.rpm` — [passo a passo](docs/instalar-linux.md) |
 
 ### Linux — qualquer distribuição (um comando)
 ```bash
@@ -74,7 +74,7 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Biblioteca da sessão** ("+" → Biblioteca): fotos, arquivos e áudios transcritos que você mandou, para ver, usar de novo, copiar ou apagar; some ao fechar o app
 - **Lê fotos e prints** (exercício, conta, gráfico, código) com o módulo de visão, baixado na primeira foto; no Linux: `propons-ia --visao`
 - **Algoritmos** (bubble sort, selection sort, quick sort, busca binária com uma lista de números): passo a passo e resumo **calculados por código** — sempre corretos
-- **Modelos de IA:** Própons Lume (leve e rápido) · Própons Aurora (médio, equilibrado) · Própons Ápice (pesado, o mais inteligente; 8 GB+). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
+- **Modelos de IA:** Própons Lume (leve e rápido) · Própons Aurora (médio, equilibrado) · Própons Ápice (pesado, o mais inteligente; 8 GB no PC, 12 GB no celular). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
 - **Atualizações:** avisa quando sai versão nova e tem o botão **Atualizar tudo**. No Windows e no Android, o próprio app instala; no iPhone, pelo SideStore/AltStore; no Linux, com `propons-ia --atualizar`
 - **Feita para o celular:** tela cheia, ajustes como um app, gestos (arrastar o histórico, segurar uma conversa), compartilhar respostas
 - **Diagnóstico embutido:** memória, processador, espaço, velocidade real da IA e autoteste, com relatório para copiar

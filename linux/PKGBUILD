@@ -1,7 +1,7 @@
 # Arch Linux / Manjaro / EndeavourOS:
 #   git clone https://github.com/muurxdev/propons-ia.git && cd propons-ia/linux && makepkg -si
 pkgname=propons-ia
-pkgver=1.14.0
+pkgver=1.15.0
 pkgrel=1
 pkgdesc="IA de estudos que roda no seu computador"
 arch=('x86_64' 'aarch64')
@@ -13,8 +13,17 @@ optdepends=('chromium: abrir em janela própria'
 options=('!strip' '!debug')
 source_x86_64=("propons-ia-linux-x86_64-$pkgver.tar.gz::https://github.com/muurxdev/propons-ia/releases/download/v$pkgver/propons-ia-linux-x86_64.tar.gz")
 source_aarch64=("propons-ia-linux-aarch64-$pkgver.tar.gz::https://github.com/muurxdev/propons-ia/releases/download/v$pkgver/propons-ia-linux-aarch64.tar.gz")
+# o hash oficial fica no SHA256SUMS publicado junto com cada release e é conferido em prepare()
 sha256sums_x86_64=('SKIP')
 sha256sums_aarch64=('SKIP')
+
+prepare() {
+  local arq="propons-ia-linux-${CARCH}.tar.gz" lista="$srcdir/SHA256SUMS-$pkgver"
+  curl -fsSL --retry 3 -o "$lista" "https://github.com/muurxdev/propons-ia/releases/download/v$pkgver/SHA256SUMS"
+  local esperado; esperado="$(grep " $arq$" "$lista" | awk '{print $1}')"
+  local obtido; obtido="$(sha256sum "$srcdir/propons-ia-linux-${CARCH}-$pkgver.tar.gz" | awk '{print $1}')"
+  [ -n "$esperado" ] && [ "$esperado" = "$obtido" ] || { echo "propons-ia: o pacote não confere com o SHA256SUMS da release"; return 1; }
+}
 
 package() {
   install -d "$pkgdir/opt" "$pkgdir/usr/bin"

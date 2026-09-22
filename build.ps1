@@ -7,11 +7,21 @@ $csc = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 
 # 0) dependencias que nao ficam no Git (baixadas so se faltarem)
 $ProgressPreference = 'SilentlyContinue'
+# downloads de terceiros conferidos por SHA-256 (ferramentas/terceiros.sums); 3 tentativas
+function Baixar-Verificado($url, $dest) {
+  $linha = Get-Content "$Rerramentas	erceiros.sums" | Where-Object { $_ -notmatch '^#' -and $_ -like "*  $url" } | Select-Object -First 1
+  if (-not $linha) { throw "sem hash em terceiros.sums para $url" }
+  $esperado = ($linha -split 's+')[0].ToLower()
+  if ((Test-Path $dest) -and ((Get-FileHash $dest).Hash.ToLower() -eq $esperado)) { return }
+  for ($i = 1; $i -le 3; $i++) { try { Invoke-WebRequest $url -OutFile $dest; break } catch { if ($i -eq 3) { throw }; Start-Sleep 5 } }
+  $obtido = (Get-FileHash $dest).Hash.ToLower()
+  if ($obtido -ne $esperado) { Remove-Item $dest -Force; throw "SHA-256 errado para $url (esperado $esperado, obtido $obtido)" }
+}
 $llama = 'b11070'; $wv2 = '1.0.4191.47'
 if (-not (Test-Path "$R\payload\motor\llama-server.exe")) {
   Write-Host 'baixando o motor llama.cpp para Windows...'
   $z = "$env:TEMP\llama-win.zip"; $x = "$env:TEMP\llama-win"
-  Invoke-WebRequest "https://github.com/ggml-org/llama.cpp/releases/download/$llama/llama-$llama-bin-win-cpu-x64.zip" -OutFile $z
+  Baixar-Verificado "https://github.com/ggml-org/llama.cpp/releases/download/$llama/llama-$llama-bin-win-cpu-x64.zip" $z
   Expand-Archive $z $x -Force
   New-Item -ItemType Directory -Force "$R\payload\motor" | Out-Null
   Get-ChildItem $x | Where-Object { $_.Name -eq 'llama-server.exe' -or ($_.Extension -eq '.dll' -and ($_.Name -notmatch '-impl\.dll$' -or $_.Name -eq 'llama-server-impl.dll')) } | Copy-Item -Destination "$R\payload\motor\"
@@ -21,7 +31,7 @@ if (-not (Test-Path "$R\payload\voz\whisper-cli.exe")) {
   # transcrição de áudio (whisper.cpp) em pasta própria: as DLLs ggml dele são de outra versão que as do motor
   Write-Host 'baixando o whisper.cpp (transcrição) para Windows...'
   $z = "$env:TEMP\whisper-win.zip"; $x = "$env:TEMP\whisper-win"
-  Invoke-WebRequest "https://github.com/ggml-org/whisper.cpp/releases/download/$whisper/whisper-bin-x64.zip" -OutFile $z
+  Baixar-Verificado "https://github.com/ggml-org/whisper.cpp/releases/download/$whisper/whisper-bin-x64.zip" $z
   Expand-Archive $z $x -Force
   New-Item -ItemType Directory -Force "$R\payload\voz" | Out-Null
   Get-ChildItem "$x\Release" | Where-Object { $_.Name -eq 'whisper-cli.exe' -or $_.Name -eq 'whisper.dll' -or $_.Name -like 'ggml*.dll' } | Copy-Item -Destination "$R\payload\voz\"
@@ -29,7 +39,7 @@ if (-not (Test-Path "$R\payload\voz\whisper-cli.exe")) {
 if (-not (Test-Path "$R\app\Microsoft.Web.WebView2.Core.dll") -or -not (Test-Path "$R\payload\WebView2Loader.dll")) {
   Write-Host 'baixando o WebView2 SDK...'
   $z = "$env:TEMP\wv2.zip"; $x = "$env:TEMP\wv2"
-  Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$wv2/microsoft.web.webview2.$wv2.nupkg" -OutFile $z
+  Baixar-Verificado "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$wv2/microsoft.web.webview2.$wv2.nupkg" $z
   Expand-Archive $z $x -Force
   Copy-Item "$x\lib\net462\Microsoft.Web.WebView2.Core.dll","$x\lib\net462\Microsoft.Web.WebView2.WinForms.dll" "$R\app\"
   Copy-Item "$x\runtimes\win-x64\native\WebView2Loader.dll" "$R\payload\"

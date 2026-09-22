@@ -1,6 +1,6 @@
 name: Compilar e publicar
 
-# Tag v* (ex.: git tag v1.1.0 && git push --tags) compila todas as plataformas e publica a release.
+# Tag v* (ex.: git tag v1.15.0 && git push --tags) confere a versão, testa, compila todas as plataformas e publica a release.
 # "Run workflow" (manual) só compila e deixa os arquivos para baixar em Artifacts.
 on:
   push:
@@ -8,53 +8,89 @@ on:
   workflow_dispatch:
     inputs:
       emulador:
-        description: 'Rodar também o teste no emulador Android (demora ~20 min)'
+        description: 'Rodar também o teste no emulador Android (demora ~20 min; em tag roda sempre)'
         type: boolean
         default: false
 
 permissions:
   contents: write
 
+env:
+  # binários de terceiros (llama.cpp, whisper.cpp, WebView2) ficam em cache pelo hash da lista de conferência
+  TERCEIROS_CACHE: ${{ hashFiles('ferramentas/terceiros.sums') }}
+
 jobs:
+  versao:
+    name: Versão consistente
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: VERSAO == tag == 6 arquivos == topo do novidades.md
+        run: node ferramentas/versao.js --check ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+
   testes:
     name: Testes da interface
+    needs: versao
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: node src/montar.js
-      - run: node src/teste_algoritmos.js
-      - run: node src/teste_markdown.js
+      - name: Testes de lógica (algoritmos, markdown, latex…)
+        run: for f in src/teste_*.js; do echo "== $f"; node "$f" || exit 1; done
       - name: Sintaxe do script da página
         run: node -e "const h=require('fs').readFileSync('payload/interface/index.html','utf8');require('fs').writeFileSync('/tmp/p.js',[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n'))" && node --check /tmp/p.js
+      - run: sha256sum payload/interface/index.html | tee payload/interface/index.html.sha256
       - uses: actions/upload-artifact@v4
         with: { name: interface, path: payload/interface/ }
 
   windows:
-    name: Windows (.exe)
+    name: Windows (.exe) + teste no app real
     needs: testes
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - uses: actions/cache@v4
+        with: { path: "payload/motor\npayload/voz\napp/Microsoft.Web.WebView2.*.dll\npayload/WebView2Loader.dll", key: "terceiros-windows-${{ env.TERCEIROS_CACHE }}" }
       - run: powershell -ExecutionPolicy Bypass -File build.ps1
+      - name: A interface embutida é a mesma que foi testada
+        uses: actions/download-artifact@v4
+        with: { name: interface, path: interface-testada }
+      - run: if ((Get-FileHash payload\interface\index.html).Hash.ToLower() -ne ((Get-Content interface-testada\index.html.sha256) -split ' ')[0]) { throw 'index.html diferente do testado' }
+        shell: powershell
       - run: Copy-Item -LiteralPath "dist\Pr$([char]0xF3)pons IA.exe" -Destination dist\Propons-IA-Windows.exe
         shell: powershell
+      - name: Abrir o app de verdade e testar (modelo Leve, sem troca)
+        shell: powershell
+        run: |
+          $env:PROPONS_DEPURAR = '1'
+          $p = Start-Process -FilePath "dist\Propons-IA-Windows.exe" -ArgumentList '--leve' -PassThru
+          try { node src/teste_windows.mjs dist/teste-windows --sem-troca } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: teste-windows, path: dist/teste-windows/ }
       - uses: actions/upload-artifact@v4
         with: { name: windows, path: dist/Propons-IA-Windows.exe }
 
   linux:
-    name: Linux (.deb/.rpm/.tar.gz)
+    name: Linux (.deb/.rpm/.tar.gz) + 4 distros
     needs: testes
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - uses: actions/cache@v4
+        with: { path: linux/vendor, key: "terceiros-linux-${{ env.TERCEIROS_CACHE }}" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm dpkg-dev
       - run: bash linux/build.sh
+      - name: Instalar e verificar em 4 distros (Docker)
+        run: sudo FILTRO="Ubuntu 24.04,Debian 12,Fedora 43,Arch" bash linux/testes/testar-distros.sh | tee dist/linux/testes-distros.txt; grep -q FALHOU dist/linux/testes-distros.txt && exit 1 || true
       - uses: actions/upload-artifact@v4
         with: { name: linux, path: dist/linux/ }
 
@@ -70,25 +106,35 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.11.1' }
+      - uses: actions/cache@v4
+        with: { path: linux/vendor, key: "terceiros-android-${{ env.TERCEIROS_CACHE }}" }
       - name: Chave de assinatura (segredo do GitHub)
         env:
           KS: ${{ secrets.PROPONS_KEYSTORE_B64 }}
         run: |
-          if [ -n "$KS" ]; then printf %s "$KS" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/propons.jks"; echo "PROPONS_KEYSTORE=$RUNNER_TEMP/propons.jks" >> "$GITHUB_ENV"; fi
+          if [ -n "$KS" ]; then printf %s "$KS" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/propons.jks" || { echo "keystore em base64 inválido"; exit 1; }; echo "PROPONS_KEYSTORE=$RUNNER_TEMP/propons.jks" >> "$GITHUB_ENV"; fi
+          if [ -z "$KS" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "release sem o segredo PROPONS_KEYSTORE_B64: o APK sairia com a chave de debug e ninguém conseguiria atualizar"; exit 1; fi
       - name: Compilar APK
         env:
           PROPONS_KEYSTORE_SENHA: ${{ secrets.PROPONS_KEYSTORE_SENHA }}
           PROPONS_KEY_ALIAS: ${{ secrets.PROPONS_KEY_ALIAS }}
           PROPONS_KEY_SENHA: ${{ secrets.PROPONS_KEY_SENHA }}
+          PROPONS_EXIGIR_ASSINATURA: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
           GRADLE: gradle
         run: bash android/compilar.sh
+      - name: O APK está assinado com a chave oficial (fingerprint fixo)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          A="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          "$A" verify --print-certs dist/android/Propons-IA-Android.apk | tee /tmp/cert.txt
+          grep -qi "SHA-256 digest: c0adede8f1b5a286b98057bccb8866a4de98bd40b8c73aa6becfc6008e0a26ae" /tmp/cert.txt || { echo "APK assinado com outra chave!"; exit 1; }
       - uses: actions/upload-artifact@v4
         with: { name: android, path: dist/android/Propons-IA-Android.apk }
 
   android-emulador:
-    name: Android no emulador (opcional)
+    name: Android no emulador
     needs: testes
-    if: github.event_name == 'workflow_dispatch' && inputs.emulador
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.emulador)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -99,6 +145,8 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.11.1' }
+      - uses: actions/cache@v4
+        with: { path: linux/vendor, key: "terceiros-android-${{ env.TERCEIROS_CACHE }}" }
       - name: Liberar KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -119,12 +167,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - uses: actions/cache@v4
+        with: { path: linux/vendor, key: "terceiros-ios-${{ env.TERCEIROS_CACHE }}" }
       - run: brew install xcodegen
       - run: bash ios/preparar.sh
       - name: Teste do motor (mesmo Motor.swift, no macOS, modelo real)
         run: |
           cp ios/ProponsIA/Motor.swift ios/TesteMotor/Sources/TesteMotor/
-          curl -fsSL -o /tmp/modelo.gguf https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf
+          curl -fsSL --retry 3 --retry-all-errors -o /tmp/modelo.gguf https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf
           cd ios/TesteMotor && swift run -c release TesteMotor /tmp/modelo.gguf
       - name: Compilar o app (sem assinatura; o AltStore/SideStore assina no iPhone)
         run: |
@@ -148,6 +198,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - uses: actions/cache@v4
+        with: { path: linux/vendor, key: "terceiros-mac-${{ env.TERCEIROS_CACHE }}" }
       - name: Compilar o app (Apple Silicon + Intel, motor, voz)
         run: bash mac/compilar.sh
       - name: Autoteste (abre o app, baixa o modelo Leve, responde e roda o Diagnóstico)
@@ -157,7 +209,7 @@ jobs:
 
   publicar:
     name: Publicar release
-    needs: [windows, linux, android, ios, mac]
+    needs: [windows, linux, android, android-emulador, ios, mac]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -171,10 +223,15 @@ jobs:
           # APK também dentro de um .zip: alguns navegadores (Chrome) seguram o .apk esperando confirmação
           zip -0 -j Propons-IA-Android.zip Propons-IA-Android.apk
           rm -f SHA256SUMS && sha256sum Propons-IA-* propons-ia* > SHA256SUMS
+          # PKGBUILD com os hashes reais desta release (o do repositório confere pelo SHA256SUMS em prepare())
+          V="${GITHUB_REF_NAME#v}"
+          sed -e "s/^pkgver=.*/pkgver=$V/" -e "s/^sha256sums_x86_64=.*/sha256sums_x86_64=('$(grep ' propons-ia-linux-x86_64.tar.gz$' SHA256SUMS | cut -d' ' -f1)')/" \
+              -e "s/^sha256sums_aarch64=.*/sha256sums_aarch64=('$(grep ' propons-ia-linux-aarch64.tar.gz$' SHA256SUMS | cut -d' ' -f1)')/" ../linux/PKGBUILD > PKGBUILD
+          cp ../linux/install.sh install.sh
       - name: Publicar
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           V="${GITHUB_REF_NAME}"
           awk '/^## /{n++} n<=1' docs/novidades.md > notas.md   # só a seção da versão nova
-          gh release create "$V" arte/Propons-IA-* arte/propons-ia* arte/altstore-source.json arte/SHA256SUMS \
+          gh release create "$V" arte/Propons-IA-* arte/propons-ia* arte/altstore-source.json arte/SHA256SUMS arte/PKGBUILD arte/install.sh \
             --title "Própons IA ${V#v}" --notes-file notas.md --latest

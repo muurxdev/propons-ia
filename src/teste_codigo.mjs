@@ -7,7 +7,7 @@ await new Promise(r => ws.onopen = r);
 let seq = 0; const pend = new Map();
 ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
 const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
-const js = async e => (await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.result?.value;
+const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error('na página: ' + JSON.stringify(r.result.exceptionDetails).slice(0, 300)); return r.result?.result?.value; };
 const espera = ms => new Promise(r => setTimeout(r, ms));
 const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(`${pasta}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
 const fim = async () => { await espera(500); for (let i = 0; i < 400 && await js(`document.querySelector('#enviar').classList.contains('gerando')`); i++) await espera(500); };

@@ -458,7 +458,7 @@ async function garantirVoz() {
   if (s.temTranscricao === false) { toast('Transcrição não disponível nesta versão.'); return false; }
   const v = s.vozes.find(x => x.atual) || s.vozes[0];
   if (PLATAFORMA.tipo === 'web') {
-    if (s.transcricaoUrl) { PLATAFORMA.urlTranscricao = s.transcricaoUrl; return true; }
+    if (PLATAFORMA.urlTranscricao || s.transcricaoUrl) { if (!PLATAFORMA.urlTranscricao) PLATAFORMA.urlTranscricao = s.transcricaoUrl; return true; }
     await perguntar('Transcrever áudio no Linux', `<p>Para transformar fala em texto, ligue a transcrição pelo terminal (baixa a voz de ${gbBonito(v.tamanho)} uma vez) e abra de novo:</p><div class="cmd"><code id="cmdVoz">propons-ia --voz</code><button class="icone" data-copiar="cmdVoz">${ICO.copiar}</button></div><p class="info" style="margin-top:8px">Voz mais precisa (190 MB): <code>propons-ia --voz small</code></p>`, [['Entendi', true, 'primario']]);
     return false;
   }
@@ -1758,7 +1758,7 @@ if (!estreita()) abrirLateral();
   if (ESCOLHER) { atualizarSeletorModelo(); setTimeout(avisoAutomatico, 4000); return; }   // a IA liga na primeira mensagem
   verificar();
   // Linux: a transcrição existe se o pacote trouxe o whisper (sistema.json)
-  if (PLATAFORMA.tipo === 'web') lerSistema().then(s => { if (s && s.temTranscricao) { PLATAFORMA.temTranscricao = true; PLATAFORMA.urlTranscricao = s.transcricaoUrl || ''; } });
+  if (PLATAFORMA.tipo === 'web') lerSistema().then(s => { if (s && s.temTranscricao) { PLATAFORMA.temTranscricao = true; if (!PLATAFORMA.urlTranscricao) PLATAFORMA.urlTranscricao = s.transcricaoUrl || ''; } });
   setTimeout(aquecerFolhas, 2500);
   setTimeout(avisoAutomatico, 4000);
   setInterval(avisoAutomatico, 6 * 3600 * 1000);

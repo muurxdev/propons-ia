@@ -2,28 +2,13 @@
 // Baixar vira a bolinha com a %, e quando termina a IA responde a mensagem que ficou esperando.
 // Uso: node src/teste_escolher.mjs <porta-cdp> <pasta-saida> <id-do-modelo>
 import fs from 'node:fs';
+import { conectar, espera, relatorio } from './testes/cdp.mjs';
 const [porta, saida, idModelo] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
-const espera = ms => new Promise(r => setTimeout(r, ms));
-async function conectar(filtro) {
-  for (let i = 0; i < 900; i++) {
-    try { const a = (await (await fetch(`http://127.0.0.1:${porta}/json`)).json()).find(x => x.type === 'page' && filtro(x.url)); if (a) {
-      const ws = new WebSocket(a.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);
-      let seq = 0; const pend = new Map();
-      ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
-      const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
-      const js = async e => (await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.result?.value;
-      const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
-      return { ws, js, foto };
-    } } catch (e) {}
-    await espera(500);
-  }
-  throw new Error('página não apareceu');
-}
-const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 170) : ''); };
+const { ok, resumo } = relatorio();
 const NOMES = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 // 1) abre direto no chat normal, sem tela de download
-let p = await conectar(u => !/#k=/.test(u));
+let p = await conectar({ porta, saida, filtro: u => !/#k=/.test(u) });
 for (let i = 0; i < 60 && !(await p.js(`typeof ESCOLHER !== 'undefined' && !!$('#nomeModelo').textContent`)); i++) await espera(500);
 await espera(800);
 ok('abre no chat normal (sem tela de baixar)', await p.js(`ESCOLHER && !document.querySelector('#escolher') && !!$('#entrada')`));
@@ -45,9 +30,9 @@ for (let i = 0; i < 40; i++) { await espera(500); pct = await p.js(`(document.qu
 ok('bolinha com a porcentagem', /\d+%/.test(pct || ''), pct);
 ok('outros modelos ficam travados', await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].filter(b=>b.disabled).length === 2`));
 await p.foto('e3-bolinha');
-p.ws.close();
+p.fechar();
 // 3) quando termina, o chat abre e a IA responde a mensagem que ficou esperando
-const c = await conectar(u => /#k=/.test(u));
+const c = await conectar({ porta, saida, filtro: u => /#k=/.test(u) });
 for (let i = 0; i < 300 && !(await c.js('typeof online !== "undefined" && online')); i++) await espera(500);
 ok('baixou, ligou a IA e abriu o chat', await c.js('online'), `${((Date.now() - t0) / 1000).toFixed(0)} s`);
 for (let i = 0; i < 20 && !(await c.js('!!geracao')); i++) await espera(300);
@@ -62,6 +47,5 @@ await c.js(`$('#seletorModelo').click(); 1`); await espera(900);
 ok('seletor abre a lista com o ✓ no modelo em uso', (await c.js(`document.querySelectorAll('.dlg.modelos .lm').length`)) === 3 && (await c.js(`!!document.querySelector('.dlg.modelos .lm.on .check')`)));
 await c.foto('e5-seletor');
 await c.js('fecharDialogo(); 1'); await espera(400);
-c.ws.close();
-const falhas = res.filter(x => !x).length;
-console.log(falhas ? `${falhas} falha(s)` : 'todos os testes passaram'); process.exit(falhas ? 1 : 0);
+c.fechar();
+resumo();

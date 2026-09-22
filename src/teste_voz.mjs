@@ -2,18 +2,11 @@
 // e transcreve um arquivo de áudio pelo "+" → Áudio.
 // Uso: node src/teste_voz.mjs <porta-cdp> <pasta-saida> <arquivo-wav> [wav-curtinho-dizendo-oi]
 import fs from 'node:fs';
+import { conectar, espera, relatorio } from './testes/cdp.mjs';
 const [porta, saida, wavArq, wavCurto] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
-const alvos = await (await fetch(`http://127.0.0.1:${porta}/json`)).json();
-const pag = alvos.find(a => a.type === 'page' && /127\.0\.0\.1:\d+/.test(a.url));
-const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);
-let seq = 0; const pend = new Map();
-ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
-const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
-const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0, 300)); return r.result?.result?.value; };
-const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
-const espera = ms => new Promise(r => setTimeout(r, ms));
-const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 200) : ''); };
+const { js, foto, fechar } = await conectar({ porta, saida, filtro: a => { const u = a; return /127\.0\.0\.1:\d+/.test(u); } });
+const { ok, resumo } = relatorio();
 for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 const confere = t => /capital do brasil/i.test(t) && /bras[íi]lia/i.test(t);
 // 1) garante a voz (baixa na 1ª vez, confirmando o diálogo)
@@ -65,6 +58,5 @@ if (wavCurto) {
 await js(`$('#anexar').click(); 1`); await espera(600);
 ok('"+" tem a opção Áudio', await js(`!!document.querySelector('[data-op="audio"]:not([disabled])')`));
 await foto('v4-mais'); await js('fecharDialogo(); 1');
-ws.close();
-const falhas = res.filter(x => !x).length;
-console.log(falhas ? `${falhas} falha(s)` : 'todos os testes passaram'); process.exit(falhas ? 1 : 0);
+fechar();
+resumo();

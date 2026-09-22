@@ -4,7 +4,7 @@
 # numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.14.0"
+VERSAO="1.15.0"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"
@@ -154,7 +154,9 @@ case "$ACAO" in
     [ -n "$nova" ] || { echo "Sem internet para verificar a versão nova."; exit 1; }
     if [ "$nova" = "$VERSAO" ]; then echo "Você já está na versão mais recente ($VERSAO)."; exit 0; fi
     echo "Atualizando a Própons IA $VERSAO → $nova …"
-    curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh | bash
+    inst="$(mktemp)"; trap 'rm -f "$inst"' EXIT
+    curl -fsSL --retry 3 -o "$inst" "https://raw.githubusercontent.com/muurxdev/propons-ia/v$nova/linux/install.sh" || { echo "Não consegui baixar o instalador da versão $nova."; exit 1; }
+    PROPONS_VERSAO="$nova" bash "$inst"
     exit $? ;;
   apagar)
     arq="$(campo "$APAGAR_ID" 2)"
@@ -234,7 +236,7 @@ escrever_sistema() {
   done
   esc_json() { sed 's/\\/\\\\/g; s/"/\\"/g'; }
   printf '{"versao":"%s","so":"%s","cpu":"%s","nucleos":%s,"ramTotal":%s,"ramLivre":%s,"discoLivre":%s,"pastaDados":"%s","pastaModelos":"%s","navegador":"%s","visaoLigada":%s,"visaoAtiva":%s,"temVisao":true,"temTranscricao":%s,"transcricaoUrl":"%s","vozes":[%s],"modelos":[%s]}\n' \
-    "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "$MODELOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$([ "$VISAO" = 1 ] && echo true || echo false)" "$(visao_ativa && echo true || echo false)" "$([ -x "$VOZ_EXE" ] && echo true || echo false)" "${VOZ_PORTA:+http://127.0.0.1:$VOZ_PORTA$VOZ_CAMINHO}" "$(json_vozes)" "$modelos" \
+    "$VERSAO" "$(echo "$so" | esc_json)" "$(echo "${cpu:-?}" | esc_json)" "${nuc:-0}" "${ram:-0}" "${livre:-0}" "${disco:-0}" "$(echo "$DADOS" | esc_json)" "$(echo "$MODELOS" | esc_json)" "$(echo "${NAV:-padrão}" | esc_json)" "$([ "$VISAO" = 1 ] && echo true || echo false)" "$(visao_ativa && echo true || echo false)" "$([ -x "$VOZ_EXE" ] && echo true || echo false)" "" "$(json_vozes)" "$modelos" \
     >"$INTERFACE/sistema.json"
 }
 preparar_interface() {
@@ -301,7 +303,7 @@ ligar_motor() {  # usa PORTA e CHAVE já definidas
   # prioridade menor (nice) que a da janela: a interface continua lisa enquanto a IA responde
   local visao=(); visao_ativa && visao=(--mmproj "$VISAO_ARQ" --image-max-tokens 400)
   nice -n 5 "$MOTOR" -m "$ARQ" "${visao[@]}" --host 127.0.0.1 --port "$PORTA" --path "$INTERFACE" \
-    -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key "$CHAVE" >>"$LOG" 2>&1 &
+    -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key-file "$CHAVEFILE" >>"$LOG" 2>&1 &
   MOTOR_PID=$!
   echo "$MOTOR_PID" >"$PIDFILE"; echo "$PORTA" >"$PORTAFILE"
 }
@@ -359,8 +361,18 @@ if ! motor_ok; then
 fi
 achar_navegador
 
+url_app() {  # endereço da página: porta, chave do motor e (se houver) endereço secreto da transcrição
+  local p="$1" k="$2"
+  printf 'http://127.0.0.1:%s/#k=%s%s' "$p" "$k" "${VOZ_PORTA:+&voz=http://127.0.0.1:$VOZ_PORTA$VOZ_CAMINHO}"
+}
+pagina_abrir() {  # grava um HTML só deste usuário que redireciona para a página: assim a chave não aparece em "ps"
+  case "$NAV" in *flatpak*|*snap*) printf '%s' "$1"; return ;; esac   # navegador em sandbox não lê arquivos fora dela
+  local f="$DADOS/abrir.html"
+  ( umask 077; printf '<!doctype html><meta charset="utf-8"><title>Própons IA</title><script>location.replace(%s)</script>' "\"$1\"" >"$f" )
+  printf 'file://%s' "$f"
+}
 abrir_janela() {  # abre a interface; bloqueia até a janela fechar (quando possível)
-  local url="$1"
+  local url; url="$(pagina_abrir "$1")"
   if [ -n "$NAV" ]; then
     mkdir -p "$PERFIL"
     local t0=$SECONDS extra=""
@@ -392,7 +404,7 @@ abrir_janela() {  # abre a interface; bloqueia até a janela fechar (quando poss
 
 # já está aberta? só mostra a janela de novo (sem desligar a outra)
 if [ -f "$PORTAFILE" ] && [ -f "$CHAVEFILE" ] && saudavel "$(cat "$PORTAFILE")" && pid_e_motor "$(cat "$PIDFILE" 2>/dev/null)"; then
-  URL_APP="http://127.0.0.1:$(cat "$PORTAFILE")/#k=$(cat "$CHAVEFILE")"
+  URL_APP="$(pagina_abrir "$(url_app "$(cat "$PORTAFILE")" "$(cat "$CHAVEFILE")")")"
   if [ -n "$NAV" ]; then $NAV --app="$URL_APP" --user-data-dir="$PERFIL" --class=propons-ia >/dev/null 2>&1 &
   elif tem xdg-open; then xdg-open "$URL_APP" >/dev/null 2>&1 & fi
   exit 0
@@ -439,7 +451,7 @@ desligar() {
   [ -n "$VIGIA_PID" ] && kill "$VIGIA_PID" 2>/dev/null
   local p; p="$(cat "$PIDFILE" 2>/dev/null)"; pid_e_motor "$p" && kill "$p" 2>/dev/null
   kill "$MOTOR_PID" 2>/dev/null; wait "$MOTOR_PID" 2>/dev/null
-  rm -f "$PIDFILE" "$PORTAFILE" "$CHAVEFILE"
+  rm -f "$PIDFILE" "$PORTAFILE" "$CHAVEFILE" "$DADOS/abrir.html"
 }
 trap desligar EXIT
 trap 'exit 130' INT TERM HUP
@@ -461,4 +473,4 @@ if ! esperar_motor; then aviso "O motor da IA não iniciou" "Pode ser falta de m
 ) &
 VIGIA_PID=$!
 
-abrir_janela "http://127.0.0.1:$PORTA/#k=$CHAVE"
+abrir_janela "$(url_app "$PORTA" "$CHAVE")"

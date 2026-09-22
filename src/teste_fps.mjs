@@ -1,17 +1,10 @@
 // Mede a fluidez (quadros por segundo) da interface enquanto a IA responde, abrindo e fechando folhas.
 // Uso: node src/teste_fps.mjs <porta-cdp> <pasta-saida>   (app aberto com depuraÃ§Ã£o)
 import fs from 'node:fs';
+import { conectar, espera, relatorio } from './testes/cdp.mjs';
 const [porta, saida] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
-const alvos = await (await fetch(`http://127.0.0.1:${porta}/json`)).json();
-const pag = alvos.find(a => a.type === 'page' && /127\.0\.0\.1:\d+/.test(a.url));
-const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);
-let seq = 0; const pend = new Map();
-ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
-const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
-const js = async e => (await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.result?.value;
-const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
-const espera = ms => new Promise(r => setTimeout(r, ms));
+const { js, foto, fechar, cdp } = await conectar({ porta, saida, filtro: a => { const u = a; return /127\.0\.0\.1:\d+/.test(u); } });
 for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 if (process.env.LENTO) { await cdp('Emulation.setCPUThrottlingRate', { rate: +process.env.LENTO }); console.log('CPU da interface ' + process.env.LENTO + 'x mais lenta'); }
 // quadros por segundo durante `ms` (e o pior intervalo entre quadros)
@@ -36,5 +29,5 @@ console.log('   marcas', JSON.stringify(await js('window.__marcas')));
 for (const l of (await js('window.__longos')) || []) console.log('   quadro longo', JSON.stringify(l));
 await js(`geracao && geracao.ctrl.abort(); 1`);
 fs.writeFileSync(`${saida}/fps.json`, JSON.stringify({ parado, gerando, comFolhas }, null, 1));
-ws.close();
+fechar();
 process.exit(0);

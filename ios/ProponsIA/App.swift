@@ -78,6 +78,8 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         if #available(iOS 16.4, *) { web.isInspectable = true }
         let id = UserDefaults.standard.string(forKey: "modelo")
         modelo = ModeloIA.todos.first { $0.id == id && $0.id != "avancado" } ?? (ram < 5_500_000_000 ? ModeloIA.todos[0] : ModeloIA.todos[1])
+        // modelo configurado ausente: usa o maior já baixado (sem pedir download de novo)
+        if acharModelo(modelo!) == nil, let m = ModeloIA.todos.filter({ $0.id != "avancado" && acharModelo($0) != nil }).last { modelo = m }
         // a GPU não pode ser usada com o app fora da tela: se sair no meio de uma resposta, ela é interrompida
         // (e o botão "Continuar" segue de onde parou quando voltar)
         NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
@@ -303,18 +305,19 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     private func trocarModelo(_ novo: ModeloIA) async {
         trocando = true; defer { trocando = false }
         let antigo = modelo!
-        UserDefaults.standard.set(novo.id, forKey: "modelo"); modelo = novo
+        modelo = novo
         if acharModelo(novo) == nil {
             baixandoId = novo.id; cancelarBaixar = false
             defer { baixandoId = nil }
             do { _ = try await baixar(novo, naTela: false) } catch {
-                modelo = antigo; UserDefaults.standard.set(antigo.id, forKey: "modelo")
+                modelo = antigo
                 evento("motor", ["estado": "erro", "mensagem": mensagem(erro: error)]); return
             }
         }
         evento("motor", ["estado": "trocando"])
         await esperarAtivo()
-        do { try await carregarMotor(); evento("motor", ["estado": "pronto", "nome": novo.nome]) }
+        // a escolha só é gravada quando o modelo novo carrega; se não carrega (memória), volta o anterior
+        do { try await carregarMotor(); UserDefaults.standard.set(novo.id, forKey: "modelo"); UserDefaults.standard.set(0, forKey: "falhasBoot"); evento("motor", ["estado": "pronto", "nome": novo.nome]) }
         catch { modelo = antigo; try? await carregarMotor(); evento("motor", ["estado": "erro", "mensagem": error.localizedDescription]) }
     }
 
@@ -342,7 +345,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
 
     // primeira abertura: baixa o modelo escolhido (continua com a tela apagada), liga a IA e abre o chat
     private func escolherPrimeiro(_ m: ModeloIA) async {
-        UserDefaults.standard.set(m.id, forKey: "modelo"); modelo = m
+        modelo = m
         if acharModelo(m) == nil {
             baixandoId = m.id
             do { _ = try await baixar(m, naTela: false) } catch {
@@ -354,7 +357,13 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         }
         evento("motor", ["estado": "ligando"])
         await esperarAtivo()
-        do { try await carregarMotor() } catch { evento("motor", ["estado": "erro", "mensagem": error.localizedDescription]); return }
+        do { try await carregarMotor() } catch {
+            // duas falhas seguidas com este modelo: da próxima vez o app abre com o Lume
+            let f = UserDefaults.standard.integer(forKey: "falhasBoot") + 1; UserDefaults.standard.set(f, forKey: "falhasBoot")
+            if f >= 2, m.id != "leve" { UserDefaults.standard.set("leve", forKey: "modelo") }
+            evento("motor", ["estado": "erro", "mensagem": error.localizedDescription]); return
+        }
+        UserDefaults.standard.set(m.id, forKey: "modelo"); UserDefaults.standard.set(0, forKey: "falhasBoot")
         escolhendo = false
         await MainActor.run {
             let dir = Bundle.main.resourceURL!.appendingPathComponent("interface", isDirectory: true)

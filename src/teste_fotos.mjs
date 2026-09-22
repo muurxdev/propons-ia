@@ -1,18 +1,11 @@
 // Teste do "+" e de fotos no app real (CDP): abre o "+", anexa uma foto, liga a visão pelo diálogo e confere a resposta.
 // Uso: node src/teste_fotos.mjs <porta-cdp> <pasta-saida> <arquivo-jpg>
 import fs from 'node:fs';
+import { conectar, espera, relatorio } from './testes/cdp.mjs';
 const [porta, saida, jpg] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
-const alvos = await (await fetch(`http://127.0.0.1:${porta}/json`)).json();
-const pag = alvos.find(a => a.type === 'page' && /127\.0\.0\.1:\d+/.test(a.url));
-const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);
-let seq = 0; const pend = new Map();
-ws.onmessage = e => { const m = JSON.parse(e.data); if (pend.has(m.id)) { pend.get(m.id)(m); pend.delete(m.id); } };
-const cdp = (method, params = {}) => new Promise(r => { const id = ++seq; pend.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
-const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0, 300)); return r.result?.result?.value; };
-const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
-const espera = ms => new Promise(r => setTimeout(r, ms));
-const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 180) : ''); };
+const { js, foto, fechar } = await conectar({ porta, saida, filtro: a => { const u = a; return /127\.0\.0\.1:\d+/.test(u); } });
+const { ok, resumo } = relatorio();
 for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 const plat = await js('PLATAFORMA.tipo');
 // 1) o "+"
@@ -47,6 +40,5 @@ await foto('f4-resposta');
 // 4) pergunta seguinte sem foto: não reenvia a imagem
 const m2 = await (async () => { await js(`$('#entrada').value='E quanto é essa resposta vezes 2?'; ajustar(); $('#enviar').click(); 1`); await espera(500); for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(500); return js('atual.msgs[atual.msgs.length-1]'); })();
 ok('continua a conversa sobre a foto', m2 && /84/.test(m2.texto), m2 && m2.texto.replace(/\s+/g, ' '));
-ws.close();
-const falhas = res.filter(x => !x).length;
-console.log(falhas ? `${falhas} falha(s)` : 'todos os testes passaram'); process.exit(falhas ? 1 : 0);
+fechar();
+resumo();

@@ -165,6 +165,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         NSApp.activate(ignoringOtherApps: true)
         let c = lerConfig(), forcado = ProcessInfo.processInfo.environment["PROPONS_MODELO"]
         modelo = Modelo.todos.first { $0.id == (forcado ?? c["modelo"] as? String) } ?? (ram < 5_500_000_000 ? Modelo.todos[0] : Modelo.todos[1])
+        matarOrfao()
+        if forcado == nil, acharModelo(modelo) == nil, let m = melhorBaixado(exceto: nil) { modelo = m }
         mostrarSplash()
         Task { await iniciar() }
     }
@@ -198,7 +200,13 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
             }
             if visaoLigada(), acharModelo(modelo.visao()) == nil { _ = try? await baixar(modelo.visao(), naTela: true) }
             splash(-1, "", "")
-            if let e = await ligarMotor() { await falha("Não foi possível abrir a IA", e); continue }
+            if let e = await ligarMotor() {
+                if registrarFalhaBoot() >= 2, let menor = melhorBaixado(exceto: modelo) {   // caiu 2x seguidas: tenta o melhor modelo baixado que cabe
+                    modelo = menor; var c = lerConfig(); c["modelo"] = menor.id; c["falhasBoot"] = 0; salvarConfig(c); continue
+                }
+                await falha("Não foi possível abrir a IA", e); continue
+            }
+            var c = lerConfig(); if (c["falhasBoot"] as? Int ?? 0) != 0 { c["falhasBoot"] = 0; salvarConfig(c) }
             naSplash = false
             await MainActor.run { web.load(URLRequest(url: URL(string: "http://127.0.0.1:\(porta)/#k=\(chave)")!)) }
             return
@@ -264,7 +272,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
 
     // primeira abertura: baixa o modelo escolhido, liga a IA e abre o chat
     func escolherPrimeiro(_ m: Modelo) async {
-        var c = lerConfig(); c["modelo"] = m.id; salvarConfig(c); modelo = m
+        modelo = m
         if acharModelo(m) == nil {
             baixandoId = m.id
             do { _ = try await baixar(m, naTela: false) } catch {
@@ -275,7 +283,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
             baixandoId = nil
         }
         evento("motor", ["estado": "ligando"])
-        if let e = await ligarMotor() { evento("motor", ["estado": "erro", "mensagem": e]); return }
+        if let e = await ligarMotor() { _ = registrarFalhaBoot(); evento("motor", ["estado": "erro", "mensagem": e]); return }
+        var c = lerConfig(); c["modelo"] = m.id; c["falhasBoot"] = 0; salvarConfig(c)
         escolhendo = false
         let u = URL(string: "http://127.0.0.1:\(porta)/#k=\(chave)")!
         await MainActor.run { web.load(URLRequest(url: u)) }
@@ -297,7 +306,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         if motor == nil { porta = portaLivre() }
         let exe = pastaMotor.appendingPathComponent("llama-server")
         var args = ["-m", arq.path, "--host", "127.0.0.1", "--port", "\(porta)", "--path", recursos.appendingPathComponent("interface").path,
-                    "-c", "8192", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning", "off", "--reasoning-budget", "0", "--api-key", chave]
+                    "-c", "8192", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning", "off", "--reasoning-budget", "0", "--api-key-file", arquivoChave().path]
         if visaoLigada(), let v = acharModelo(modelo.visao()) { args += ["--mmproj", v.path, "--image-max-tokens", "400"]; visaoAtiva = true } else { visaoAtiva = false }
         if ProcessInfo.processInfo.environment["PROPONS_SEM_GPU"] == "1" { args += ["-ngl", "0"] }   // testes em máquina virtual sem GPU
         let p = Process(); p.executableURL = exe; p.arguments = args; p.currentDirectoryURL = pastaMotor
@@ -307,13 +316,33 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         p.terminationHandler = { [weak self] q in DispatchQueue.main.async { self?.motorSaiu(q) } }
         do { try p.run() } catch { return "O motor da IA não pôde ser iniciado: \(error.localizedDescription)" }
         motor = p
+        try? "\(p.processIdentifier)".write(to: suporte.appendingPathComponent("motor.pid"), atomically: true, encoding: .utf8)
         let t0 = Date()
         while Date().timeIntervalSince(t0) < 180 {
-            if !p.isRunning { return "O motor da IA fechou sozinho. Pode ser falta de memória: tente o modelo Leve." }
+            if !p.isRunning { motorFalhou(); return "O motor da IA fechou sozinho. Pode ser falta de memória: tente o modelo Leve." }
             if await saudavel() { return nil }
             try? await Task.sleep(nanoseconds: 250_000_000)
         }
-        return "A IA demorou demais para iniciar."
+        motorFalhou(); return "A IA demorou demais para iniciar."
+    }
+    // motor que não subiu (pendurado ou morto): mata antes de tentar de novo, sem o vigia achar que foi queda
+    var ignorarSaida: Process?
+    func motorFalhou() { ignorarSaida = motor; pararMotor() }
+    // a chave do motor vai num arquivo só deste usuário, não na linha de comando (que qualquer processo vê)
+    func arquivoChave() -> URL {
+        let u = suporte.appendingPathComponent("motor.chave")
+        try? (chave + "\n").write(to: u, atomically: true, encoding: .utf8)
+        try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: u.path)
+        return u
+    }
+    // llama-server de uma abertura anterior que morreu sem fechar o motor (crash, kill): mata antes de subir outro
+    func matarOrfao() {
+        let u = suporte.appendingPathComponent("motor.pid")
+        defer { try? fm.removeItem(at: u) }
+        guard let s = try? String(contentsOf: u), let pid = Int32(s.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 1 else { return }
+        var buf = [CChar](repeating: 0, count: 4096)
+        guard proc_pidpath(pid, &buf, UInt32(buf.count)) > 0, String(cString: buf).hasSuffix("/llama-server") else { return }
+        kill(pid, SIGKILL)
     }
     func saudavel() async -> Bool {
         var r = URLRequest(url: URL(string: "http://127.0.0.1:\(porta)/health")!); r.timeoutInterval = 1.5
@@ -322,11 +351,21 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     func pararMotor() { if let p = motor, p.isRunning { p.terminate(); p.waitUntilExit() } }
     // vigia: se o motor cair sem a gente pedir, religa na mesma porta (até 5 vezes em 3 minutos)
     func motorSaiu(_ p: Process) {
-        guard !desligando, !trocando, p === motor else { return }
+        guard !desligando, !trocando, p === motor, p !== ignorarSaida else { return }
         quedas.append(Date()); quedas = quedas.filter { Date().timeIntervalSince($0) < 180 }
         if quedas.count > 5 { evento("motor", ["estado": "erro", "mensagem": "O motor da IA está caindo repetidamente. Use um modelo menor."]); return }
         evento("motor", ["estado": "reiniciando"])
         Task { let e = await ligarMotor(); evento("motor", e == nil ? ["estado": "pronto", "nome": modelo.nome] : ["estado": "erro", "mensagem": e!]) }
+    }
+    func registrarFalhaBoot() -> Int { var c = lerConfig(); let f = (c["falhasBoot"] as? Int ?? 0) + 1; c["falhasBoot"] = f; salvarConfig(c); return f }
+    // o maior modelo já baixado que cabe na memória deste Mac (Lume 3 GB, Aurora 4 GB, Ápice 8 GB), diferente de "exceto"
+    func melhorBaixado(exceto: Modelo?) -> Modelo? {
+        var melhor: Modelo? = nil
+        for m in Modelo.todos where m.id != exceto?.id {
+            let precisa: Double = m.id == "leve" ? 3 : m.id == "normal" ? 4 : 8
+            if acharModelo(m) != nil && (m.id == "leve" || Double(ram) >= precisa * 1_073_741_824 * 0.93) { melhor = m }
+        }
+        return melhor
     }
     func religar(_ antes: () -> Void = {}) async {
         trocando = true; defer { trocando = false }
@@ -337,16 +376,24 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
     }
     func trocarModelo(_ novo: Modelo) async {
         var c = lerConfig(); let antigo = modelo
-        c["modelo"] = novo.id; salvarConfig(c); modelo = novo
+        modelo = novo
         if acharModelo(novo) == nil {
             baixandoId = novo.id
             do { _ = try await baixar(novo, naTela: false) } catch {
-                baixandoId = nil; modelo = antigo; c["modelo"] = antigo.id; salvarConfig(c)
+                baixandoId = nil; modelo = antigo
                 evento("motor", ["estado": "erro", "mensagem": mensagem(error, novo)]); return
             }
             baixandoId = nil
         }
-        await religar()
+        trocando = true; defer { trocando = false }
+        evento("motor", ["estado": "trocando"])
+        pararMotor()
+        if let e = await ligarMotor() {   // o modelo novo não subiu (memória?): volta o anterior e não grava a escolha
+            modelo = antigo; if acharModelo(antigo) != nil { _ = await ligarMotor() }
+            evento("motor", ["estado": "erro", "mensagem": e]); return
+        }
+        c["modelo"] = novo.id; c["falhasBoot"] = 0; salvarConfig(c)
+        evento("motor", ["estado": "pronto", "nome": modelo.nome, "visao": visaoAtiva])
     }
     func ligarVisao(_ ligar: Bool) async {
         var c = lerConfig(); c["visao"] = ligar; salvarConfig(c)
