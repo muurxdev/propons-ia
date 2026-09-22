@@ -27,7 +27,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.16.0";
+    public const string Versao = "1.17.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);

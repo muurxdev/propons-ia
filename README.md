@@ -75,6 +75,7 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Lê fotos e prints** (exercício, conta, gráfico, código) com o módulo de visão, baixado na primeira foto; no Linux: `propons-ia --visao`
 - **Algoritmos** (bubble sort, selection sort, quick sort, busca binária com uma lista de números): passo a passo e resumo **calculados por código** — sempre corretos
 - **Modelos de IA:** Própons Lume (leve e rápido) · Própons Aurora (médio, equilibrado) · Própons Ápice (pesado, o mais inteligente; 8 GB no PC, 12 GB no celular). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
+- **PC com placa de vídeo:** aceleração por GPU (Vulkan — NVIDIA, AMD ou Intel, sem instalar nada), ligada em Ajustes → Modelos de IA; a Própons mede processador × placa e só usa a placa se ela for mais rápida (3–4× numa placa dedicada)
 - **Atualizações:** avisa quando sai versão nova e tem o botão **Atualizar tudo**. No Windows e no Android, o próprio app instala; no iPhone, pelo SideStore/AltStore; no Linux, com `propons-ia --atualizar`
 - **Feita para o celular:** tela cheia, ajustes como um app, gestos (arrastar o histórico, segurar uma conversa), compartilhar respostas
 - **Diagnóstico embutido:** memória, processador, espaço, velocidade real da IA e autoteste, com relatório para copiar

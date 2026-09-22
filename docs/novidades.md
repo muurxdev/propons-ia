@@ -1,3 +1,11 @@
+## Novidades da 1.17.0
+
+- **PC: aceleração pela placa de vídeo (Vulkan).** Em Ajustes → Modelos de IA → "Aceleração por GPU", a Própons baixa o módulo (31 MB, uma vez), mede o processador, liga a placa e mede de novo: só fica ligada se for mais rápida. Com uma placa dedicada a resposta sai 3 a 4 vezes mais rápido (RTX 3050: Aurora 20 → 75 tokens/s, Lume 45 → 139) e o Ápice passa a usar menos memória RAM. Funciona com NVIDIA, AMD e Intel sem instalar nada (gráficos integrados costumam ser mais lentos que o processador e são recusados no teste). Se a placa falhar, a IA volta para o processador sozinha. O Diagnóstico mostra o que está em uso.
+- **Segurança dos apps:** só a página da própria Própons fala com o app (Windows, Android, Mac e iPhone); o inspetor web fica desligado fora do modo de depuração; o backup do Android deixa de tentar copiar os modelos (GB) e guarda só conversas e preferências; permissão de áudio sem uso removida.
+- **Mac:** abrir o app de novo só traz a janela que já existe (antes podia abrir duas cópias e dois motores).
+- **Verificar modelos** (Windows e Android) confere também os módulos de visão e as vozes.
+- **Celular:** o teste automático no emulador passa a baixar o modelo do zero e registra diagnóstico quando algo falha.
+
 ## Novidades da 1.16.0
 
 Versão de fundações (junta a 1.15, que não chegou a sair): a interface fica sólida e o motor, a atualização e os dados ficam à prova de falha.
