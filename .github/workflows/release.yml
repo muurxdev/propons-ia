@@ -38,7 +38,8 @@ jobs:
         run: for f in src/teste_*.js; do echo "== $f"; node "$f" || exit 1; done
       - name: Sintaxe do script da página
         run: node -e "const h=require('fs').readFileSync('payload/interface/index.html','utf8');require('fs').writeFileSync('/tmp/p.js',[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n'))" && node --check /tmp/p.js
-      - run: sha256sum payload/interface/index.html | tee payload/interface/index.html.sha256
+      - name: Hash da interface (sem \r, para bater com o checkout CRLF do Windows)
+        run: node -e "const c=require('crypto');console.log(c.createHash('sha256').update(require('fs').readFileSync('payload/interface/index.html','utf8').replace(/\r/g,'')).digest('hex'))" | tee payload/interface/index.html.sha256
       - uses: actions/upload-artifact@v4
         with: { name: interface, path: payload/interface/ }
 
@@ -57,8 +58,7 @@ jobs:
       - name: A interface embutida é a mesma que foi testada
         uses: actions/download-artifact@v4
         with: { name: interface, path: interface-testada }
-      - run: if ((Get-FileHash payload\interface\index.html).Hash.ToLower() -ne ((Get-Content interface-testada\index.html.sha256) -split ' ')[0]) { throw 'index.html diferente do testado' }
-        shell: powershell
+      - run: node -e "const c=require('crypto');const h=c.createHash('sha256').update(require('fs').readFileSync('payload/interface/index.html','utf8').replace(/\r/g,'')).digest('hex');const t=require('fs').readFileSync('interface-testada/index.html.sha256','utf8').trim();if(h!==t){console.error('index.html diferente do testado',h,t);process.exit(1)}console.log('interface igual à testada')"
       - run: Copy-Item -LiteralPath "dist\Pr$([char]0xF3)pons IA.exe" -Destination dist\Propons-IA-Windows.exe
         shell: powershell
       - name: Abrir o app de verdade e testar (modelo Leve, sem troca)
