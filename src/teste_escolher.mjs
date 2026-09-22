@@ -34,7 +34,7 @@ await p.foto('e1-chat-vazio');
 await p.js(`$('#entrada').value='Quanto é 6 vezes 7? Responda só o número.'; ajustar(); $('#enviar').click(); 1`); await espera(1200);
 ok('ao enviar, sobe a lista "Escolha o modelo para responder"', await p.js(`/Escolha o modelo para responder/.test(document.querySelector('.dlg.modelos h3').textContent)`));
 const linhas = await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b=>b.innerText.replace(/\\s+/g,' ').trim())`);
-ok('Própons Lume/Aurora/Ápice com descrição', linhas.length === 3 && /Própons Lume.*Leve e rápido/.test(linhas[0]) && /Própons Aurora.*Equilibrado/.test(linhas[1]) && /Própons Ápice/.test(linhas[2]), linhas.join(' | '));
+ok('Própons Lume/Aurora/Ápice com descrição', linhas.length === 3 && /Própons Lume.*Leve e rápido/.test(linhas[0]) && /Própons Aurora.*(Equilibrado|precisa de)/.test(linhas[1]) && /Própons Ápice/.test(linhas[2]), linhas.join(' | '));
 ok('sem ícones nos modelos', (await p.js(`document.querySelectorAll('.dlg.modelos .lm .mico').length`)) === 0);
 ok('botão Baixar em cada modelo que cabe no aparelho', await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].every(l => l.disabled || /Baixar/.test((l.querySelector('.btn-mini')||{}).textContent))`));
 ok('mensagem ficou esperando (pendente, salva)', await p.js(`atual.msgs[0].pendente === true && !!document.querySelector('.msg.eu')`));

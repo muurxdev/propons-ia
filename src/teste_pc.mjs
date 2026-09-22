@@ -15,7 +15,8 @@ for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 console.log('   janela:', await js('innerWidth + "x" + innerHeight'), '· estreita:', await js('estreita()'));
 ok('sem texto de estado ao abrir', await js(`$('#estado').hidden`), await js(`$('#estado').textContent`));
 await js('abrirLateral(); 1'); await espera(350);
-ok('menu lateral e chat são cartões flutuantes da mesma cor, sobre um fundo mais escuro', await js(`(() => { const l = getComputedStyle($('#lateral')), m = getComputedStyle(document.querySelector('main')); return l.backgroundColor === m.backgroundColor && l.backgroundColor !== getComputedStyle(document.body).backgroundColor && parseInt(l.borderRadius) >= 20 && parseInt(m.borderRadius) >= 20 && $('#lateral').getBoundingClientRect().left >= 10 })()`));
+ok('só o menu lateral flutua: cartão de 24 px com 12 px de margem; o chat continua reto', await js(`(() => { const l = getComputedStyle($('#lateral')), m = getComputedStyle(document.querySelector('main')); const r = $('#lateral').getBoundingClientRect(); return parseInt(l.borderRadius) >= 20 && parseInt(m.borderRadius) === 0 && r.left >= 10 && r.top >= 10 && /rgba\\(0, 0, 0, 0\\)|transparent/.test(m.backgroundColor) })()`));
+ok('botão de apagar todas as conversas no rodapé do menu', await js(`!!$('#apagarConversas')`));
 await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(400);
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
@@ -26,6 +27,7 @@ ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(r
 await foto('p1-mais');
 await js('fecharDialogo(); 1'); await espera(300);
 await js(`$('#seletorModelo').click(); 1`); await espera(700);
+ok('seletor tem a linha Esforço (Baixo/Médio/Alto)', await js(`!!document.querySelector('.dlg.modelos [data-esforco]')`));
 ok('seletor de modelo flutuante com os nomes novos', await js(`!!document.querySelector('.dlg-fundo.pop .dlg.modelos') && /Própons Lume/.test(document.querySelector('.dlg.modelos').innerText) && /Própons Aurora/.test(document.querySelector('.dlg.modelos').innerText)`), await js(`document.querySelector('.dlg.modelos').innerText.replace(/\\s+/g,' ').slice(0,120)`));
 ok('sem ícones nos modelos', await js(`document.querySelectorAll('.dlg.modelos .mico').length === 0`));
 await foto('p2-seletor');
@@ -71,8 +73,9 @@ await js('fecharModal(true); 1'); await espera(200);
 // gravação: só "Gravando"/"Transcrevendo", sem porcentagens nem toast de "Pronto"
 await js(`window.__avisos = []; if (!window.__toast0) { window.__toast0 = toast; toast = (t, ms) => { window.__avisos.push(t); window.__toast0(t, ms); }; } nova(); $('#entrada').value=''; $('#falar').click(); 1`);
 await espera(11500); await foto('p7-gravando');
+ok('barra de gravação: X · ondas · parar · enviar (botões redondos)', await js(`!$('#cancelarGrav').disabled && !$('#pararGrav').hidden && !$('#enviarGrav').disabled && getComputedStyle($('#enviarGrav')).borderRadius === '50%'`));
 await js(`$('#pararGrav').click(); 1`); await espera(700);
-ok('enquanto transcreve mostra só "Transcrevendo"', (await js(`$('#tempoGrav').textContent`)) === 'Transcrevendo' && (await js(`$('#gravando').classList.contains('transcrevendo')`)));
+ok('transcrevendo: a barra continua (ondas paradas), "Transcrevendo" no lugar do tempo, seta com anel', await js(`$('#gravando').classList.contains('transcrevendo') && $('#tempoGrav').textContent === 'Transcrevendo' && !$('#onda').hidden && $('#pararGrav').hidden && $('#enviarGrav').classList.contains('carregando')`));
 await foto('p8-transcrevendo');
 for (let i = 0; i < 200 && (await js('transcrevendo')); i++) await espera(200);
 ok('texto na caixa, sem aviso "Pronto"', /capital do brasil/i.test(await js(`$('#entrada').value`)) && !(await js('window.__avisos')).some(t => /Pronto/.test(t)), JSON.stringify([await js(`$('#entrada').value`), await js('window.__avisos')]));

@@ -438,20 +438,17 @@ $('#anexar').onclick = () => abrirMais();
    Áudio longo é cortado em trechos (nos silêncios) e transcrito um por um; áudio curtinho ganha silêncio
    em volta, porque o whisper ignora trechos com menos de 1 segundo. */
 const TRECHO = PLATAFORMA.tipo === 'ios' ? 50 : 180;   // segundos por trecho (o reconhecimento do iPhone aceita ~1 min)
-let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null;
+let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null, enviarAoTranscrever = false;
 const mmss = s => (s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') : Math.floor(s / 60)) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 function barraGravacao(modo, texto, pct) {
   const g = $('#gravando');
   if (!modo) { g.hidden = true; return; }
   g.hidden = false;
-  $('#pontoGrav').classList.toggle('parado', modo !== 'gravando');
-  $('#onda').hidden = modo !== 'gravando';
-  $('#progGrav').hidden = modo === 'gravando';
-  $('#pararGrav').hidden = modo !== 'gravando'; $('#cancelarGrav').hidden = modo !== 'gravando';
-  g.classList.toggle('transcrevendo', modo === 'transcrevendo');
-  if (texto !== undefined) $('#tempoGrav').textContent = texto;
-  $('#progGrav .barra').classList.toggle('ind', modo === 'transcrevendo' && pct === undefined);
-  if (pct !== undefined) $('#progGrav i').style.width = (pct * 100).toFixed(1) + '%';
+  const grav = modo === 'gravando';
+  $('#cancelarGrav').disabled = !grav; $('#pararGrav').hidden = !grav;
+  $('#enviarGrav').disabled = !grav; $('#enviarGrav').classList.toggle('carregando', !grav);
+  g.classList.toggle('transcrevendo', !grav);
+  if (!grav) $('#tempoGrav').textContent = 'Transcrevendo'; else if (texto !== undefined) $('#tempoGrav').textContent = texto;
 }
 // a voz (whisper) é baixada uma vez: pede confirmação e espera o download
 async function garantirVoz() {
@@ -593,15 +590,17 @@ async function transcreverAudio(blob) {
     if (!texto) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
     const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
     guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto });
+    if (enviarAoTranscrever) { enviarAoTranscrever = false; transcrevendo = false; barraGravacao(null); enviar(e.value); return; }
   } catch (e) {
     toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : /memory|allocation|RangeError/i.test(e.message || e.name) ? 'Áudio grande demais para a memória deste aparelho.' : 'Não foi possível transcrever: ' + e.message, 4500);
-  } finally { transcrevendo = false; trechoAtual = null; barraGravacao(null); }
+  } finally { transcrevendo = false; trechoAtual = null; enviarAoTranscrever = false; barraGravacao(null); }
 }
 // progresso real do whisper (quando o aparelho manda): a barra deixa de ser indeterminada
 PLATAFORMA.ao('transcricao', d => { if (!transcrevendo) return; const t = trechoAtual || { i: 0, n: 1 }; barraGravacao('transcrevendo', undefined, (t.i + (d.pct || 0)) / t.n); });
 $('#falar').onclick = () => iniciarGravacao();
 $('#pararGrav').onclick = () => pararGravacao(true);
-$('#cancelarGrav').onclick = () => { pararGravacao(false); toast('Gravação descartada.'); };
+$('#enviarGrav').onclick = () => { enviarAoTranscrever = true; pararGravacao(true); };   // seta: transcreve e já envia
+$('#cancelarGrav').onclick = () => { enviarAoTranscrever = false; pararGravacao(false); };
 $('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { transcreverAudio(f); } };
 
 /* ---------------- biblioteca da sessão ----------------
@@ -713,6 +712,19 @@ function posicionarPop(f, folha, ancora, lado) {
    Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado) e Própons Ápice (pesado, o mais capaz). */
 const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
+const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], alto: ['Alto', 'Pensa mais antes de responder. Mais lento e mais cuidadoso.'] };
+const esforco = () => ESFORCO[pref('esforco')] ? pref('esforco') : 'medio';
+ICO.esforco = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+function abrirEsforco(depois) {
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço')}<div class="lista-modelos">${Object.entries(ESFORCO).map(([k, [r, d]]) =>
+    `<button class="lm${k === esforco() ? ' on' : ''}" data-e="${k}"><span class="pt"><b>${r}</b><small>${d}</small></span><span class="st">${k === esforco() ? `<span class="check">${ICO.check}</span>` : ''}</span></button>`).join('')}</div></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, folha, sair);
+  folha.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { pref('esforco', b.dataset.e); atualizarSeletorModelo(); sair(); if (depois) depois(); });
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
+}
 const DESC_MODELO = { leve: 'Leve e rápido', normal: 'Equilibrado, para o dia a dia', avancado: 'Para as tarefas mais difíceis' };
 ICO.check = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const nomeModelo = m => 'Própons ' + (NOME_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1'));
@@ -739,7 +751,7 @@ PLATAFORMA.ao('download-fim', d => {
 });
 PLATAFORMA.ao('motor', d => {
   if (!ESCOLHER) return;
-  if (d.estado === 'ligando') { estado('ligando a IA'); document.querySelectorAll('.lista-modelos .st .anel').forEach(a => a.outerHTML = '<span class="anel girando"><b>…</b></span>'); }
+  if (d.estado === 'ligando') { estado('ligando a IA'); document.querySelectorAll('.lista-modelos .st .anel').forEach(a => a.outerHTML = '<span class="anel girando"><b></b></span>'); }
   if (d.estado === 'erro') { escolhendoId = null; estado('erro', true); toast(d.mensagem || 'Não foi possível ligar a IA.', 5000); }
 });
 // depois que a IA liga, responde a mensagem que ficou esperando o download
@@ -754,6 +766,7 @@ async function responderPendente() {
 function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
   $('#nomeModelo').textContent = ESCOLHER ? 'Escolher modelo' : a ? nomeModelo(a) : 'Modelo';
+  const p = $('#pillEsforco'); if (p) { p.textContent = ESFORCO[esforco()][0]; p.hidden = ESCOLHER || esforco() === 'medio'; }
 }
 async function abrirSeletorModelo(motivo) {
   document.querySelectorAll('.dlg.modelos').forEach(x => x.closest('.dlg-fundo').remove());
@@ -761,11 +774,12 @@ async function abrirSeletorModelo(motivo) {
   f.innerHTML = `<div class="dlg folha modelos">${topoCentro(motivo === 'enviar' ? 'Escolha o modelo para responder' : 'Selecionar modelo')}
     ${ESCOLHER ? '<p class="info" style="margin:0 12px 10px;text-align:center">O modelo é baixado uma vez e depois funciona sem internet. Dá para trocar quando quiser.</p>' : ''}
     <div class="lista-modelos"><p class="info" style="padding:12px 14px;margin:0">Carregando…</p></div>
-    ${ESCOLHER ? '' : `<div class="opcoes linhas" style="margin-top:12px"><button data-gerenciar><span class="oi">${ICO.chip}</span><span class="pt"><b>Gerenciar modelos</b><small>Baixar, apagar e ver detalhes</small></span>${ICO.seta}</button></div>`}</div>`;
+    ${ESCOLHER ? '' : `<div class="opcoes linhas" style="margin-top:12px"><button data-esforco><span class="oi">${ICO.esforco}</span><span class="pt"><b>Esforço</b><small class="acento">${ESFORCO[esforco()][0]}</small></span>${ICO.seta}</button><button data-gerenciar><span class="oi">${ICO.chip}</span><span class="pt"><b>Gerenciar modelos</b><small>Baixar, apagar e ver detalhes</small></span>${ICO.seta}</button></div>`}</div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); };
   folha.querySelector('[data-x]').onclick = sair;
   const g = folha.querySelector('[data-gerenciar]'); if (g) g.onclick = () => { sair(); abrirConfig('modelo'); };
+  const ef = folha.querySelector('[data-esforco]'); if (ef) ef.onclick = () => { sair(); abrirEsforco(() => abrirSeletorModelo()); };
   folhaArrastavel(f, folha, sair);
   pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
   await lerSistema(); atualizarSeletorModelo();
@@ -780,7 +794,7 @@ function desenharListaModelos(folha) {
   lm.innerHTML = sis.modelos.map(m => {
     const b = baixando[m.id] || (escolhendoId === m.id ? { pct: 0 } : null);
     const emUso = !ESCOLHER && m.atual && !trocandoPara, ligando = !ESCOLHER && trocandoPara === m.id;
-    const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b>…</b></span>' : m.bloqueado ? '' : emUso ? `<span class="check">${ICO.check}</span>`
+    const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b></b></span>' : m.bloqueado ? '' : emUso ? `<span class="check">${ICO.check}</span>`
       : ESCOLHER ? '<span class="btn-mini">Baixar</span>' : '';
     const desc = m.bloqueado ? m.bloqueado : (DESC_MODELO[m.id] || PESO_MODELO[m.id] || '') + (m.baixado ? '' : ' · ' + gbBonito(m.tamanho) + (ESCOLHER ? '' : ' para baixar'));
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
@@ -791,7 +805,7 @@ function desenharListaModelos(folha) {
     const m = sis.modelos.find(x => x.id === bt.dataset.m); if (!m || bt.disabled) return;
     if (ESCOLHER) {
       if (escolhendoId) return;
-      if (ram && ram < m.ramMin * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${m.ramMin} GB. Ele pode ficar lento ou fechar.`, 'Baixar mesmo assim')) return;
+      if (ram && ram < ramNecessaria(m) * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${ramNecessaria(m)} GB. Ele pode ficar lento ou fechar.`, 'Baixar mesmo assim')) return;
       escolhendoId = m.id; desenharListaModelos(folha); estado('baixando 0%');
       try { await PLATAFORMA.escolherModelo(m.id); } catch (e) { escolhendoId = null; estado(''); toast('Não foi possível: ' + e.message, 4000); desenharListaModelos(folha); }
       return;
@@ -975,7 +989,9 @@ async function responder(conv, continuacao) {
     return;
   }
 
-  const maxTokens = pedeCodigo || (pergunta && pergunta.anexos) ? 3000 : 1500;
+  const nivel = esforco();
+  const maxTokens = nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;
+  const SISTEMA = SYSTEM + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.' : nivel === 'alto' ? '\n\nAntes de responder, pense com cuidado: entenda o que foi pedido, resolva passo a passo e confira o resultado. Depois responda de forma completa, organizada e correta.' : '');
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
   const historico = montarHistorico(conv, maxTokens);
 
@@ -1049,8 +1065,8 @@ async function responder(conv, continuacao) {
     aoAlcancar = res; agendar(); setTimeout(res, 3000);
   });
   try {
-    const r = await PLATAFORMA.gerar([{ role: 'system', content: SYSTEM }, ...historico],
-      { temperatura: pedeCodigo ? 0.2 : 0.35, repeticao: pedeCodigo ? 1.0 : 1.05, maxTokens, continuar: !!continuacao }, t => {
+    const r = await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
+      { temperatura: nivel === 'alto' ? (pedeCodigo ? 0.15 : 0.25) : pedeCodigo ? 0.2 : 0.35, repeticao: pedeCodigo ? 1.0 : 1.05, maxTokens, continuar: !!continuacao }, t => {
         novo += t;
         if (sobreAlgoritmo && !continuacao && INVENTA.test(foraDeCodigo(novo))) { cortou = true; ctrl.abort(); return; }
         agendar();
@@ -1169,7 +1185,18 @@ const PAGINAS = [
 ];
 const TITULOS = Object.fromEntries(PAGINAS.flat().map(([k, t]) => [k, t]));
 let sistemaCache = null;
-async function lerSistema() { const s = await PLATAFORMA.sistema().catch(() => null); if (s) sistemaCache = s; return sistemaCache; }
+// no celular a memória é apertada (sistema + tela): cada modelo pede 1,5x o mínimo (8 GB → 12 GB), senão o app fecha sozinho.
+// O Lume nunca é bloqueado: é o que cabe em qualquer aparelho.
+const RAM_FATOR = PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios' ? 1.5 : 1;
+const ramNecessaria = m => (m.id || m) === 'leve' ? (m.ramMin || 0) : Math.ceil((m.ramMin || 0) * RAM_FATOR);
+async function lerSistema() {
+  const s = await PLATAFORMA.sistema().catch(() => null);
+  if (s) {
+    if (RAM_FATOR > 1 && s.ramTotal) (s.modelos || []).forEach(m => { if (!m.bloqueado && m.id !== 'leve' && m.ramMin && s.ramTotal < ramNecessaria(m) * GB * 0.93) m.bloqueado = `precisa de ${ramNecessaria(m)} GB de RAM`; });
+    sistemaCache = s;
+  }
+  return sistemaCache;
+}
 
 function subtitulo(k) {
   const ativo = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual);
@@ -1252,10 +1279,11 @@ const textoDownload = b => b.fase === 'verificando' ? 'Conferindo o arquivo…' 
 function cartaoModelo(m, ram, rec) {
   const [perfil] = PERFIL_MODELO[m.id] || [''];
   const b = baixando[m.id], ligando = trocandoPara === m.id && !b, web = PLATAFORMA.tipo === 'web';
-  const pouca = ram && m.ramMin && ram < m.ramMin * GB * 0.93;
+  const pouca = ram && m.ramMin && ram < ramNecessaria(m) * GB * 0.93;
   const usar = rot => `<button class="btn primario" data-acao="usar" data-id="${m.id}" data-modelo="${m.id}">${rot}</button>`;
   let acoes = '';
-  if (m.bloqueado || m.atual || ligando) acoes = '';
+  if (m.atual || ligando) acoes = '';
+  else if (m.bloqueado) acoes = m.baixado && !web ? `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>` : '';
   else if (b) acoes = `<button class="btn" data-acao="cancelar" data-id="${m.id}">Cancelar download</button>`;
   else if (web) acoes = usar('Usar este');
   else if (m.baixado) acoes = usar('Usar este') + `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>`;
@@ -1264,7 +1292,7 @@ function cartaoModelo(m, ram, rec) {
   const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? `<span class="selo cinza">${esc(m.bloqueado)}</span>` : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
     <div class="mtopo"><div class="pt"><b>${esc(nomeModelo(m))}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
-    <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${m.ramMin} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
+    <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${ramNecessaria(m)} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;
 }
@@ -1332,7 +1360,7 @@ async function acaoModelo(acao, m, ram) {
     desenharAba(); return;
   }
   if (Object.keys(baixando).length || trocandoPara) { toast('Espere o download ou a troca atual terminar.'); return; }
-  if (ram && ram < m.ramMin * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${m.ramMin} GB. Ele pode ficar lento ou fechar.`, 'Continuar mesmo assim')) return;
+  if (ram && ram < ramNecessaria(m) * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${ramNecessaria(m)} GB. Ele pode ficar lento ou fechar.`, 'Continuar mesmo assim')) return;
   if (!m.baixado && !await confirmar(`Baixar o ${nomeModelo(m)}?`, `São ${gbBonito(m.tamanho)}, baixados uma vez só. De preferência use Wi-Fi.`, 'Baixar')) return;
   try {
     if (acao === 'baixar') { baixando[m.id] = { pct: 0, feito: 0, total: m.tamanho }; desenharAba(); await PLATAFORMA.baixarModelo(m.id); return; }
@@ -1395,11 +1423,14 @@ function abaConversas(c) {
   $('#expTudo').onclick = () => PLATAFORMA.salvarArquivo('propons-ia-conversas-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ app: 'Própons IA', versao: VERSAO, conversas }, null, 1), 'application/json')
     .then(r => r !== false && toast('Backup exportado.')).catch(e => toast('Não deu para exportar: ' + e.message));
   $('#impTudo').onclick = () => $('#importar').click();
-  $('#apagarTudo').onclick = async () => {
-    if (!await confirmar('Apagar todas as conversas?', 'Isso não pode ser desfeito. Se quiser guardar, exporte um backup antes.', 'Apagar tudo', true)) return;
-    if (geracao) geracao.ctrl.abort(); conversas = []; salvarBloqueado = false; nova(); salvar(true); desenharAba(); desenharNav(); toast('Conversas apagadas.');
-  };
+  $('#apagarTudo').onclick = () => apagarTodasConversas().then(ok => { if (ok) { desenharAba(); desenharNav(); } });
 }
+async function apagarTodasConversas() {
+  if (!conversas.length) { toast('Não há conversas para apagar.'); return false; }
+  if (!await confirmar('Apagar todas as conversas?', `${conversas.length} ${conversas.length === 1 ? 'conversa será apagada' : 'conversas serão apagadas'} deste aparelho. Isso não pode ser desfeito.`, 'Apagar tudo', true)) return false;
+  if (geracao) geracao.ctrl.abort(); conversas = []; salvarBloqueado = false; nova(); salvar(true); toast('Conversas apagadas.'); return true;
+}
+$('#apagarConversas').onclick = () => apagarTodasConversas().then(ok => { if (ok && estreita()) fecharLateral(); });
 $('#importar').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {

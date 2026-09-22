@@ -1,3 +1,15 @@
+## Novidades da 1.13.0
+
+- **Gravação no estilo do app do Claude:** ao tocar no 🎤, a caixa de texto vira uma barra com o **X** (descartar), as **ondas** do som, o botão de **parar** (transcreve para a caixa) e a **seta** (transcreve e já envia). No meio da transcrição aparece só Transcrevendo; depois a caixa de texto volta.
+- **Nível de esforço por modelo** (como no Claude): no seletor, a linha **Esforço** abre Baixo (responde direto e curto), Médio (padrão) ou Alto (pensa passo a passo antes de responder, mais completo). Fora do Médio, aparece um selinho ao lado do nome do modelo.
+- **Caixa de digitação mais slim**, no espaçamento do Claude Code; busca de conversas mais compacta; o botão de abrir/fechar o menu no PC ficou longe da borda.
+- **Apagar o que está baixado:** um modelo baixado sempre mostra o botão Apagar, mesmo que esteja bloqueado por falta de memória.
+- **Só o menu lateral flutua:** o cartão arredondado com sombra é só o menu de conversas. A área do chat e o fundo voltaram a ser retos.
+- **Proteção de memória no celular:** cada modelo agora exige 1,5× a memória mínima (o Ápice, de 8 GB, pede **12 GB** no celular; o Aurora, 9 GB). Se o aparelho não tem, o modelo fica bloqueado com o aviso, em vez de baixar e fechar o app. O Lume nunca é bloqueado.
+- **Apagar todas as conversas** com um toque: botão de lixeira no rodapé do menu lateral (com confirmação).
+- Título das conversas aparece inteiro; só encurta quando o ⋯ aparece ao passar o mouse.
+- O anel de ligando/reconectando perdeu os três pontinhos: agora é só o anel girando.
+
 ## Novidades da 1.12.0
 
 - **Menu lateral flutuante:** no PC e no tablet, o menu de conversas e a área do chat viram dois cartões arredondados (24 px) soltos sobre um fundo um tom mais escuro, com sombra suave, como no HPV Vision e no OmniFetch. No celular, a gaveta abre flutuando com margem e cantos redondos.

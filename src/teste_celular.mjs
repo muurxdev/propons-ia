@@ -81,7 +81,7 @@ await js(`document.querySelector('.dlg-fundo [data-x]').click(); 1`); await espe
 ok('botão X fecha a folha', !(await js(`!!document.querySelector('.dlg-fundo')`)));
 // ajustes: lista em tela cheia e subpáginas
 await js(`abrirConfig(); 1`); await espera(500);
-ok('ajustes sobem de baixo quase na tela toda', await js(`(()=>{const r=document.querySelector('.painel').getBoundingClientRect();return r.width>=innerWidth-1 && r.height>=innerHeight*0.85 && Math.abs(r.bottom-innerHeight)<2 && !document.querySelector('.painel').classList.contains('sub')})()`));
+ok('ajustes sobem de baixo, só do tamanho do conteúdo', await js(`(()=>{const r=document.querySelector('.painel').getBoundingClientRect();return r.width>=innerWidth-1 && r.height>=innerHeight*0.3 && r.height<=innerHeight*0.85 && Math.abs(r.bottom-innerHeight)<2 && !document.querySelector('.painel').classList.contains('sub')})()`));
 await foto('9-ajustes');
 await arrastar('.p-arrastar');
 ok('arrastar os ajustes para baixo fecha', !(await js(`!!document.querySelector('.painel-fundo')`)));
