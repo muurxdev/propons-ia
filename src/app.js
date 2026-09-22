@@ -300,6 +300,7 @@ function nova() {
 }
 function abrir(id) {
   const c = conversas.find(x => x.id === id); if (!c) return nova();
+  if (atual && atual !== c) atual.msgs.forEach(m => { if (m._envio) m._envio = null; });   // fotos cheias só da conversa aberta
   atual = c; cancelarEdicao();
   $('#tituloAtual').textContent = c.titulo;
   $('#conversa').innerHTML = ''; const col = coluna();
@@ -885,6 +886,8 @@ $('#entrada').addEventListener('paste', e => { const fs = [...(e.clipboardData?.
 /* ---------------- enviar / responder ---------------- */
 const PEDE_CODIGO = /\b(?:fa[çc]a|crie|cria|escreva|escreve|gere|gera|implemente|implementa|programe|desenvolva|monte|me\s+d[êáe]|mostre|mostra|quero|preciso\s+de|refatore|corrija|conserte|converta|traduza)\b[\s\S]{0,60}\b(?:c[óo]digo|programa|script|fun[çc][ãa]o|classe|m[ée]todo|algoritmo|api|site|p[áa]gina|app|jogo|bot|calculadora|sistema)\b|\b(?:em|no|na|usando|com)\s+(?:python|java(?:script)?|typescript|c\+\+|c#|c|go|golang|rust|php|kotlin|swift|ruby|sql|html|css|bash|dart|lua)\b|```/i;
 const INVENTA = /[\[(]\s*-?\d+\s*,\s*-?\d+\s*,/;
+// contas e matemática: temperatura baixa (resposta quase determinística), como em código
+const PEDE_EXATO = /\d\s*[-+*/^×÷=]\s*\d|\b(?:calcule|calcula|resolva|resolve|some|multiplique|divida|derivada|integral|equa[çc][ãa]o|fra[çc][ãa]o|porcentagem|raiz quadrada|matriz|logaritmo|quanto [ée]|quantos? (?:s[ãa]o|d[áa]))\b/i;
 
 function montarHistorico(conv, maxTokens, extra) {
   const orcamento = Math.max(1200, nCtx - estimar(SYSTEM) - maxTokens - 300);
@@ -919,6 +922,7 @@ function textoParaModelo(texto, lista) {
 async function enviar(texto) {
   texto = texto.trim();
   if ((!texto && !anexos.length) || geracao) return;
+  if (ESCOLHER && conversas.some(c => c.msgs.some(x => x.pendente))) { toast('Espere a IA ligar para mandar outra mensagem.'); return; }
   if (!ESCOLHER && anexos.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
   if (geracao) return;
   if (editando && atual) {
@@ -941,6 +945,8 @@ async function enviar(texto) {
     m.imagens = fotos.map(a => ({ nome: a.nome, miniatura: a.miniatura }));
     Object.defineProperty(m, '_envio', { value: fotos.map(a => a.dataUrl), enumerable: false, writable: true });   // não vai para o arquivo de conversas
   }
+  // as fotos em tamanho cheio (_envio) só servem para a última pergunta; as anteriores saem da memória
+  atual.msgs.forEach(x => { if (x._envio) x._envio = null; });
   atual.msgs.push(m); atual.atualizada = Date.now();
   conversas = [atual, ...conversas.filter(c => c !== atual)];
   if (ESCOLHER) { m.pendente = true; addEu(m, true); desenharLista(); salvar(true); if (escolhendoId) return; if (MODELO_INICIAL) ligarInicial(); else abrirSeletorModelo('enviar'); return; }
@@ -1001,6 +1007,10 @@ async function responder(conv, continuacao) {
   const SISTEMA = SYSTEM + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.' : nivel === 'alto' ? '\n\nAntes de responder, pense com cuidado: entenda o que foi pedido, resolva passo a passo e confira o resultado. Depois responda de forma completa, organizada e correta.' : '');
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
   const historico = montarHistorico(conv, maxTokens);
+  // continuar só a partir do texto inteiro: se a resposta cortada não coube na memória da IA, continuar dela sairia errado
+  if (continuacao && (!historico.length || historico[historico.length - 1].content !== (continuacao.llm || continuacao.texto))) {
+    toast('A resposta ficou longa demais para continuar. Peça de novo, de preferência numa conversa nova.', 4000); return;
+  }
 
   let alvo, msg;
   if (continuacao) {
@@ -1018,39 +1028,42 @@ async function responder(conv, continuacao) {
   $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
 
   const inicio = msg.texto || '';
-  let novo = '', fim = 'stop', erro = null, cortou = false, tRender = 0;
+  let novo = '', fim = 'stop', erro = null, tTimer = 0, tRaf = 0;
   const sobreAlgoritmo = !pedeCodigo && !!Object.values(RE_ALG).some(r => r.test(texto));
+  const exato = pedeCodigo || sobreAlgoritmo || PEDE_EXATO.test(texto);   // código e contas: amostragem quase determinística
   const foraDeCodigo = s => s.split('```').filter((_, i) => i % 2 === 0).join('\n').replace(/`[^`]*`/g, '');
-  // desenho incremental: os blocos já fechados (até a última linha em branco fora de um bloco de código)
-  // são desenhados uma vez só; a cada quadro só o final da resposta é refeito. O intervalo se adapta ao custo.
-  let fixoAte = 0, fixoEl = null, caudaEl = null, custo = 4;
-  const pontoFixo = s => {
-    let dentro = false, ultimo = 0, pos = 0;
-    const linhas = s.split('\n');
-    for (let k = 0; k < linhas.length - 1; k++) {
-      const l = linhas[k]; pos += l.length + 1;
-      if (/^\s*(```|~~~)/.test(l)) dentro = !dentro;
-      else if (!dentro && !l.trim()) ultimo = pos;
-    }
-    return ultimo;
-  };
+  // desenho incremental: o que já está fechado (blocos até a última linha em branco fora de código, ou até o fim de um
+  // bloco de código) é desenhado uma vez só; a cada quadro só o final da resposta é refeito. Num bloco de código ainda
+  // aberto, o texto novo entra como texto puro (sem recolorir o bloco inteiro a cada quadro) e as cores vêm de vez em quando.
+  let fixoAte = 0, fixoEl = null, caudaEl = null, custo = 4, aberto = null;
   // digitação suave: o texto aparece aos poucos, num ritmo constante; quando chega muito texto de uma vez,
   // o ritmo acelera para não ficar para trás (35 caracteres/s + 2,5x o que falta mostrar)
   let mostrado = inicio.length, tAnt = 0, terminou = false, aoAlcancar = null;
   const desenhar = s => {
     const t0 = performance.now();
-    if (!fixoEl || !fixoEl.isConnected) { alvo.innerHTML = '<div class="fixo"></div><div class="cauda"></div>'; fixoEl = alvo.firstChild; caudaEl = alvo.lastChild; fixoAte = 0; }
-    const corte = pontoFixo(s);
-    if (corte > fixoAte) { fixoEl.insertAdjacentHTML('beforeend', md(s.slice(fixoAte, corte))); fixoAte = corte; }
-    caudaEl.innerHTML = md(s.slice(fixoAte));
+    if (!fixoEl || !fixoEl.isConnected) { alvo.innerHTML = '<div class="fixo"></div><div class="cauda"></div>'; fixoEl = alvo.firstChild; caudaEl = alvo.lastChild; fixoAte = 0; aberto = null; }
+    const { fixo, cerca } = analisarResposta(s);
+    if (fixo > fixoAte) { fixoEl.insertAdjacentHTML('beforeend', md(s.slice(fixoAte, fixo))); enfeitar(fixoEl); fixoAte = fixo; aberto = null; }
+    if (cerca && cerca.pos >= fixoAte) {
+      if (!aberto || aberto.pos !== cerca.pos) {
+        caudaEl.innerHTML = md(s.slice(fixoAte, cerca.pos)) + `<pre data-lang="${esc(DESTAQUE.rotulo(cerca.lang))}"><code></code></pre>`;
+        aberto = { pos: cerca.pos, el: caudaEl.lastChild.firstChild, len: 0, cor: t0 };
+      }
+      const codigo = s.slice(cerca.codigo);
+      if (codigo.length < aberto.len) { aberto.el.textContent = codigo; aberto.len = codigo.length; }
+      else if (codigo.length > aberto.len) { aberto.el.appendChild(document.createTextNode(codigo.slice(aberto.len))); aberto.len = codigo.length; }
+      if (codigo.length < 8000 && t0 - aberto.cor > 400) { aberto.el.innerHTML = DESTAQUE.destacar(codigo, cerca.lang); aberto.cor = t0; }
+    } else { caudaEl.innerHTML = md(s.slice(fixoAte)); aberto = null; }
     rolar();
     custo = custo * 0.7 + (performance.now() - t0) * 0.3;
   };
+  // tTimer (setTimeout) e tRaf (requestAnimationFrame) nunca se misturam: cada um é cancelado pela função certa
+  const depois = ms => { clearTimeout(tTimer); tTimer = setTimeout(() => { tTimer = 0; agendar(); }, ms); };
   const passo = agora => {
-    tRender = 0;
+    tRaf = 0;
     if (!alvo || !alvo.isConnected) { if (aoAlcancar) aoAlcancar(); return; }
     const espera = pausaDesenhoAte - performance.now();
-    if (espera > 0) { tRender = setTimeout(() => requestAnimationFrame(passo), espera); return; }
+    if (espera > 0) { depois(espera); return; }
     const total = inicio + novo, falta = total.length - mostrado;
     const dt = tAnt ? Math.min(100, agora - tAnt) : 16; tAnt = agora;
     if (falta > 0) {
@@ -1061,10 +1074,10 @@ async function responder(conv, continuacao) {
     }
     if (Math.floor(mostrado) >= total.length) { tAnt = 0; if (terminou && aoAlcancar) aoAlcancar(); return; }
     // aparelho lento: desenha menos vezes por segundo, mas o ritmo da digitação continua o mesmo
-    if (custo > 10) tRender = setTimeout(() => requestAnimationFrame(passo), Math.min(200, custo * 2));
-    else tRender = requestAnimationFrame(passo);
+    if (custo > 10) depois(Math.min(200, custo * 2));
+    else tRaf = requestAnimationFrame(passo);
   };
-  const agendar = () => { if (!tRender) tRender = requestAnimationFrame(passo); };
+  const agendar = () => { if (!tRaf && !tTimer) tRaf = requestAnimationFrame(passo); };
   // espera a digitação alcançar o fim (no máximo 3 s; se a pessoa tocou em parar, termina na hora)
   const alcancar = () => new Promise(res => {
     terminou = true;
@@ -1072,26 +1085,26 @@ async function responder(conv, continuacao) {
     aoAlcancar = res; agendar(); setTimeout(res, 3000);
   });
   try {
+    // temperatura livre (0,6–0,7, a recomendada para o Qwen3.5) para a mesma pergunta não cair sempre no mesmo texto;
+    // baixa em código e contas. A semente, o DRY e o XTC ficam em plataforma.js.
     const r = await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
-      { temperatura: nivel === 'alto' ? (pedeCodigo ? 0.15 : 0.25) : pedeCodigo ? 0.2 : 0.35, repeticao: pedeCodigo ? 1.0 : 1.05, maxTokens, continuar: !!continuacao }, t => {
-        novo += t;
-        if (sobreAlgoritmo && !continuacao && INVENTA.test(foraDeCodigo(novo))) { cortou = true; ctrl.abort(); return; }
-        agendar();
+      { temperatura: exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato, repeticao: exato ? 1.0 : 1.05, maxTokens, continuar: !!continuacao }, t => {
+        novo += t; agendar();
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';
   } catch (e) {
     if (e.name !== 'AbortError') erro = e.message || String(e);
   } finally {
     if (!erro) await alcancar();
-    clearTimeout(tRender); cancelAnimationFrame(tRender);
+    clearTimeout(tTimer); cancelAnimationFrame(tRaf); tTimer = tRaf = 0;
     geracao = null;
     PLATAFORMA.ocupado(false);
     $('#enviar').classList.remove('gerando'); $('#enviar').title = 'Enviar'; ajustar();
   }
   novo = novo.replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
-  if (cortou) {
-    const m = INVENTA.exec(novo); if (m) novo = novo.slice(0, novo.lastIndexOf('\n', m.index) + 1).trim();
-    novo += '\n\nPara ver um exemplo com números exatos, me mande a lista. Por exemplo: **bubble sort em [5, 2, 8, 1]**.';
+  // explicação de algoritmo com uma lista de números inventada pela IA: em vez de cortar a resposta no meio, avisa no fim
+  if (sobreAlgoritmo && !continuacao && !erro && INVENTA.test(foraDeCodigo(novo))) {
+    novo = novo.trimEnd() + '\n\n*Os números do exemplo acima são só ilustrativos. Para um passo a passo exato, me mande a lista — por exemplo: **bubble sort em [5, 2, 8, 1]**.*';
   }
   msg.texto = (inicio + novo).trim(); msg.llm = msg.texto;
   if (erro) {
@@ -1099,7 +1112,7 @@ async function responder(conv, continuacao) {
       /context|exceed|too long|n_ctx/i.test(erro) ? 'A conversa ficou longa demais para a memória da IA. Comece uma nova conversa ou apague mensagens antigas.' : 'Erro: ' + erro;
     if (!msg.texto) msg.interno = true;
   } else { delete msg.erro; delete msg.interno; }
-  if (!erro && !cortou && ctrl.signal.aborted) msg.interrompida = true;
+  if (!erro && ctrl.signal.aborted) msg.interrompida = true;
   if (fim === 'length') msg.cortada = true;
   if (!continuacao) conv.msgs.push(msg);
   conv.atualizada = Date.now();

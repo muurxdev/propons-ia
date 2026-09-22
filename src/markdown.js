@@ -25,6 +25,26 @@ function inline(s) {
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${esc(cods[+i])}</code>`);
 }
 
+// cerca de código: a MESMA regra é usada pelo desenho incremental (app.js) para saber o que já está fechado
+const CERCA_ABRE = /^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)[^`]*$/;
+const SEP_TABELA = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;   // linha |---|---| de uma tabela
+const cercaFecha = (cerca, l) => new RegExp('^ {0,3}' + cerca[0] + '{' + cerca.length + ',}\\s*$').test(l);
+/* resposta em streaming: até onde o texto já está "fechado" (md(parte fixa) + md(resto) dá o mesmo que md(tudo)) e se
+   termina dentro de um bloco de código aberto. Fecham um bloco: o fim de um bloco de código e uma linha em branco
+   fora de código, desde que a linha seguinte não seja continuação (indentada) nem item de lista. */
+function analisarResposta(s) {
+  let cerca = null, fixo = 0, pos = 0;
+  const linhas = s.split('\n');
+  for (let k = 0; k < linhas.length; k++) {
+    const l = linhas[k], ini = pos, completa = k < linhas.length - 1; pos += l.length + 1;
+    if (cerca) { if (cercaFecha(cerca.cerca, l)) { cerca = null; if (completa) fixo = pos; } continue; }
+    const f = l.match(CERCA_ABRE);
+    if (f) cerca = { cerca: f[1], lang: f[2] || '', pos: ini, codigo: Math.min(pos, s.length) };
+    else if (completa && !l.trim() && !/^\s|^ *(?:[-*+]|\d{1,9}[.)])\s/.test(linhas[k + 1])) fixo = pos;
+  }
+  return { fixo, cerca };
+}
+
 function md(src) {
   const linhas = String(src).replace(/\r\n?/g, '\n').split('\n');
   let i = 0;
@@ -37,11 +57,11 @@ function md(src) {
     while (i < fim) {
       const l = linhas[i];
       // bloco de código
-      let f = l.match(/^ {0,3}(`{3,}|~{3,})\s*([^`\s]*)[^`]*$/);
+      let f = l.match(CERCA_ABRE);
       if (f) {
         const cerca = f[1], lang = f[2] || '';
         const cod = []; i++;
-        while (i < fim && !new RegExp('^ {0,3}' + cerca[0] + '{' + cerca.length + ',}\\s*$').test(linhas[i])) cod.push(linhas[i++]);
+        while (i < fim && !cercaFecha(cerca, linhas[i])) cod.push(linhas[i++]);
         const fechado = i < fim; if (fechado) i++;
         const texto = cod.join('\n');
         html.push(`<pre data-lang="${esc(DESTAQUE.rotulo(lang))}"><code>${DESTAQUE.destacar(texto, lang)}</code></pre>`);
@@ -61,7 +81,7 @@ function md(src) {
         continue;
       }
       // tabela (cabeçalho + linha de separação)
-      if (/\|/.test(l) && i + 1 < fim && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(linhas[i + 1])) {
+      if (/\|/.test(l) && i + 1 < fim && SEP_TABELA.test(linhas[i + 1])) {
         const celulas = r => r.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map(c => inline(c.trim().replace(/\\\|/g, '|')));
         const cab = celulas(l); i += 2;
         const corpo = [];
@@ -76,7 +96,9 @@ function md(src) {
       // parágrafo
       const p = [];
       while (i < fim && !/^\s*$/.test(linhas[i]) && !itemRe.test(linhas[i]) && !/^ {0,3}(`{3,}|~{3,}|#{1,6}\s|>)/.test(linhas[i]) &&
-             !(/\|/.test(linhas[i]) && i + 1 < fim && /^\s*\|?\s*:?-{2,}/.test(linhas[i + 1]))) p.push(linhas[i++]);
+             !(/\|/.test(linhas[i]) && i + 1 < fim && SEP_TABELA.test(linhas[i + 1]))) p.push(linhas[i++]);
+      // o parágrafo parava antes de uma "quase tabela" (|---|- ainda sendo digitada) que a tabela não aceitava → laço infinito
+      if (!p.length) p.push(linhas[i++]);   // garantia: toda linha é consumida
       html.push(`<p>${p.map(x => inline(x.trim())).join('<br>')}</p>`);
     }
     return html.join('');

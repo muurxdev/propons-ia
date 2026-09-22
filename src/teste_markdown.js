@@ -2,8 +2,8 @@
 const fs = require('fs'), vm = require('vm');
 const ctx = { esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) };
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(__dirname + '/destaque.js', 'utf8') + '\n' + fs.readFileSync(__dirname + '/markdown.js', 'utf8') + ';this.md=md;this.D=DESTAQUE;', ctx);
-const { md, D } = ctx;
+vm.runInContext(fs.readFileSync(__dirname + '/destaque.js', 'utf8') + '\n' + fs.readFileSync(__dirname + '/markdown.js', 'utf8') + ';this.md=md;this.D=DESTAQUE;this.analisarResposta=analisarResposta;', ctx);
+const { md, D, analisarResposta } = ctx;
 let falhas = 0, total = 0;
 const ok = (nome, cond, extra) => { total++; if (!cond) { falhas++; console.log('FALHOU:', nome, extra !== undefined ? '\n   ' + extra : ''); } };
 
@@ -60,5 +60,24 @@ for (const [l, c] of Object.entries(exemplos)) {
   ok('destaque colore: ' + l, /tk-/.test(saida), saida);
 }
 ok('destaque escapa', !/<script/.test(D.destacar('<script>x</script>', 'js')));
+
+// streaming: para QUALQUER prefixo da resposta, md(parte fixa) + md(resto) tem de dar o mesmo HTML que md(prefixo)
+// (senão o texto já desenhado ficaria diferente do desenho final)
+const resposta = '# Quick sort\n\nO **quick sort** escolhe um pivô e divide a lista.\n\nPassos:\n\n1. escolhe o pivô\n2. separa\n\n3. junta\n\n- vantagem: rápido\n  - em média O(n log n)\n\n- desvantagem: pior caso\n\n```python\ndef quick(v):\n    if len(v) < 2:\n        return v\n\n    p = v[0]\n    return quick([x for x in v[1:] if x < p]) + [p] + quick([x for x in v[1:] if x >= p])\n```\n\nTabela:\n\n| caso | custo |\n|---|---|\n| médio | n log n |\n| pior | n² |\n\n> citação\n> continua\n\n~~~~\nbloco com ~~~ dentro\n~~~~\n\nFim.';
+let ruins = 0, fixos = 0;
+for (let n = 1; n <= resposta.length; n++) {
+  const p = resposta.slice(0, n), { fixo, cerca } = analisarResposta(p);
+  if (fixo > 0) fixos++;
+  if (md(p.slice(0, fixo)) + md(p.slice(fixo)) !== md(p)) { ruins++; if (ruins < 3) console.log('   prefixo', n, JSON.stringify(p.slice(Math.max(0, fixo - 20), fixo + 20))); }
+  if (cerca && (cerca.pos < fixo || p.slice(cerca.codigo).includes('```\n'))) { ruins++; console.log('   cerca errada no prefixo', n); }
+}
+ok('streaming: parte fixa + resto == tudo (todos os prefixos)', ruins === 0, ruins + ' prefixos ruins');
+ok('streaming: a parte fixa avança', fixos > resposta.length / 2, fixos);
+let a = analisarResposta('texto\n\n```js\nlet x = 1;\nlet y');
+ok('streaming: bloco aberto detectado', a.cerca && a.cerca.lang === 'js' && a.fixo === 7 && 'texto\n\n```js\nlet x = 1;\nlet y'.slice(a.cerca.codigo) === 'let x = 1;\nlet y', JSON.stringify(a));
+a = analisarResposta('```py\nx\n```\ndepois');
+ok('streaming: fim do bloco de código é ponto fixo', !a.cerca && a.fixo === 12, JSON.stringify(a));
+a = analisarResposta('1. um\n\n2. dois\n');
+ok('streaming: linha em branco antes de item não separa a lista', a.fixo === 0, JSON.stringify(a));
 console.log(`${total - falhas}/${total} testes OK`);
 process.exit(falhas ? 1 : 0);

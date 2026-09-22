@@ -78,19 +78,26 @@ const PLATAFORMA = (() => {
     if (!t.ok) throw await erroHTTP(t);
     const { prompt } = await t.json();
     const r = await fetch(base + '/completion', { method: 'POST', signal: sinal, headers: cab(),
-      body: JSON.stringify({ prompt: prompt + parcial, stream: true, n_predict: op.maxTokens, temperature: op.temperatura, top_p: 0.85, top_k: 20,
-        repeat_penalty: op.repeticao || 1.05, cache_prompt: true }) });
+      body: JSON.stringify({ prompt: prompt + parcial, stream: true, n_predict: op.maxTokens, ...amostragem(op), cache_prompt: true }) });
     if (!r.ok) throw await erroHTTP(r);
     let fim = 'stop', timings = null;
     await lerSSE(r, j => { if (j.content) aoToken(j.content); if (j.stop) { fim = j.stop_type === 'limit' ? 'length' : 'stop'; timings = j.timings || timings; } });
     return { fim, timings };
   }
 
+  /* amostragem: semente nova a cada pedido (a mesma pergunta não cai sempre no mesmo texto) e os valores
+     recomendados para o Qwen3.5; em texto livre, DRY (não repetir trechos) e XTC (mais variedade). Em código e contas
+     (op.exato) só temperatura baixa e semente. */
+  function amostragem(op) {
+    const a = { temperature: op.temperatura, top_k: 20, top_p: 0.95, min_p: 0.02, repeat_penalty: op.repeticao || 1.05, seed: Math.floor(Math.random() * 2147483647) };
+    if (!op.exato) Object.assign(a, { dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 2, xtc_probability: 0.3, xtc_threshold: 0.1 });
+    return a;
+  }
+
   /* geração via HTTP (llama-server, compatível com OpenAI, com streaming) */
   async function gerarHTTP(mensagens, op, aoToken, sinal) {
     if (op.continuar && mensagens.length && mensagens[mensagens.length - 1].role === 'assistant') return continuarHTTP(mensagens, op, aoToken, sinal);
-    const corpo = { messages: mensagens, stream: true, temperature: op.temperatura, top_p: 0.85, top_k: 20,
-      repeat_penalty: op.repeticao || 1.05, max_tokens: op.maxTokens, cache_prompt: true,
+    const corpo = { messages: mensagens, stream: true, ...amostragem(op), max_tokens: op.maxTokens, cache_prompt: true,
       chat_template_kwargs: { enable_thinking: false }, timings_per_token: false };
     const r = await fetch(base + '/v1/chat/completions', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify(corpo) });
     if (!r.ok) throw await erroHTTP(r);
@@ -106,11 +113,15 @@ const PLATAFORMA = (() => {
   /* geração no iOS: tokens chegam pela ponte */
   function gerarNativo(mensagens, op, aoToken, sinal) {
     return new Promise((ok, falha) => {
-      const id = ++seq;
-      const p = { token: aoToken, ok, falha };
-      pendentes.set('g' + id, p);
-      pendentes.set(id, { ok: d => { pendentes.delete('g' + id); ok(d || { fim: 'stop' }); }, falha: e => { pendentes.delete('g' + id); falha(e); } });
-      if (sinal) sinal.addEventListener('abort', () => enviarPonte({ t: 'pedido', id: ++seq, acao: 'parar', args: { alvo: id } }));
+      const id = ++seq; let vigia = 0, acabou = false;
+      // vigia: se o motor morrer no meio, nenhum token em 90 s (ou 2 s depois de pedir para parar) encerra o pedido
+      // aqui mesmo — sem isso `geracao` ficaria travado para sempre
+      const fim = (f, v) => { if (acabou) return; acabou = true; clearTimeout(vigia); pendentes.delete('g' + id); pendentes.delete(id); f(v); };
+      const armar = ms => { clearTimeout(vigia); vigia = setTimeout(() => fim(sinal && sinal.aborted ? ok : falha, sinal && sinal.aborted ? { fim: 'stop' } : new Error('A IA parou de responder.')), ms); };
+      pendentes.set('g' + id, { token: t => { armar(90000); aoToken(t); }, ok: d => fim(ok, d || { fim: 'stop' }), falha: e => fim(falha, e) });
+      pendentes.set(id, { ok: d => fim(ok, d || { fim: 'stop' }), falha: e => fim(falha, e) });
+      if (sinal) sinal.addEventListener('abort', () => { if (acabou) return; enviarPonte({ t: 'pedido', id: ++seq, acao: 'parar', args: { alvo: id } }); armar(2000); });
+      armar(90000);
       enviarPonte({ t: 'pedido', id, acao: 'gerar', args: { mensagens, temperatura: op.temperatura, maxTokens: op.maxTokens, continuar: !!op.continuar } });
     });
   }
