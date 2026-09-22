@@ -1,6 +1,7 @@
 ## Novidades da 1.20.0
 
 - **Organização:** fixar conversas no topo e mover para pastas (menu ⋯ da conversa); apagou sem querer? "Desfazer" no aviso.
+- **Qualquer mensagem:** editar e reenviar qualquer pergunta (o que vem depois é refeito), gerar de novo a partir de qualquer resposta e **ramificar** a conversa até um ponto, sem mexer na original.
 - **Memória:** diga "lembre que estou no 3º ano" e a IA passa a saber disso em toda resposta; "esqueça …" apaga. Tudo editável em Ajustes → Memória, e fica só no aparelho.
 
 ## Novidades da 1.19.0

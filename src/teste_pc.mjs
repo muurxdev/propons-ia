@@ -204,6 +204,23 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('adicionar pela tela', (await js(`memoria()`))[0] === 'prefiro exemplos com Python');
   await js(`fecharModal(true); pref('memoria', ''); nova(); 1`);
 }
+// 1.19: editar qualquer pergunta, gerar de novo a partir de qualquer resposta e ramificar
+{
+  await js(`atual = { id: 'edit1', titulo: 'Edição', criada: Date.now(), atualizada: Date.now(), msgs: [
+    { role: 'user', texto: 'Quanto é 2 + 2?', llm: 'Quanto é 2 + 2?' }, { role: 'assistant', texto: 'Quatro.', llm: 'Quatro.' },
+    { role: 'user', texto: 'E 3 + 3?', llm: 'E 3 + 3?' }, { role: 'assistant', texto: 'Seis.', llm: 'Seis.' } ] }; conversas.unshift(atual); abrir('edit1'); 1`);
+  ok('todas as perguntas têm "editar" e todas as respostas têm "gerar de novo"', (await js(`document.querySelectorAll('.msg.eu .acoes.editar').length`)) === 2 && (await js(`document.querySelectorAll('.msg.ia .acao.recarregar').length`)) === 2 && (await js(`document.querySelectorAll('.msg.ia .acao.ramificar').length`)) === 1);
+  await js(`document.querySelector('.msg.ia .acao.ramificar').click(); 1`); await espera(200);
+  ok('ramificar cria uma conversa nova com as mensagens até ali', await js(`atual.id !== 'edit1' && /^Ramo:/.test(atual.titulo) && atual.msgs.length === 2 && conversas.find(c => c.id === 'edit1').msgs.length === 4`));
+  await js(`conversas = conversas.filter(c => c.id === 'edit1' || !/^Ramo:/.test(c.titulo)); abrir('edit1'); document.querySelectorAll('.msg.eu .acoes.editar button')[1].click(); 1`); await espera(200);
+  ok('editar a primeira pergunta põe o texto na caixa em modo de edição', (await js(`$('#entrada').value`)) === 'Quanto é 2 + 2?' && (await js(`editando && editandoIdx === 0`)));
+  await js(`$('#entrada').value = 'Quanto é 5 + 5? Responda só o número.'; ajustar(); $('#enviar').click(); 1`);
+  for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
+  for (let i = 0; i < 400 && (await js('!!geracao')); i++) await espera(250);
+  const ed = await js(`({ n: atual.msgs.length, p: atual.msgs[0].texto, r: atual.msgs[1].texto })`);
+  ok('reenviar refaz a conversa a partir da pergunta editada', ed.n === 2 && /5 \+ 5/.test(ed.p) && /10|dez/i.test(ed.r), JSON.stringify(ed));
+  await js(`conversas = conversas.filter(c => c.id !== 'edit1'); nova(); 1`);
+}
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
 ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));

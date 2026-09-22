@@ -395,12 +395,11 @@ function addEu(m, ultima) {
   d.innerHTML = (m.imagens && m.imagens.length ? `<div class="fotos-msg">${m.imagens.map(x => `<img src="${esc(x.miniatura)}" alt="${esc(x.nome)}">`).join('')}</div>` : '') +
     (m.anexos && m.anexos.length ? `<div class="anexos-msg">${m.anexos.map(a => chipHTML(a)).join('')}</div>` : '') +
     (m.texto ? `<div class="txt">${esc(m.texto)}</div>` : '');
-  if (ultima) {
-    document.querySelectorAll('.msg.eu .editar').forEach(b => b.remove());
+  {   // qualquer pergunta pode ser copiada ou editada e reenviada (o que vem depois dela é refeito)
     const a = document.createElement('div'); a.className = 'acoes editar';
     a.innerHTML = `<button class="acao" title="Copiar pergunta" aria-label="Copiar pergunta">${ICO.copiar}</button><button class="acao" title="Editar e reenviar" aria-label="Editar e reenviar">${ICO.editar}</button>`;
     a.children[0].onclick = () => copiarTexto(m.texto).then(() => toast('Pergunta copiada.'));
-    a.children[1].onclick = () => editarUltima();
+    a.children[1].onclick = () => editarMensagem(m);
     d.appendChild(a);
   }
   coluna().appendChild(d); rolar(true);
@@ -695,10 +694,13 @@ function acoes(d, m, ultima) {
       bs.onclick = () => PLATAFORMA.compartilhar(m.texto).catch(() => {}); a.appendChild(bs);
     }
   }
+  if (!m.interno) {   // qualquer resposta: gerar de novo (a partir dela) e ramificar a conversa até aqui
+    const br = document.createElement('button'); br.className = 'acao recarregar'; br.title = ultima ? 'Gerar de novo' : 'Gerar de novo a partir daqui (o que vem depois é refeito)'; br.setAttribute('aria-label', br.title); br.innerHTML = ICO.recarregar;
+    br.onclick = () => regenerarDe(m); a.appendChild(br);
+    if (!ultima) { const bf = document.createElement('button'); bf.className = 'acao ramificar'; bf.title = 'Ramificar: nova conversa até aqui'; bf.setAttribute('aria-label', bf.title); bf.innerHTML = ICO.ramificar; bf.onclick = () => ramificar(m); a.appendChild(bf); }
+  }
   if (ultima) {
-    document.querySelectorAll('.acao.recarregar,.acao.continuar').forEach(b => b.remove());
-    const br = document.createElement('button'); br.className = 'acao recarregar'; br.title = 'Gerar de novo'; br.setAttribute('aria-label', 'Gerar de novo'); br.innerHTML = ICO.recarregar;
-    br.onclick = () => regenerar(); a.appendChild(br);
+    document.querySelectorAll('.acao.continuar').forEach(b => b.remove());
     if (m.cortada || m.interrompida) {
       const bs = document.createElement('button'); bs.className = 'acao continuar'; bs.innerHTML = ICO.seguir + '<span>Continuar</span>';
       bs.onclick = () => continuar(); a.appendChild(bs);
@@ -1343,8 +1345,8 @@ async function enviar(texto) {
   if (!ESCOLHER && anexos.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
   if (geracao) return;
   if (editando && atual) {
-    // substitui a última pergunta (e a resposta dela)
-    const iu = ultimoIndice(atual, 'user'); if (iu >= 0) atual.msgs.splice(iu);
+    // substitui a pergunta em edição (e tudo o que veio depois dela)
+    const iu = editandoIdx >= 0 && editandoIdx < atual.msgs.length ? editandoIdx : ultimoIndice(atual, 'user'); if (iu >= 0) atual.msgs.splice(iu);
     cancelarEdicao(); abrir(atual.id);
   }
   $('#entrada').value = '';
@@ -1373,29 +1375,43 @@ async function enviar(texto) {
   await responder(atual);
 }
 
-async function regenerar() {
+ICO.ramificar = '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10"/><path d="M6 12c0-3 3-3 6-3h4"/></svg>';
+async function regenerar() { if (atual && atual.msgs.length) await regenerarDe(atual.msgs[atual.msgs.length - 1]); }
+// gera de novo a partir de uma resposta: ela e tudo depois dela saem; a pergunta anterior é respondida outra vez
+async function regenerarDe(m) {
   const c = atual; if (!c || geracao) return;
-  if (c.msgs.length && c.msgs[c.msgs.length - 1].role === 'assistant') c.msgs.pop();
-  if (!c.msgs.length || c.msgs[c.msgs.length - 1].role !== 'user') return;
+  let i = c.msgs.indexOf(m); if (i < 0) return;
+  if (c.msgs[i].role === 'assistant') c.msgs.splice(i); else c.msgs.splice(i + 1);
+  while (c.msgs.length && c.msgs[c.msgs.length - 1].role !== 'user') c.msgs.pop();
+  if (!c.msgs.length) return;
   abrir(c.id);
   await responder(c);
+}
+// ramificar: nova conversa com tudo até esta mensagem (a original continua igual)
+function ramificar(m) {
+  const c = atual; if (!c) return; const i = c.msgs.indexOf(m); if (i < 0) return;
+  const ramo = { id: novoId(), titulo: 'Ramo: ' + c.titulo.slice(0, 50), criada: Date.now(), atualizada: Date.now(), pasta: c.pasta, msgs: JSON.parse(JSON.stringify(c.msgs.slice(0, i + 1))) };
+  if (!ramo.pasta) delete ramo.pasta;
+  conversas.unshift(ramo); salvar(); abrir(ramo.id); toast('Conversa ramificada: continue daqui sem mexer na original.', 3500);
 }
 async function continuar() {
   const c = atual; if (!c || geracao) return;
   const m = c.msgs[c.msgs.length - 1]; if (!m || m.role !== 'assistant') return;
   await responder(c, m);
 }
-function editarUltima() {
-  if (!atual || geracao) return;
-  const iu = ultimoIndice(atual, 'user'); if (iu < 0) return;
-  const m = atual.msgs[iu];
+let editandoIdx = -1;   // índice da pergunta em edição (-1 = a última)
+function editarUltima() { if (atual) editarMensagem(atual.msgs[ultimoIndice(atual, 'user')]); }
+function editarMensagem(m) {
+  if (!atual || geracao || !m) return;
+  const iu = atual.msgs.indexOf(m); if (iu < 0) return;
+  editandoIdx = iu;
   editando = true; $('#editando').hidden = false;
   $("#entrada").value = m.texto;
   anexos = (m.anexos || []).slice().concat((m.imagens || []).map((x, i) => ({ tipo: "imagem", nome: x.nome, tam: 0, miniatura: x.miniatura, dataUrl: m._envio && m._envio[i] })).filter(a => a.dataUrl));
   desenharChips();
   ajustar(); $('#entrada').focus();
 }
-function cancelarEdicao() { editando = false; $('#editando').hidden = true; }
+function cancelarEdicao() { editando = false; editandoIdx = -1; $('#editando').hidden = true; }
 $('#cancelarEdicao').onclick = () => { cancelarEdicao(); $('#entrada').value = ''; anexos = []; desenharChips(); };
 
 async function responder(conv, continuacao) {
