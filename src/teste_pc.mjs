@@ -22,7 +22,7 @@ await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(4
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
 ok('"+" abre menu flutuante (pop) no PC', await js(`!!document.querySelector('.dlg-fundo.pop .dlg')`));
-ok('"+" no estilo Claude: 3 cartões + 2 linhas, X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 2 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
+ok('"+" no estilo Claude: 3 cartões + 3 linhas (Áudio, Biblioteca, Modos de estudo), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 3 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
 const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, x: Math.abs(r.left-b.left) < 40}})()`);
 ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(rp));
 await foto('p1-mais');
