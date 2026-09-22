@@ -137,7 +137,7 @@ function validar(lista) {
     criada: +c.criada || Date.now(), atualizada: +c.atualizada || +c.criada || Date.now(),
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
-      ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}),
+      ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
       ...(m.erro ? { erro: txt(m.erro) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
@@ -637,93 +637,99 @@ function abrirMais() {
   document.body.appendChild(f);
 }
 
-/* ---------------- primeira abertura: escolher o modelo ----------------
-   O app abre normalmente, sem baixar nada; a pessoa escolhe o modelo, o app baixa (com progresso),
-   liga a IA e abre o chat. Dá para trocar depois pelo seletor ao lado do "+" ou em Ajustes. */
+/* ---------------- nomes dos modelos (brasileiros) ----------------
+   Três conjuntos à escolha em Ajustes → Aparência: animais (padrão), árvores e frutas. */
+const NOMES_MODELOS = {
+  animais: { leve: 'Sabiá', normal: 'Tucano', avancado: 'Onça' },
+  arvores: { leve: 'Ipê', normal: 'Jatobá', avancado: 'Jequitibá' },
+  frutas: { leve: 'Acerola', normal: 'Caju', avancado: 'Jaca' },
+};
+const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
+const temaNomes = () => NOMES_MODELOS[pref('temaNomes')] ? pref('temaNomes') : 'animais';
+const nomeCurto = m => (NOMES_MODELOS[temaNomes()][m.id || m] || (m.nome || '').replace(/\s*\(.*\)/, ''));
+const nomeModelo = m => 'Própons ' + nomeCurto(m);
+// bolinha com a porcentagem do download
+const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, Math.floor(pct * 100)))}"><b>${Math.floor(pct * 100)}%</b></span>`;
+
+/* ---------------- primeira abertura ----------------
+   O app abre direto no chat, sem modelo. Ao mandar a primeira mensagem (ou tocar no seletor ao lado do "+"),
+   sobe a lista de modelos; ao tocar em Baixar, aparece a bolinha com a %; quando termina, o app liga a IA,
+   abre o chat de novo e a IA responde a mensagem que ficou esperando. */
 const ESCOLHER = !!window.PROPONS_ESCOLHER || /[#&]escolher\b/.test(location.hash);
-async function telaEscolherModelo() {
-  const t = document.createElement('div'); t.className = 'escolher'; t.id = 'escolher';
-  t.innerHTML = `<div class="esc-corpo"><div class="marca"></div><h1>Boas-vindas à Própons IA</h1>
-    <p class="esc-sub">Escolha o modelo de IA que vai responder você. Ele é baixado uma vez e depois funciona sem internet. Dá para trocar quando quiser.</p>
-    <div class="esc-lista"><p class="info">Carregando…</p></div>
-    <button class="btn primario esc-botao" id="escBaixar" disabled>Escolha um modelo</button>
-    <div class="esc-prog" id="escProg" hidden><div class="barra"><i></i></div><small id="escTexto"></small></div></div>`;
-  document.body.appendChild(t);
-  const s = await lerSistema();
-  const lista = t.querySelector('.esc-lista');
-  if (!s || !s.modelos) { lista.innerHTML = '<p class="info">Não foi possível ler os modelos deste aparelho. Feche e abra de novo.</p>'; return; }
-  const ram = s.ramTotal || 0, rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
-  let escolhido = rec;
-  const desenhar = () => {
-    lista.innerHTML = s.modelos.map(m => {
-      const [perfil, tam] = PERFIL_MODELO[m.id] || ['', ''];
-      const pouca = ram && m.ramMin && ram < m.ramMin * GB * 0.93;
-      return `<button class="esc-op${m.id === escolhido ? ' on' : ''}" data-m="${m.id}"${m.bloqueado ? ' disabled' : ''}>
-        <span class="mico">${tam}</span><span class="pt"><b>${esc(m.nome.replace(/\s*\(.*\)/, ''))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
-        <small>${perfil} · ${gbBonito(m.tamanho)}${m.bloqueado ? ' · ' + esc(m.bloqueado) : pouca ? ' · pede ' + m.ramMin + ' GB de RAM' : ''}</small><small>${esc(m.descricao || '')}</small></span>
-        <span class="bola"></span></button>`;
-    }).join('');
-    lista.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { escolhido = b.dataset.m; desenhar(); });
-    const m = s.modelos.find(x => x.id === escolhido);
-    const bt = $('#escBaixar'); bt.disabled = !m; bt.textContent = m ? (m.baixado ? 'Começar' : 'Baixar e começar · ' + gbBonito(m.tamanho)) : 'Escolha um modelo';
-  };
-  desenhar();
-  $('#escBaixar').onclick = async () => {
-    const m = s.modelos.find(x => x.id === escolhido); if (!m) return;
-    if (ram && ram < m.ramMin * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(m.nome)} pede ${m.ramMin} GB. Ele pode ficar lento ou fechar.`, 'Continuar mesmo assim')) return;
-    t.classList.add('baixando'); $('#escBaixar').disabled = true; $('#escBaixar').textContent = 'Baixando…';
-    $('#escProg').hidden = false; $('#escTexto').textContent = 'Preparando o download…';
-    try { await PLATAFORMA.escolherModelo(m.id); }
-    catch (e) { falhaEscolher(e.message); }
-  };
-}
-function falhaEscolher(msg) {
-  const t = $('#escolher'); if (!t) return;
-  t.classList.remove('baixando'); $('#escBaixar').disabled = false; $('#escBaixar').textContent = 'Tentar de novo';
-  $('#escTexto').textContent = msg || 'Não foi possível baixar. Verifique a internet e tente de novo.';
-}
+let escolhendoId = null;
 PLATAFORMA.ao('download', d => {
-  if (!$('#escolher') || String(d.id).startsWith('visao-') || String(d.id).startsWith('voz-')) return;
-  $('#escProg i').style.width = (d.pct * 100).toFixed(1) + '%';
-  $('#escTexto').textContent = d.fase === 'verificando' ? 'Conferindo o arquivo…' : `Baixando: ${Math.floor(d.pct * 100)}% · ${Math.round(d.feito / 1048576)} de ${Math.round(d.total / 1048576)} MB${PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios' ? ' · pode apagar a tela' : ''}`;
+  const id = d.id;
+  const linha = document.querySelector(`.lista-modelos [data-m="${id}"] .st`);
+  if (linha) linha.innerHTML = d.fase === 'verificando' ? '<span class="anel girando"><b>✓</b></span>' : anel(d.pct || 0);
+  if (ESCOLHER && id === escolhendoId) estado(d.fase === 'verificando' ? 'conferindo o download' : `baixando ${Math.floor((d.pct || 0) * 100)}%`);
 });
-PLATAFORMA.ao('download-fim', d => { if ($('#escolher') && !d.ok) falhaEscolher(d.erro === 'cancelado' ? 'Download cancelado.' : d.erro); });
+PLATAFORMA.ao('download-fim', d => {
+  if (!ESCOLHER || d.id !== escolhendoId || d.ok) return;
+  escolhendoId = null; estado('');
+  toast(d.erro === 'cancelado' ? 'Download cancelado.' : (d.erro || 'Não foi possível baixar. Verifique a internet e tente de novo.'), 5000);
+  const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f);
+});
 PLATAFORMA.ao('motor', d => {
-  if (!$('#escolher')) return;
-  if (d.estado === 'ligando') { $('#escProg i').style.width = '100%'; $('#escTexto').textContent = 'Ligando a IA…'; }
-  if (d.estado === 'erro') falhaEscolher(d.mensagem);
+  if (!ESCOLHER) return;
+  if (d.estado === 'ligando') { estado('ligando a IA'); document.querySelectorAll('.lista-modelos .st .anel').forEach(a => a.outerHTML = '<span class="anel girando"><b>…</b></span>'); }
+  if (d.estado === 'erro') { escolhendoId = null; estado('erro', true); toast(d.mensagem || 'Não foi possível ligar a IA.', 5000); }
 });
+// depois que a IA liga, responde a mensagem que ficou esperando o download
+async function responderPendente() {
+  const c = conversas.find(x => x.msgs.length && x.msgs[x.msgs.length - 1].role === 'user' && x.msgs[x.msgs.length - 1].pendente);
+  if (!c) return;
+  delete c.msgs[c.msgs.length - 1].pendente;
+  abrir(c.id); await responder(c);
+}
 
 /* ---------------- seletor de modelo (ao lado do "+", como no Claude) ---------------- */
 function atualizarSeletorModelo() {
-  const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual);
-  const [, tam] = a ? (PERFIL_MODELO[a.id] || ['', '']) : ['', ''];
-  $('#nomeModelo').textContent = a ? a.nome.replace(/\s*\(.*\)/, '') + (tam ? ' ' + tam : '') : 'Modelo';
-  $('#seletorModelo').hidden = !a && !sistemaCache;
+  const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
+  $('#nomeModelo').textContent = ESCOLHER ? 'Escolher modelo' : a ? nomeModelo(a) : 'Modelo';
 }
-async function abrirSeletorModelo() {
+async function abrirSeletorModelo(motivo) {
+  document.querySelectorAll('.dlg.modelos').forEach(x => x.closest('.dlg-fundo').remove());
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha">${topoFolha('Modelo de IA')}<div class="lista-modelos" style="margin:4px 4px 0"><p class="info" style="padding:12px 14px;margin:0">Carregando…</p></div>
-    <div class="botoes" style="margin:12px 4px 0"><button class="btn link" data-gerenciar>${ICO.chip}Gerenciar modelos</button></div></div>`;
+  f.innerHTML = `<div class="dlg folha modelos">${topoFolha(motivo === 'enviar' ? 'Escolha o modelo para responder' : 'Modelo de IA')}
+    ${ESCOLHER ? '<p class="info" style="margin:0 12px 10px">O modelo é baixado uma vez e depois funciona sem internet. Dá para trocar quando quiser.</p>' : ''}
+    <div class="lista-modelos" style="margin:4px 4px 0"><p class="info" style="padding:12px 14px;margin:0">Carregando…</p></div>
+    ${ESCOLHER ? '' : `<div class="botoes" style="margin:12px 4px 0"><button class="btn link" data-gerenciar>${ICO.chip}Gerenciar modelos</button></div>`}</div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); };
   folha.querySelector('[data-x]').onclick = sair;
-  folha.querySelector('[data-gerenciar]').onclick = () => { sair(); abrirConfig('modelo'); };
+  const g = folha.querySelector('[data-gerenciar]'); if (g) g.onclick = () => { sair(); abrirConfig('modelo'); };
   folhaArrastavel(f, folha, sair);
   pausarDesenho(); document.body.appendChild(f);
-  const sis = await lerSistema(); atualizarSeletorModelo();
-  const lm = folha.querySelector('.lista-modelos'); if (!lm) return;
-  if (!sis) { lm.innerHTML = '<p class="info" style="padding:12px 14px;margin:0">Não foi possível ler os modelos.</p>'; return; }
+  await lerSistema(); atualizarSeletorModelo();
+  desenharListaModelos(folha);
+}
+function desenharListaModelos(folha) {
+  const lm = folha.querySelector('.lista-modelos'), sis = sistemaCache; if (!lm) return;
+  if (!sis || !sis.modelos) { lm.innerHTML = '<p class="info" style="padding:12px 14px;margin:0">Não foi possível ler os modelos.</p>'; return; }
   const ram = sis.ramTotal || 0, rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
-  lm.innerHTML = (sis.modelos || []).map(m => {
-    const [perfil, tam] = PERFIL_MODELO[m.id] || ['', ''];
-    const st = m.bloqueado ? esc(m.bloqueado) : m.atual ? 'Em uso' : baixando[m.id] ? Math.floor(baixando[m.id].pct * 100) + '%' : m.baixado ? 'Usar' : 'Baixar · ' + gbBonito(m.tamanho);
-    return `<button class="lm${m.atual ? ' on' : ''}" data-m="${m.id}"${m.bloqueado ? ' disabled' : ''}><span class="mico">${tam}</span><span class="pt"><b>${esc(m.nome.replace(/\s*\(.*\)/, ''))}${m.id === rec ? ' <span class="selo ok" style="font-size:10.5px;padding:1px 6px;margin-left:4px">Recomendado</span>' : ''}</b><small>${perfil}</small></span><span class="st">${st}</span></button>`;
+  lm.innerHTML = sis.modelos.map(m => {
+    const [, tam] = PERFIL_MODELO[m.id] || ['', ''];
+    const b = baixando[m.id] || (escolhendoId === m.id ? { pct: 0 } : null);
+    const emUso = !ESCOLHER && m.atual;
+    const st = b ? anel(b.pct || 0) : m.bloqueado ? `<span class="st-txt">${esc(m.bloqueado)}</span>` : emUso ? '<span class="st-txt on">Em uso</span>'
+      : `<span class="btn-mini">${m.baixado ? 'Usar' : 'Baixar'}</span>`;
+    return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
+      <span class="mico">${tam}</span><span class="pt"><b>${esc(nomeModelo(m))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
+      <small>${PESO_MODELO[m.id] || ''} · ${gbBonito(m.tamanho)}</small></span><span class="st">${st}</span></button>`;
   }).join('');
-  lm.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
-    const m = sis.modelos.find(x => x.id === b.dataset.m); if (!m || m.atual) return;
-    sair();
-    if (PLATAFORMA.tipo === 'web') abrirConfig('modelo'); else acaoModelo('usar', m, ram);
+  lm.querySelectorAll('[data-m]').forEach(bt => bt.onclick = async () => {
+    const m = sis.modelos.find(x => x.id === bt.dataset.m); if (!m || bt.disabled) return;
+    if (ESCOLHER) {
+      if (escolhendoId) return;
+      if (ram && ram < m.ramMin * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${m.ramMin} GB. Ele pode ficar lento ou fechar.`, 'Baixar mesmo assim')) return;
+      escolhendoId = m.id; desenharListaModelos(folha); estado('baixando 0%');
+      try { await PLATAFORMA.escolherModelo(m.id); } catch (e) { escolhendoId = null; estado(''); toast('Não foi possível: ' + e.message, 4000); desenharListaModelos(folha); }
+      return;
+    }
+    if (m.atual) return;
+    if (PLATAFORMA.tipo === 'web') { animarSaida(folha.parentNode, folha); abrirConfig('modelo'); return; }
+    await acaoModelo('usar', m, ram);
+    desenharListaModelos(folha);
   });
 }
 $('#seletorModelo').onclick = () => abrirSeletorModelo();
@@ -822,7 +828,7 @@ function textoParaModelo(texto, lista) {
 async function enviar(texto) {
   texto = texto.trim();
   if ((!texto && !anexos.length) || geracao) return;
-  if (anexos.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
+  if (!ESCOLHER && anexos.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
   if (geracao) return;
   if (editando && atual) {
     // substitui a última pergunta (e a resposta dela)
@@ -846,6 +852,7 @@ async function enviar(texto) {
   }
   atual.msgs.push(m); atual.atualizada = Date.now();
   conversas = [atual, ...conversas.filter(c => c !== atual)];
+  if (ESCOLHER) { m.pendente = true; addEu(m, true); desenharLista(); salvar(true); abrirSeletorModelo('enviar'); return; }
   addEu(m, true); desenharLista(); salvar();
   await responder(atual);
 }
@@ -1073,7 +1080,7 @@ async function lerSistema() { const s = await PLATAFORMA.sistema().catch(() => n
 function subtitulo(k) {
   const ativo = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual);
   switch (k) {
-    case 'modelo': return ativo ? 'Em uso: ' + ativo.nome : 'Escolher, baixar e apagar';
+    case 'modelo': return ativo ? 'Em uso: ' + nomeModelo(ativo) : 'Escolher, baixar e apagar';
     case 'atualizacoes': return atualizacao ? `Versão ${atualizacao.versao} disponível` : `Versão ${VERSAO}`;
     case 'geral': return ({ sistema: 'Tema do sistema', claro: 'Tema claro', escuro: 'Tema escuro' })[pref('tema') || 'sistema'] + ' · letra ' + ({ p: 'pequena', m: 'média', g: 'grande' })[pref('fonte') || 'm'];
     case 'conversas': return `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · backup e limpeza`;
@@ -1136,10 +1143,13 @@ function ligarCopiar(c) { c.querySelectorAll('[data-copiar]').forEach(b => b.onc
 function abaGeral(c) {
   c.innerHTML = `<div class="secao"><h4>Tema</h4>${seg('tema', [['sistema', 'Sistema'], ['claro', 'Claro'], ['escuro', 'Escuro']], pref('tema') || 'sistema')}</div>
     <div class="secao"><h4>Tamanho da letra</h4>${seg('fonte', [['p', 'Pequena'], ['m', 'Média'], ['g', 'Grande']], pref('fonte') || 'm')}</div>
+    <div class="secao"><h4>Nomes dos modelos</h4>${seg('nomes', [['animais', 'Animais'], ['arvores', 'Árvores'], ['frutas', 'Frutas']], temaNomes())}
+      <p class="info" style="margin-top:8px">${['leve', 'normal', 'avancado'].map(id => `<b>${esc(nomeModelo(id))}</b> (${PESO_MODELO[id].toLowerCase()})`).join(' · ')}</p></div>
     ${estreita() ? `<div class="secao"><h4>Gestos</h4><p class="info">Arraste da borda esquerda para abrir o histórico · segure uma conversa para renomear, compartilhar ou apagar · botão voltar fecha menus e telas.</p></div>`
       : `<div class="secao"><h4>Atalhos</h4><p class="info">Enter envia · Shift+Enter quebra linha · ↑ edita a última pergunta · Ctrl+B histórico · Ctrl+K buscar · Ctrl+Shift+O nova conversa · Ctrl+, ajustes</p></div>`}`;
   ligarSeg(c, 'tema', v => { pref('tema', v); aplicarTema(); });
   ligarSeg(c, 'fonte', v => { pref('fonte', v); aplicarFonte(); });
+  ligarSeg(c, 'nomes', v => { pref('temaNomes', v); atualizarSeletorModelo(); abaGeral(c); });
 }
 
 /* ---------------- modelos ---------------- */
@@ -1158,11 +1168,11 @@ function cartaoModelo(m, ram, rec) {
   else if (b) acoes = `<button class="btn" data-acao="cancelar" data-id="${m.id}">Cancelar download</button>`;
   else if (web) acoes = usar('Usar este');
   else if (m.baixado) acoes = usar('Usar este') + `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>`;
-  if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
   else acoes = usar('Baixar e usar') + `<button class="btn" data-acao="baixar" data-id="${m.id}">${ICO.exportar}Só baixar</button>`;
+  if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
   const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? `<span class="selo cinza">${esc(m.bloqueado)}</span>` : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
-    <div class="mtopo"><div class="mico">${tam}</div><div class="pt"><b>${esc(m.nome.replace(/\s*\(.*\)/, ''))}</b><small>${esc(m.descricao || '')}</small></div>${selo}</div>
+    <div class="mtopo"><div class="mico">${tam}</div><div class="pt"><b>${esc(nomeModelo(m))}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
     <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${m.ramMin} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;
@@ -1226,13 +1236,13 @@ async function acaoModelo(acao, m, ram) {
     desenharAba(); return;
   }
   if (acao === 'apagar') {
-    if (!await confirmar(`Apagar o ${m.nome}?`, `Libera ${gbBonito(m.tamanho)}. Se quiser usar de novo, ele é baixado outra vez.`, 'Apagar', true)) return;
+    if (!await confirmar(`Apagar o ${nomeModelo(m)}?`, `Libera ${gbBonito(m.tamanho)}. Se quiser usar de novo, ele é baixado outra vez.`, 'Apagar', true)) return;
     try { await PLATAFORMA.apagarModelo(m.id); toast('Modelo apagado.'); } catch (e) { toast('Não deu para apagar: ' + e.message, 4000); }
     desenharAba(); return;
   }
   if (Object.keys(baixando).length || trocandoPara) { toast('Espere o download ou a troca atual terminar.'); return; }
-  if (ram && ram < m.ramMin * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(m.nome)} pede ${m.ramMin} GB. Ele pode ficar lento ou fechar.`, 'Continuar mesmo assim')) return;
-  if (!m.baixado && !await confirmar(`Baixar o ${m.nome}?`, `São ${gbBonito(m.tamanho)}, baixados uma vez só. De preferência use Wi-Fi.`, 'Baixar')) return;
+  if (ram && ram < m.ramMin * GB * 0.93 && !await confirmar('Pouca memória', `Este aparelho tem ${gbBonito(ram)} de memória e o ${esc(nomeModelo(m))} pede ${m.ramMin} GB. Ele pode ficar lento ou fechar.`, 'Continuar mesmo assim')) return;
+  if (!m.baixado && !await confirmar(`Baixar o ${nomeModelo(m)}?`, `São ${gbBonito(m.tamanho)}, baixados uma vez só. De preferência use Wi-Fi.`, 'Baixar')) return;
   try {
     if (acao === 'baixar') { baixando[m.id] = { pct: 0, feito: 0, total: m.tamanho }; desenharAba(); await PLATAFORMA.baixarModelo(m.id); return; }
     if (geracao) geracao.ctrl.abort();
@@ -1272,7 +1282,7 @@ PLATAFORMA.ao('motor', d => {
   if (d.estado === 'pronto') {
     online = false; verificar(true);
     lerSistema().then(atualizarSeletorModelo);
-    if (trocandoPara) toast('Pronto! Modelo em uso: ' + (d.nome || ''), 3000);
+    if (trocandoPara) toast('Pronto! Em uso: ' + nomeModelo(trocandoPara), 3000);
     baixando = {}; trocandoPara = null;
     lerSistema().then(() => { desenharNav(); if (abaAtual === 'modelo') desenharAba(); fimEsperaVisao(!!(sistemaCache && sistemaCache.visaoAtiva)); });
   }
@@ -1343,7 +1353,7 @@ async function rodarDiagnostico() {
     if (s.pastaDados) add('info', 'Conversas salvas em', s.pastaDados);
     if (s.so) add('info', 'Sistema', s.so);
     const ativo = (s.modelos || []).find(m => m.atual);
-    if (ativo) add('ok', 'Modelo selecionado', `${ativo.nome} (${ativo.arquivo})`);
+    if (ativo) add('ok', 'Modelo selecionado', `${nomeModelo(ativo)} · ${ativo.nome} (${ativo.arquivo})`);
   } else add('aviso', 'Informações do sistema', PLATAFORMA.tipo === 'web' ? 'Abra pelo comando propons-ia para ver RAM/CPU/disco.' : 'Não foi possível ler.');
   // motor
   const t0 = performance.now(); const vivo = await PLATAFORMA.saude(); const lat = performance.now() - t0;
@@ -1517,7 +1527,7 @@ async function atualizarTudo() {
       const r = await PLATAFORMA.verificarModelos();
       li.remove();
       if (!r || !r.length) add('info', 'Modelos baixados', 'nenhum modelo baixado ainda');
-      else r.forEach(x => add(x.ok ? 'ok' : 'erro', x.nome, x.ok ? 'arquivo inteiro e conferido (SHA-256)' : x.apagado ? 'arquivo com defeito: foi apagado. Baixe de novo em Modelos de IA.' : 'arquivo com defeito e em uso: troque de modelo, apague este e baixe de novo.'));
+      else r.forEach(x => add(x.ok ? 'ok' : 'erro', x.id ? nomeModelo(x) : x.nome, x.ok ? 'arquivo inteiro e conferido (SHA-256)' : x.apagado ? 'arquivo com defeito: foi apagado. Baixe de novo em Modelos de IA.' : 'arquivo com defeito e em uso: troque de modelo, apague este e baixe de novo.'));
     } catch (e) { li.remove(); add('aviso', 'Modelos baixados', 'não foi possível conferir: ' + e.message); }
     verificandoLi = null;
     lerSistema().then(desenharNav);
@@ -1578,7 +1588,9 @@ async function verificar(imediato) {
   clearTimeout(tVerificar);
   const ok = await PLATAFORMA.saude();
   if (ok && !online) {
-    online = true; jaFicouOnline = true;
+    online = true;
+    if (!jaFicouOnline) setTimeout(responderPendente, 300);
+    jaFicouOnline = true;
     try { const p = await PLATAFORMA.props(); const ctx = p && ((p.default_generation_settings && p.default_generation_settings.n_ctx) || p.n_ctx); if (ctx) nCtx = ctx; } catch (e) {}
     aquecer();
   } else if (!ok) {
@@ -1600,11 +1612,11 @@ nova();
 if (!estreita()) abrirLateral();
 (async () => {
   // primeira abertura: a tela de escolher o modelo vem antes de tudo (o chat abre depois, já com a IA ligada)
-  if (ESCOLHER) { telaEscolherModelo(); return; }
-  try { SYSTEM = await PLATAFORMA.textoSistema(); } catch (e) {}
+  if (!ESCOLHER) { try { SYSTEM = await PLATAFORMA.textoSistema(); } catch (e) {} }
   if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
   await carregarHistorico();
   lerSistema().then(atualizarSeletorModelo);
+  if (ESCOLHER) { atualizarSeletorModelo(); return; }   // sem modelo ainda: o motor liga depois da escolha
   verificar();
   // Linux: a transcrição existe se o pacote trouxe o whisper (sistema.json)
   if (PLATAFORMA.tipo === 'web') lerSistema().then(s => { if (s && s.temTranscricao) { PLATAFORMA.temTranscricao = true; PLATAFORMA.urlTranscricao = s.transcricaoUrl || ''; } });

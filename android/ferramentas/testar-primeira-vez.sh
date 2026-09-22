@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Teste da primeira abertura no emulador: instala o APK de teste, apaga os dados do app (como uma instalação nova),
-# abre e roda src/teste_escolher.mjs (escolher o modelo → baixar → ligar → chat).
+# abre e roda src/teste_escolher.mjs (chat → primeira mensagem → Baixar com a bolinha de % → a IA responde).
 # Uso: bash android/ferramentas/testar-primeira-vez.sh [pasta-de-saída] [modelo]
 set -uo pipefail
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"

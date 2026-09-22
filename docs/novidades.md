@@ -1,6 +1,12 @@
+## Novidades da 1.9.0
+
+- **Sem tela de download:** na primeira vez o app abre direto no chat. Mande sua mensagem e a lista de modelos sobe de baixo. Toque em **Baixar**: o botão vira uma **bolinha com a porcentagem**. Quando termina, a IA liga e **responde a mensagem que você mandou**.
+- **Leve, médio ou pesado:** cada modelo mostra se é **Leve · Rápido**, **Médio · Equilibrado** ou **Pesado · Mais inteligente**, com o tamanho.
+- **Nomes brasileiros:** os modelos agora se chamam **Própons Sabiá** (leve), **Própons Tucano** (médio) e **Própons Onça** (pesado). Em Ajustes → Aparência → **Nomes dos modelos** dá para trocar para árvores (**Ipê, Jatobá, Jequitibá**) ou frutas (**Acerola, Caju, Jaca**).
+
 ## Novidades da 1.8.0
 
-- **Você escolhe o modelo:** na primeira vez o app abre normalmente, sem baixar nada, e mostra a escolha do modelo de IA (Leve, Normal ou Avançado, com o recomendado para o seu aparelho). Ao escolher, ele baixa, liga a IA e abre o chat. No Linux, a escolha aparece numa janela ou no terminal.
+- **Você escolhe o modelo:** na primeira vez o app abre sem baixar nada e você escolhe o modelo de IA.
 - **Caixa de mensagem como a do Claude:** maior, com o texto em cima e embaixo o **"+"**, o **seletor de modelo** (troque ou baixe o modelo ali mesmo), o 🎤 e o enviar.
 - **Saudação com frase:** "Boa noite, qual a pauta de hoje?", "Bom dia, em que posso ajudar?" e outras, sorteadas a cada conversa nova.
 - O "+" agora tem Câmera, Fotos, Arquivos, Áudio e Biblioteca (os modelos ficam no seletor).
