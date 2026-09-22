@@ -220,7 +220,8 @@ class MainActivity : Activity() {
     private fun copiarInterface() {
         val marca = File(pastaInterface, ".versao")
         val versao = packageManager.getPackageInfo(packageName, 0).let { if (Build.VERSION.SDK_INT >= 28) it.longVersionCode else @Suppress("DEPRECATION") it.versionCode.toLong() }
-        if (marca.exists() && marca.readText() == "$versao") return
+        val depuravel = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0   // build de teste: copia sempre
+        if (!depuravel && marca.exists() && marca.readText() == "$versao") return
         pastaInterface.mkdirs()
         for (nome in assets.list("interface") ?: emptyArray()) assets.open("interface/$nome").use { i -> FileOutputStream(File(pastaInterface, nome)).use { i.copyTo(it) } }
         marca.writeText("$versao")

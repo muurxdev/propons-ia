@@ -1,3 +1,7 @@
+## Novidades da 1.11.2
+
+- **Folhas no estilo do app do Claude:** X à esquerda e título no centro. No **"+"**, três cartões (Câmera, Fotos, Arquivos) e, embaixo, as linhas Áudio e Biblioteca. No **seletor**, cada modelo com uma descrição curta, o que está em uso em destaque com ✓, e "Gerenciar modelos" como uma linha embaixo.
+
 ## Novidades da 1.11.1
 
 - **Menu "+" refeito:** uma lista limpa (Câmera, Fotos, Arquivos, Áudio, Biblioteca), sem os textinhos embaixo.

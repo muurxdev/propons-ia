@@ -316,21 +316,34 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:13.5px;box-shadow:var(--shadow);animation:aparece .15s ease;max-width:min(90vw,420px);text-align:center}
 
 /* "+": câmera, fotos, arquivos, modelo */
-.opcoes{display:flex;flex-direction:column;gap:2px;padding:2px 4px 4px}
-.opcoes button{display:flex;align-items:center;gap:14px;width:100%;padding:11px 10px;border-radius:12px;font-size:15px;font-weight:500;text-align:left;transition:background .15s}
-.opcoes button:hover,.opcoes button:active{background:var(--hover)}
+/* folhas no estilo do app do Claude: X à esquerda, título no centro, cartões e linhas */
+.dlg-topo.centro{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;gap:0;padding:26px 0 14px;cursor:default}
+.dlg-topo.centro h3{text-align:center;font-size:17px;font-weight:600;color:var(--ink);white-space:normal;overflow:visible}
+.dlg-topo.centro .icone{margin:0}
+.folha .dlg-topo.centro{padding:26px 4px 14px}
+.opcoes.cartoes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 4px 10px}
+.opcoes.cartoes button{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 6px 14px;border:1px solid var(--line);border-radius:16px;font-size:15px;font-weight:500;transition:background .15s}
+.opcoes.cartoes button:hover,.opcoes.cartoes button:active{background:var(--hover)}
+.opcoes.cartoes .oi{color:var(--ink)} .opcoes.cartoes .oi svg{width:26px;height:26px}
+.opcoes.linhas{display:flex;flex-direction:column;margin:0 4px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface)}
+.opcoes.linhas button{display:flex;align-items:center;gap:14px;width:100%;padding:12px 14px;text-align:left;border-top:1px solid var(--line);transition:background .15s}
+.opcoes.linhas button:first-child{border-top:0}
+.opcoes.linhas button:hover,.opcoes.linhas button:active{background:var(--hover)}
+.opcoes.linhas .oi{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--hover);color:var(--ink)}
+.opcoes.linhas .oi svg{width:20px;height:20px}
+.opcoes.linhas .pt{flex:1;min-width:0} .opcoes.linhas b{display:block;font-size:15.5px;font-weight:600} .opcoes.linhas small{display:block;font-size:13px;color:var(--muted)}
+.opcoes.linhas>button>svg:last-child{width:18px;height:18px;color:var(--faint);flex:none}
 .opcoes button:disabled{opacity:.4}
-.opcoes .oi{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--accent-soft);color:var(--accent)}
-.opcoes .oi svg{width:20px;height:20px}
-.opcoes .cont{margin-left:auto;min-width:22px;padding:0 7px;border-radius:99px;background:var(--hover);color:var(--muted);font-size:12px;font-weight:600;text-align:center;line-height:22px}
+.lm .check{width:24px;height:24px;color:var(--accent)} .lm .check svg{width:24px;height:24px;stroke-width:2.2}
+.lm.on b,.lm.on small{color:var(--accent)}
 .lista-modelos{margin:10px 4px 4px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface)}
 .lista-modelos h4{margin:0;padding:10px 14px 6px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
-.lm{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;text-align:left;border-top:1px solid var(--line)}
+.lm{display:flex;align-items:center;gap:12px;width:100%;padding:13px 16px;text-align:left;border-top:1px solid var(--line)}
 .lm:hover{background:var(--hover)}
 .lm .mico{width:36px;height:36px;border-radius:10px;font-size:11.5px}
 
 .lm.on .mico{background:var(--accent);color:var(--accent-ink)}
-.lm .pt{flex:1;min-width:0} .lm b{display:block;font-size:14.5px;font-weight:600} .lm small{display:block;font-size:12.5px;color:var(--muted)}
+.lm .pt{flex:1;min-width:0} .lm b{display:block;font-size:16px;font-weight:500} .lm small{display:block;font-size:13.5px;color:var(--muted);margin-top:1px}
 .lm .st{font-size:12px;color:var(--muted);white-space:nowrap}
 .lm.on .st{color:var(--accent);font-weight:600}
 .chip img,.anexos-msg img{width:34px;height:34px;object-fit:cover;border-radius:7px;display:block}
@@ -429,8 +442,10 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .folha .dlg-topo{padding:12px 12px 4px}
   .dlg-fundo.pop{background:rgba(10,10,14,.08)}
   .dlg-fundo.pop .dlg{position:fixed;width:min(340px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 16px));padding:0 6px 6px;border-radius:16px;box-shadow:var(--shadow),0 16px 48px rgba(0,0,0,.28);animation-duration:.16s}
-  .pop .opcoes button{padding:7px 10px;border-radius:10px;font-size:14px}
-  .pop .opcoes .oi{width:32px;height:32px;border-radius:9px} .pop .opcoes .oi svg{width:18px;height:18px}
+  .pop .dlg-topo.centro{padding:14px 4px 10px} .pop .dlg-topo.centro h3{font-size:15px}
+  .pop .opcoes.cartoes button{padding:12px 4px 10px;font-size:13.5px} .pop .opcoes.cartoes .oi svg{width:22px;height:22px}
+  .pop .opcoes.linhas button{padding:9px 12px} .pop .opcoes.linhas .oi{width:34px;height:34px} .pop .opcoes.linhas b{font-size:14px} .pop .opcoes.linhas small{font-size:12px}
+  .pop .lm{padding:10px 14px} .pop .lm b{font-size:14.5px} .pop .lm small{font-size:12.5px}
   .pop .lista-modelos{margin:2px 2px 0}
   .painel-fundo{place-items:center}
   .painel{height:min(680px,calc(100% - 56px));border-radius:22px;border-bottom:1px solid var(--line);box-shadow:0 30px 90px rgba(0,0,0,.42);animation:pop .22s cubic-bezier(.16,1,.3,1)}

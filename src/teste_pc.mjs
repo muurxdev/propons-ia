@@ -19,7 +19,7 @@ await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(4
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
 ok('"+" abre menu flutuante (pop) no PC', await js(`!!document.querySelector('.dlg-fundo.pop .dlg')`));
-ok('"+" é uma lista limpa: 5 itens, sem textinhos', await js(`document.querySelectorAll('.opcoes button').length === 5 && !document.querySelector('.opcoes small')`));
+ok('"+" no estilo Claude: 3 cartões + 2 linhas, X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 2 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
 const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, x: Math.abs(r.left-b.left) < 40}})()`);
 ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(rp));
 await foto('p1-mais');
@@ -34,13 +34,13 @@ await foto('p2-seletor');
   const outro = atualId === 'leve' ? 'normal' : 'leve';
   await js(`document.querySelector('.dlg.modelos [data-m="${outro}"]').click(); 1`); await espera(600);
   ok('ao tocar em Usar, a linha mostra "ligando"', await js(`!!document.querySelector('.dlg.modelos [data-m="${outro}"] .anel.girando')`));
-  for (let i = 0; i < 120 && !(await js(`/Em uso/.test((document.querySelector('.dlg.modelos [data-m="${outro}"] .st')||{}).textContent || '')`)); i++) await espera(500);
-  ok('sem fechar o menu, "Em uso" passa para o modelo novo', await js(`/Em uso/.test(document.querySelector('.dlg.modelos [data-m="${outro}"] .st').textContent) && !/Em uso/.test(document.querySelector('.dlg.modelos [data-m="${atualId}"] .st').textContent)`));
+  for (let i = 0; i < 120 && !(await js(`!!document.querySelector('.dlg.modelos [data-m="${outro}"] .st .check')`)); i++) await espera(500);
+  ok('sem fechar o menu, o ✓ passa para o modelo novo', await js(`!!document.querySelector('.dlg.modelos [data-m="${outro}"] .st .check') && !document.querySelector('.dlg.modelos [data-m="${atualId}"] .st .check')`));
   ok('nome ao lado do "+" atualizou na hora', (await js(`$('#nomeModelo').textContent`)) === 'Própons ' + { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' }[outro], await js(`$('#nomeModelo').textContent`));
   await foto('p2b-trocou');
   for (let i = 0; i < 60 && !(await js('online')); i++) await espera(500);
   await js(`document.querySelector('.dlg.modelos [data-m="${atualId}"]').click(); 1`);
-  for (let i = 0; i < 120 && !(await js(`online && /Em uso/.test((document.querySelector('.dlg.modelos [data-m="${atualId}"] .st')||{}).textContent || '')`)); i++) await espera(500);
+  for (let i = 0; i < 120 && !(await js(`online && !!document.querySelector('.dlg.modelos [data-m="${atualId}"] .st .check')`)); i++) await espera(500);
   ok('volta para o modelo de antes', (await js(`(sistemaCache.modelos.find(m => m.atual) || {}).id`)) === atualId);
 }
 await js('fecharDialogo(); 1'); await espera(300);

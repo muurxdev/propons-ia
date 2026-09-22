@@ -93,6 +93,7 @@ function folhaArrastavel(fundo, folha, fechar) {
   };
   folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
 }
+const topoCentro = titulo => `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="Fechar">${ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
 const topoFolha = titulo => `<div class="dlg-topo"><span class="alca"></span><h3>${esc(titulo || '')}</h3><button class="icone" data-x aria-label="Fechar">${ICO.fechar}</button></div>`;
 
 /* diálogo próprio (folha que sobe de baixo). botoes: [[rótulo, valor, 'primario'|'perigo'|'']]; devolve o valor escolhido (null ao fechar) */
@@ -661,15 +662,18 @@ async function verItemBiblioteca(i, folha) {
 function abrirMais() {
   const temVisao = PLATAFORMA.temVisao;
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha">${topoFolha('Adicionar')}
-    <div class="opcoes">
+  const nBib = biblioteca.length;
+  f.innerHTML = `<div class="dlg folha mais">${topoCentro('Adicionar')}
+    <div class="opcoes cartoes">
       <button data-op="camera"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.camera}</span>Câmera</button>
       <button data-op="fotos"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.foto}</span>Fotos</button>
       <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos</button>
-      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span>Áudio</button>
-      <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span>Biblioteca${biblioteca.length ? `<span class="cont">${biblioteca.length}</span>` : ''}</button>
     </div>
-    ${temVisao ? '' : '<p class="info" style="margin:4px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
+    <div class="opcoes linhas">
+      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span><span class="pt"><b>Áudio</b><small>${PLATAFORMA.temTranscricao ? 'Transcrever uma gravação' : 'Indisponível neste aparelho'}</small></span>${ICO.seta}</button>
+      <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span><span class="pt"><b>Biblioteca</b><small>${nBib ? nBib + (nBib === 1 ? ' item' : ' itens') + ' nesta sessão' : 'Fotos, arquivos e áudios desta sessão'}</small></span>${ICO.seta}</button>
+    </div>
+    ${temVisao ? '' : '<p class="info" style="margin:8px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
   const folha = f.firstChild;
   $('#anexar').setAttribute('aria-expanded', 'true');
   const sair = () => { $('#anexar').setAttribute('aria-expanded', 'false'); animarSaida(f, folha); };
@@ -705,6 +709,8 @@ function posicionarPop(f, folha, ancora, lado) {
    Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado) e Própons Ápice (pesado, o mais capaz). */
 const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
+const DESC_MODELO = { leve: 'Leve e rápido', normal: 'Equilibrado, para o dia a dia', avancado: 'Para as tarefas mais difíceis' };
+ICO.check = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const nomeModelo = m => 'Própons ' + (NOME_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1'));
 // bolinha com a porcentagem do download
 const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, Math.floor(pct * 100)))}"><b>${Math.floor(pct * 100)}%</b></span>`;
@@ -748,10 +754,10 @@ function atualizarSeletorModelo() {
 async function abrirSeletorModelo(motivo) {
   document.querySelectorAll('.dlg.modelos').forEach(x => x.closest('.dlg-fundo').remove());
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha modelos">${topoFolha(motivo === 'enviar' ? 'Escolha o modelo para responder' : 'Modelo de IA')}
-    ${ESCOLHER ? '<p class="info" style="margin:0 12px 10px">O modelo é baixado uma vez e depois funciona sem internet. Dá para trocar quando quiser.</p>' : ''}
-    <div class="lista-modelos" style="margin:4px 4px 0"><p class="info" style="padding:12px 14px;margin:0">Carregando…</p></div>
-    ${ESCOLHER ? '' : `<div class="botoes" style="margin:12px 4px 0"><button class="btn link" data-gerenciar>${ICO.chip}Gerenciar modelos</button></div>`}</div>`;
+  f.innerHTML = `<div class="dlg folha modelos">${topoCentro(motivo === 'enviar' ? 'Escolha o modelo para responder' : 'Selecionar modelo')}
+    ${ESCOLHER ? '<p class="info" style="margin:0 12px 10px;text-align:center">O modelo é baixado uma vez e depois funciona sem internet. Dá para trocar quando quiser.</p>' : ''}
+    <div class="lista-modelos"><p class="info" style="padding:12px 14px;margin:0">Carregando…</p></div>
+    ${ESCOLHER ? '' : `<div class="opcoes linhas" style="margin-top:12px"><button data-gerenciar><span class="oi">${ICO.chip}</span><span class="pt"><b>Gerenciar modelos</b><small>Baixar, apagar e ver detalhes</small></span>${ICO.seta}</button></div>`}</div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); };
   folha.querySelector('[data-x]').onclick = sair;
@@ -770,11 +776,12 @@ function desenharListaModelos(folha) {
   lm.innerHTML = sis.modelos.map(m => {
     const b = baixando[m.id] || (escolhendoId === m.id ? { pct: 0 } : null);
     const emUso = !ESCOLHER && m.atual && !trocandoPara, ligando = !ESCOLHER && trocandoPara === m.id;
-    const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b>…</b></span>' : m.bloqueado ? `<span class="st-txt">${esc(m.bloqueado)}</span>` : emUso ? '<span class="st-txt on">Em uso</span>'
-      : `<span class="btn-mini">${m.baixado ? 'Usar' : 'Baixar'}</span>`;
+    const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b>…</b></span>' : m.bloqueado ? '' : emUso ? `<span class="check">${ICO.check}</span>`
+      : ESCOLHER ? '<span class="btn-mini">Baixar</span>' : '';
+    const desc = m.bloqueado ? m.bloqueado : (DESC_MODELO[m.id] || PESO_MODELO[m.id] || '') + (m.baixado ? '' : ' · ' + gbBonito(m.tamanho) + (ESCOLHER ? '' : ' para baixar'));
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
-      <span class="pt"><b>${esc(nomeModelo(m))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
-      <small>${PESO_MODELO[m.id] || ''} · ${gbBonito(m.tamanho)}</small></span><span class="st">${st}</span></button>`;
+      <span class="pt"><b>${esc(nomeModelo(m))}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
+      <small>${esc(desc)}</small></span><span class="st">${st}</span></button>`;
   }).join('');
   lm.querySelectorAll('[data-m]').forEach(bt => bt.onclick = async () => {
     const m = sis.modelos.find(x => x.id === bt.dataset.m); if (!m || bt.disabled) return;
