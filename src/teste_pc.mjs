@@ -125,6 +125,24 @@ for (let i = 0; i < 120 && (await js('!!geracao')); i++) await espera(250);
 ok('leitura automática: começa a falar enquanto a resposta ainda chega', falouDurante, JSON.stringify(await js('window.__falas')).slice(0, 160));
 ok('leitura automática: frases inteiras, sem símbolos de Markdown', await js(`window.__falas.length > 0 && window.__falas.every(f => !/[*#\`]/.test(f))`), await js('window.__falas.length'));
 await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window.__falar0; conversas = conversas.filter(c => c.titulo !== 'Voz'); nova(); 1`);
+// 1.19: PDF e DOCX anexados viram texto (pdf.js / mammoth embutidos, carregados na hora)
+{
+  const pdfB64 = fs.readFileSync(`${saida}/../teste.pdf`).toString('base64'), docxB64 = fs.readFileSync(`${saida}/../teste.docx`).toString('base64');
+  await js(`nova(); anexos = []; desenharChips(); window.__b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)); 1`);
+  const t0 = Date.now();
+  await js(`adicionarArquivos([new File([window.__b64('${pdfB64}')], 'teste.pdf', { type: 'application/pdf' })])`);
+  let a = await js(`anexos.map(x => ({ nome: x.nome, lang: x.lang, paginas: x.paginas, texto: x.conteudo }))`);
+  ok('PDF anexado vira texto com as páginas', a.length === 1 && a[0].paginas === 2 && /fotossintese/i.test(a[0].texto) && /página 2/.test(a[0].texto) && /quick sort/i.test(a[0].texto), `${((Date.now() - t0) / 1000).toFixed(1)} s · ` + JSON.stringify(a[0] && a[0].texto).slice(0, 120));
+  await js(`adicionarArquivos([new File([window.__b64('${docxB64}')], 'teste.docx')])`);
+  a = await js(`anexos.map(x => ({ nome: x.nome, texto: x.conteudo }))`);
+  ok('DOCX anexado vira texto', a.length === 2 && /mitocondria/i.test(a[1].texto) && /Segundo paragrafo/.test(a[1].texto), JSON.stringify(a[1] && a[1].texto).slice(0, 100));
+  ok('chips mostram os dois documentos', (await js(`$('#chips').querySelectorAll('.chip').length`)) === 2);
+  await js(`$('#entrada').value = 'Em uma frase: sobre o que fala o PDF?'; ajustar(); $('#enviar').click(); 1`);
+  for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
+  for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(250);
+  const resp = await js(`atual.msgs[atual.msgs.length - 1].texto`);
+  ok('a IA responde sobre o conteúdo do PDF', /fotoss[ií]ntese|planta|luz|energia/i.test(resp), resp.slice(0, 120));
+}
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
 ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));

@@ -508,6 +508,45 @@ async function prepararFoto(f) {
   img.close && img.close();
   return r;
 }
+/* ---------------- documentos: PDF e DOCX viram texto na própria página ----------------
+   pdf.js e mammoth vêm dentro do index.html como texto (src/vendor) e só são carregados na primeira vez. */
+const LIMITE_DOC = 40 * 1048576, MAX_PAGINAS = 300, MAX_TEXTO_DOC = 200000;
+const scriptDe = id => { const el = document.getElementById(id); if (!el || !el.textContent) throw new Error('biblioteca não embutida'); return URL.createObjectURL(new Blob([el.textContent], { type: 'text/javascript' })); };
+let pdfjs = null, mammothLib = null;
+async function carregarPdfjs() {
+  if (pdfjs) return pdfjs;
+  const mod = await import(scriptDe('vendor-pdf'));
+  mod.GlobalWorkerOptions.workerPort = new Worker(scriptDe('vendor-pdf-worker'), { type: 'module' });
+  return pdfjs = mod;
+}
+async function carregarMammoth() {
+  if (mammothLib) return mammothLib;
+  await new Promise((ok, falha) => { const s = document.createElement('script'); s.src = scriptDe('vendor-mammoth'); s.onload = ok; s.onerror = () => falha(new Error('mammoth não carregou')); document.head.appendChild(s); });
+  return mammothLib = window.mammoth;
+}
+// → { texto, paginas, cortado }: texto por página ("— página N —"), até MAX_PAGINAS páginas e MAX_TEXTO_DOC caracteres
+async function extrairPdf(f) {
+  const lib = await carregarPdfjs();
+  const doc = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()), isEvalSupported: false, useSystemFonts: true }).promise;
+  const partes = []; let total = 0, cortado = false;
+  const n = Math.min(doc.numPages, MAX_PAGINAS);
+  for (let p = 1; p <= n; p++) {
+    const pg = await doc.getPage(p); const tc = await pg.getTextContent();
+    let t = ''; for (const it of tc.items) { if (it.str) t += it.str; if (it.hasEOL) t += '\n'; else if (it.str && !/\s$/.test(it.str)) t += ' '; }
+    t = t.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ ]{2,}/g, ' ').trim();
+    if (t) partes.push(`— página ${p} —\n${t}`);
+    total += t.length; if (total > MAX_TEXTO_DOC) { cortado = true; break; }
+  }
+  if (doc.numPages > n) cortado = true;
+  try { await doc.destroy(); } catch (e) {}
+  return { texto: partes.join('\n\n'), paginas: doc.numPages, cortado };
+}
+async function extrairDocx(f) {
+  const lib = await carregarMammoth();
+  const r = await lib.extractRawText({ arrayBuffer: await f.arrayBuffer() });
+  const t = String(r.value || '').replace(/\n{3,}/g, '\n\n').trim();
+  return { texto: t.slice(0, MAX_TEXTO_DOC), paginas: 0, cortado: t.length > MAX_TEXTO_DOC };
+}
 async function adicionarArquivos(lista) {
   for (const f of lista) {
     if (eFoto(f)) {
@@ -523,8 +562,26 @@ async function adicionarArquivos(lista) {
       continue;
     }
     if (anexos.filter(a => a.tipo !== 'imagem').length >= MAX_ANEXOS) { toast(`Até ${MAX_ANEXOS} arquivos por mensagem.`); break; }
-    if (/\.(pdf|docx?|pptx?|xlsx?|zip|rar|7z|exe|mp[34])$/i.test(f.name) || (f.type && /^(video|audio)\//.test(f.type))) {
-      toast(`"${f.name}": por enquanto só fotos, textos e códigos (PDF ainda não).`, 3500); continue;
+    if (/\.(pdf|docx)$/i.test(f.name)) {
+      const ePdf = /\.pdf$/i.test(f.name);
+      if (f.size > LIMITE_DOC) { toast(`"${f.name}" é grande demais (${tamanhoBonito(f.size)}). Limite: 40 MB.`, 3500); continue; }
+      if (anexos.some(a => a.nome === f.name)) continue;
+      if (ESCOLHER) { toast('Mande a primeira mensagem para ligar a IA; depois anexe o documento.', 4000); continue; }
+      toast(ePdf ? 'Lendo o PDF…' : 'Lendo o documento…', 2500);
+      let d;
+      try { d = ePdf ? await extrairPdf(f) : await extrairDocx(f); }
+      catch (e) { toast(`Não consegui ler "${f.name}"${/password|senha|encrypt/i.test(e.message || '') ? ' (tem senha)' : ''}.`, 4000); continue; }
+      if (!d.texto.trim()) { toast(ePdf ? `"${f.name}" não tem texto (pode ser só imagem — mande as páginas como fotos).` : `"${f.name}" está vazio.`, 4500); continue; }
+      // quanto cabe na memória da IA nesta conversa (o resto é cortado ao enviar)
+      const cabe = Math.max(1200, nCtx - estimar(SYSTEM) - 1500 - 300), tokens = estimar(d.texto);
+      if (tokens > cabe) toast(`"${f.name}"${d.paginas ? ` (${d.paginas} páginas)` : ''} é longo: a IA lê cerca de ${Math.round(100 * cabe / tokens)}% dele nesta conversa. Pergunte sobre partes específicas ou mande um trecho.`, 6000);
+      else if (d.cortado) toast(`"${f.name}": usei as primeiras ${MAX_PAGINAS} páginas.`, 4000);
+      anexos.push({ nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto, paginas: d.paginas });
+      guardarNaBiblioteca({ tipo: 'arquivo', nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto });
+      continue;
+    }
+    if (/\.(docx?|pptx?|xlsx?|zip|rar|7z|exe|mp[34])$/i.test(f.name) || (f.type && /^(video|audio)\//.test(f.type))) {
+      toast(`"${f.name}": por enquanto fotos, PDF, DOCX, textos e códigos.`, 3500); continue;
     }
     if (f.size > LIMITE_ANEXO) { toast(`"${f.name}" é grande demais (${tamanhoBonito(f.size)}). Limite: 40 KB.`, 3500); continue; }
     let texto = '';
@@ -1899,7 +1956,7 @@ function abaSobre(c) {
   c.innerHTML = `<div class="cartao"><div class="versao-topo"><div class="marca"></div><div><b>Própons IA</b><small>Versão ${VERSAO} · IA de estudos que roda no seu aparelho</small></div></div></div>
     <div class="botoes" style="margin-bottom:18px"><button class="btn" id="irAtual">${ICO.atualizar}Atualizações</button><button class="btn" id="abrirSite">Site para baixar</button><button class="btn" id="abrirRepo">Código no GitHub</button></div>
     <div class="secao"><h4>Privacidade</h4><p class="info">Tudo roda neste aparelho: suas conversas e arquivos não são enviados para nenhum servidor. A internet só é usada para baixar os modelos e procurar atualizações.</p></div>
-    <div class="secao"><h4>Componentes</h4><p class="info">Motor: llama.cpp (MIT) · Modelos: Qwen3.5 (Apache 2.0)${PLATAFORMA.tipo === 'windows' ? ' · Microsoft WebView2' : ''}.</p></div>`;
+    <div class="secao"><h4>Componentes</h4><p class="info">Motor: llama.cpp (MIT) · Modelos: Qwen3.5 (Apache 2.0) · Leitura de PDF: pdf.js (Apache 2.0) · DOCX: mammoth.js (BSD-2)${PLATAFORMA.tipo === 'windows' ? ' · Microsoft WebView2' : ''}.</p></div>`;
   $('#irAtual').onclick = () => irPara('atualizacoes');
   $('#abrirSite').onclick = () => PLATAFORMA.abrirLink('https://muurxdev.github.io/propons-ia/');
   $('#abrirRepo').onclick = () => PLATAFORMA.abrirLink('https://github.com/' + REPO);
