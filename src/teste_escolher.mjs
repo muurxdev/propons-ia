@@ -21,7 +21,7 @@ async function conectar(filtro) {
   throw new Error('página não apareceu');
 }
 const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 170) : ''); };
-const NOMES = { leve: 'Sabiá', normal: 'Tucano', avancado: 'Onça' };
+const NOMES = { leve: '0.8B', normal: '2B', avancado: '4B' };
 // 1) abre direto no chat normal, sem tela de download
 let p = await conectar(u => !/#k=/.test(u));
 for (let i = 0; i < 60 && !(await p.js(`typeof ESCOLHER !== 'undefined' && !!$('#nomeModelo').textContent`)); i++) await espera(500);
@@ -34,7 +34,8 @@ await p.foto('e1-chat-vazio');
 await p.js(`$('#entrada').value='Quanto é 6 vezes 7? Responda só o número.'; ajustar(); $('#enviar').click(); 1`); await espera(1200);
 ok('ao enviar, sobe a lista "Escolha o modelo para responder"', await p.js(`/Escolha o modelo para responder/.test(document.querySelector('.dlg.modelos h3').textContent)`));
 const linhas = await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b=>b.innerText.replace(/\\s+/g,' ').trim())`);
-ok('nomes brasileiros e leve/médio/pesado', linhas.length === 3 && /Própons Sabiá.*Leve · Rápido/.test(linhas[0]) && /Própons Tucano.*Médio/.test(linhas[1]) && /Própons Onça.*Pesado/.test(linhas[2]), linhas.join(' | '));
+ok('Própons 0.8B/2B/4B com leve/médio/pesado', linhas.length === 3 && /Própons 0.8B.*Leve · Rápido/.test(linhas[0]) && /Própons 2B.*Médio/.test(linhas[1]) && /Própons 4B.*Pesado/.test(linhas[2]), linhas.join(' | '));
+ok('uma logo para cada modelo', (await p.js(`[...document.querySelectorAll('.dlg.modelos .lm .mico.logo svg')].length`)) === 3);
 ok('botão Baixar em cada modelo que cabe no aparelho', await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].every(l => l.disabled || /Baixar/.test((l.querySelector('.btn-mini')||{}).textContent))`));
 ok('mensagem ficou esperando (pendente, salva)', await p.js(`atual.msgs[0].pendente === true && !!document.querySelector('.msg.eu')`));
 await p.foto('e2-lista');
@@ -55,15 +56,12 @@ const ult = await c.js('atual && atual.msgs[atual.msgs.length-1]');
 ok('a IA respondeu a mensagem pendente', ult && ult.role === 'assistant' && /42/.test(ult.texto), ult && ult.texto);
 ok('pendente some do histórico', await c.js('!atual.msgs.some(m => m.pendente)'));
 const nome = await c.js(`$('#nomeModelo').textContent`);
-ok('seletor mostra o nome brasileiro', nome === 'Própons ' + NOMES[idModelo], nome);
+ok('seletor mostra o modelo com a logo', nome === 'Própons ' + NOMES[idModelo] && (await c.js(`!!document.querySelector('#logoSeletor .mico.logo')`)), nome);
 await c.foto('e4-respondeu');
 await c.js(`$('#seletorModelo').click(); 1`); await espera(900);
 ok('seletor abre a lista com "Em uso"', (await c.js(`document.querySelectorAll('.dlg.modelos .lm').length`)) === 3 && /Em uso/.test(await c.js(`document.querySelector('.dlg.modelos .lm.on').innerText`)));
 await c.foto('e5-seletor');
 await c.js('fecharDialogo(); 1'); await espera(400);
-await c.js(`pref('temaNomes','frutas'); atualizarSeletorModelo(); 1`);
-ok('troca para nomes de frutas', /Própons (Acerola|Caju|Jaca)/.test(await c.js(`$('#nomeModelo').textContent`)), await c.js(`$('#nomeModelo').textContent`));
-await c.js(`pref('temaNomes','animais'); atualizarSeletorModelo(); 1`);
 c.ws.close();
 const falhas = res.filter(x => !x).length;
 console.log(falhas ? `${falhas} falha(s)` : 'todos os testes passaram'); process.exit(falhas ? 1 : 0);

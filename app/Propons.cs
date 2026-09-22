@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.9.0";
+    public const string Versao = "1.10.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -870,7 +870,7 @@ class Janela : Form
         string exe = Path.Combine(pasta, @"voz\whisper-cli.exe");
         if (!File.Exists(exe)) throw new Exception("transcrição não disponível nesta versão");
         int threads = Math.Max(1, Math.Min(8, Environment.ProcessorCount / 2));
-        ProcessStartInfo psi = new ProcessStartInfo(exe, "-m \"" + modeloVoz + "\" -f \"" + arquivo + "\" -l pt -nt -pp -mc 0 -t " + threads + " -otxt -of \"" + arquivo + "\"");
+        ProcessStartInfo psi = new ProcessStartInfo(exe, "-m \"" + modeloVoz + "\" -f \"" + arquivo + "\" -l pt -pp -mc 0 -t " + threads + " -otxt -of \"" + arquivo + "\"");
         psi.WorkingDirectory = Path.Combine(pasta, "voz"); psi.UseShellExecute = false; psi.CreateNoWindow = true;
         psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
         ManterAcordado(true);

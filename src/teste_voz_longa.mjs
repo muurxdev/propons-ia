@@ -1,7 +1,9 @@
-// Transcreve um áudio longo (mais de 10 min) no app real: confere o corte em 10 minutos e mede o tempo.
-// Uso: node src/teste_voz_longa.mjs <porta-cdp> <arquivo-wav>
+// Transcreve um áudio longo no app real (sem limite de tempo: o app corta em trechos nos silêncios) e mede o tempo.
+// Usa o áudio de teste com a frase "Olá, este é um teste de transcrição longa." repetida N vezes.
+// Uso: node src/teste_voz_longa.mjs <porta-cdp> <arquivo-wav> <vezes-que-a-frase-aparece>
 import fs from 'node:fs';
-const [porta, wavArq] = process.argv.slice(2);
+const [porta, wavArq, vezesArg] = process.argv.slice(2);
+const vezes = +vezesArg || 50;
 const alvos = await (await fetch(`http://127.0.0.1:${porta}/json`)).json();
 const pag = alvos.find(a => a.type === 'page' && /127\.0\.0\.1:\d+/.test(a.url));
 const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);
@@ -15,14 +17,17 @@ for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 const b = fs.readFileSync(wavArq), PED = 2 * 1048576;
 await js('window.__partes = []; 1');
 for (let i = 0; i < b.length; i += PED) await js(`window.__partes.push('${b.subarray(i, i + PED).toString('base64')}'); 1`);
-await js(`window.__avisos = []; const t0 = toast; toast = (t, ms) => { window.__avisos.push(t); t0(t, ms); }; $('#entrada').value=''; 1`);
+await js(`window.__avisos = []; window.__partesVistas = 0; const t0 = toast; toast = (t, ms) => { window.__avisos.push(t); t0(t, ms); }; const b0 = barraGravacao; barraGravacao = (m, t, p) => { const x = /parte \\d+ de (\\d+)/.exec(t || ''); if (x) window.__partesVistas = +x[1]; return b0(m, t, p); }; $('#entrada').value=''; 1`);
 const t = Date.now();
 await js(`(async()=>{ const bin = window.__partes.map(p => Uint8Array.from(atob(p), c => c.charCodeAt(0))); await transcreverAudio(new Blob(bin, {type:'audio/wav'})); return 1 })()`);
 const seg = (Date.now() - t) / 1000;
 const texto = await js(`$('#entrada').value`), avisos = await js('window.__avisos');
-const repeticoes = (texto.match(/Olá, este é um teste/gi) || []).length;
+const repeticoes = (texto.match(/este é um teste/gi) || []).length, min = (b.length - 44) / 32000 / 60;
 console.log('  avisos:', JSON.stringify(avisos));
-console.log(`  ${/primeiros 10 minutos/.test(avisos.join(' ')) ? '✔' : '✘'} avisou o corte em 10 minutos`);
-console.log(`  ${repeticoes >= 40 && repeticoes <= 51 ? '✔' : '✘'} transcreveu ~10 min (a frase de teste aparece ${repeticoes}x; 10 min = 50x)`);
-console.log(`  tempo total: ${seg.toFixed(0)} s para 10 min de áudio · ${texto.length} caracteres`);
-ws.close(); process.exit(0);
+const res = [];
+const ok = (n, c) => { res.push(c); console.log(`  ${c ? '✔' : '✘'} ${n}`); };
+ok(`não cortou nada (sem limite de tempo)`, !/primeiros|minutos:/.test(avisos.join(' ')));
+ok(`dividiu em ${await js('window.__partesVistas')} trechos`, (await js('window.__partesVistas')) >= Math.floor(min / 3));
+ok(`transcreveu tudo: a frase aparece ${repeticoes}x de ${vezes}`, repeticoes >= vezes * 0.85 && repeticoes <= vezes * 1.05);
+console.log(`  tempo total: ${seg.toFixed(0)} s para ${min.toFixed(1)} min de áudio · ${texto.length} caracteres`);
+ws.close(); process.exit(res.every(Boolean) ? 0 : 1);

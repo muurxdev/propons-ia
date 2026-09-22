@@ -532,7 +532,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         let exe = recursos.appendingPathComponent("voz/whisper-cli")
         guard fm.isExecutableFile(atPath: exe.path) else { throw erro("transcrição não disponível nesta versão") }
         let p = Process(); p.executableURL = exe
-        p.arguments = ["-m", modeloVoz.path, "-f", arq.path, "-l", "pt", "-nt", "-pp", "-mc", "0", "-t", "\(max(1, min(8, ProcessInfo.processInfo.activeProcessorCount / 2)))", "-otxt", "-of", arq.path]
+        p.arguments = ["-m", modeloVoz.path, "-f", arq.path, "-l", "pt", "-pp", "-mc", "0", "-t", "\(max(1, min(8, ProcessInfo.processInfo.activeProcessorCount / 2)))", "-otxt", "-of", arq.path]
         let tubo = Pipe(); p.standardError = tubo; p.standardOutput = FileHandle.nullDevice
         p.qualityOfService = .utility
         tubo.fileHandleForReading.readabilityHandler = { [weak self] h in

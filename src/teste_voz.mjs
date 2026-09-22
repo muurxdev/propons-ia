@@ -1,8 +1,8 @@
 // Teste da transcrição no app real (CDP): baixa a voz (se preciso), grava pelo microfone (falso, tocando um WAV)
 // e transcreve um arquivo de áudio pelo "+" → Áudio.
-// Uso: node src/teste_voz.mjs <porta-cdp> <pasta-saida> <arquivo-wav>
+// Uso: node src/teste_voz.mjs <porta-cdp> <pasta-saida> <arquivo-wav> [wav-curtinho-dizendo-oi]
 import fs from 'node:fs';
-const [porta, saida, wavArq] = process.argv.slice(2);
+const [porta, saida, wavArq, wavCurto] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const alvos = await (await fetch(`http://127.0.0.1:${porta}/json`)).json();
 const pag = alvos.find(a => a.type === 'page' && /127\.0\.0\.1:\d+/.test(a.url));
@@ -27,10 +27,15 @@ ok('voz pronta', await js('window.__okVoz'), `${((Date.now() - t0) / 1000).toFix
 // 2) grava pelo microfone (falso, toca o WAV) e transcreve
 await js(`nova(); $('#entrada').value=''; ajustar(); $('#falar').click(); 1`);
 await espera(1500);
-ok('gravando: barra com tempo e limite de 10 min', await js(`!$('#gravando').hidden && /\\/ 10:00/.test($('#limiteGrav').textContent)`));
+ok('gravando: barra com tempo, sem limite', await js(`!$('#gravando').hidden && !$('#limiteGrav')`));
+ok('ondas cobrem a barra toda', await js(`$('#onda').children.length >= 12 && $('#onda').getBoundingClientRect().width > $('#gravando').getBoundingClientRect().width * 0.35`), await js(`$('#onda').children.length + ' barrinhas'`));
 await espera(11500); await foto('v2-gravando');
 const nivel = await js(`[...document.querySelectorAll('#onda i')].map(i=>parseFloat((i.style.transform.match(/[\\d.]+/)||[0])[0])).reduce((a,b)=>Math.max(a,b),0)`);
-if (!process.env.SEM_MIC) ok('nível do som se mexe', nivel > 0.2, nivel);
+if (!process.env.SEM_MIC) {
+  ok('nível do som se mexe', nivel > 0.2, nivel);
+  const niveis = await js(`[...document.querySelectorAll('#onda i')].map(i=>+(i.style.transform.match(/[\\d.]+/)||[0])[0])`);
+  ok('cada barrinha tem o volume de um instante (variam)', new Set(niveis.map(x => x.toFixed(1))).size >= 4, niveis.map(x => x.toFixed(1)).join(' '));
+}
 if (process.env.SEM_MIC) {
   await js(`$('#cancelarGrav').click(); 1`); await espera(600);
   ok('cancelar descarta a gravação', await js(`$('#gravando').hidden && !$('#entrada').value`));
@@ -48,6 +53,14 @@ const t2 = Date.now();
 await js(`(async()=>{ const b = await (await fetch('data:audio/wav;base64,${b64}')).blob(); await transcreverAudio(b); return 1 })()`);
 const doArquivo = await js(`$('#entrada').value`);
 ok('arquivo de áudio vira texto', confere(doArquivo), `${((Date.now() - t2) / 1000).toFixed(1)} s · "${doArquivo}"`);
+// 3b) áudio curtinho (menos de 1 s)
+if (wavCurto) {
+  await js(`$('#entrada').value=''; ajustar(); 1`);
+  const bc = fs.readFileSync(wavCurto).toString('base64');
+  await js(`(async()=>{ const b = await (await fetch('data:audio/wav;base64,${bc}')).blob(); await transcreverAudio(b); return 1 })()`);
+  const curto = await js(`$('#entrada').value`);
+  ok('áudio curtinho (' + ((fs.statSync(wavCurto).size - 44) / 32000).toFixed(2) + ' s) vira texto', /\boi\b/i.test(curto), `"${curto}"`);
+}
 // 4) "+" tem Áudio
 await js(`$('#anexar').click(); 1`); await espera(600);
 ok('"+" tem a opção Áudio', await js(`!!document.querySelector('[data-op="audio"]:not([disabled])')`));

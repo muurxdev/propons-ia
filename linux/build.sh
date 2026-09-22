@@ -5,7 +5,7 @@
 #   propons-ia.x86_64.rpm           propons-ia.aarch64.rpm            (Fedora, Nobara, openSUSE, RHEL…)
 # Requer: bash, tar, curl, dpkg-deb, rpmbuild (Ubuntu: apt install dpkg-dev rpm)
 set -euo pipefail
-VERSAO="1.9.0"
+VERSAO="1.10.0"
 LLAMA="b11070"
 WHISPER="b5130"
 AQUI="$(cd "$(dirname "$0")" && pwd)"

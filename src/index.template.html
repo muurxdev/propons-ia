@@ -179,8 +179,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .gravando .limite{color:var(--faint);font-size:12.5px;white-space:nowrap}
 .pontinho{width:10px;height:10px;border-radius:50%;background:var(--danger);flex:none;animation:pisca 1.1s ease-in-out infinite}
 .pontinho.parado{background:var(--accent);animation:none}
-.onda{flex:1;display:flex;align-items:center;justify-content:center;gap:3px;height:28px;min-width:0}
-.onda i{width:4px;height:24px;border-radius:3px;background:var(--accent);opacity:.75;transform:scaleY(.12);transition:transform .08s linear}
+.onda{flex:1;display:flex;align-items:center;justify-content:space-between;gap:2px;height:30px;min-width:0;overflow:hidden}
+.onda i{flex:1 1 0;max-width:4px;min-width:2px;height:28px;border-radius:3px;background:var(--accent);transform:scaleY(.1);transition:transform .1s linear}
 .prog-grav{flex:1;min-width:0}
 .prog-grav .barra{margin:0}
 .gravando .btn{min-height:34px;padding:6px 14px;border-radius:99px}
@@ -326,6 +326,15 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .lm{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;text-align:left;border-top:1px solid var(--line)}
 .lm:hover{background:var(--hover)}
 .lm .mico{width:36px;height:36px;border-radius:10px;font-size:11.5px}
+/* logos dos modelos */
+.mico.logo{color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.mico.logo svg{width:56%;height:56%;fill:none;stroke:currentColor;stroke-width:1.8}
+.mico.logo.leve{background:linear-gradient(135deg,#2dd4bf,#0ea5e9)}
+.mico.logo.normal{background:linear-gradient(135deg,#a78bfa,#6d28d9)}
+.mico.logo.avancado{background:linear-gradient(135deg,#fb7185,#f59e0b)}
+.mcard.on .mico.logo{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+.mico.logo.mini{width:18px;height:18px;border-radius:5px;margin-right:2px}
+#logoSeletor{display:contents}
 .lm.on .mico{background:var(--accent);color:var(--accent-ink)}
 .lm .pt{flex:1;min-width:0} .lm b{display:block;font-size:14.5px;font-weight:600} .lm small{display:block;font-size:12.5px;color:var(--muted)}
 .lm .st{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -442,8 +451,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
     <div class="caixa" id="caixa">
       <div id="chips" hidden></div>
       <div class="gravando" id="gravando" hidden>
-        <span class="pontinho" id="pontoGrav"></span><b id="tempoGrav">0:00</b><span class="limite" id="limiteGrav">/ 10:00</span>
-        <span class="onda" id="onda"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="pontinho" id="pontoGrav"></span><b id="tempoGrav">0:00</b>
+        <span class="onda" id="onda"></span>
         <span class="prog-grav" id="progGrav" hidden><span class="barra"><i></i></span></span>
         <button class="icone" id="cancelarGrav" title="Cancelar" aria-label="Cancelar gravação"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         <button class="btn primario" id="pararGrav">Transcrever</button>
@@ -451,9 +460,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="logoSeletor"></span><span id="nomeModelo">Modelo</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
         <span class="espaco"></span>
-        <button class="icone" id="falar" title="Falar e transcrever (até 10 min)" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        <button class="icone" id="falar" title="Falar e transcrever" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>
       </div>
     </div>

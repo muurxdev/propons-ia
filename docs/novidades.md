@@ -1,8 +1,15 @@
+## Novidades da 1.10.0
+
+- **Transcreve áudio de qualquer tamanho:** acabou o limite de 10 minutos. O app divide o áudio em trechos, sempre numa pausa da fala, e mostra "parte 2 de 8". Teste: 20 minutos transcritos por inteiro em 83 s num notebook.
+- **Áudio curtinho também:** um "Oi" de 0,25 s agora vira texto. Antes, áudio com menos de 1 segundo era ignorado.
+- **Transcrição mais completa:** corrigida uma opção do whisper que fazia pular frases em áudios longos. Marcas como [BLANK_AUDIO] e (música) não aparecem mais no texto.
+- **Ondas de verdade:** enquanto você grava, as barrinhas ocupam o espaço todo e cada uma mostra o volume real daquele instante. As pausas aparecem baixinhas.
+- **Nomes e logos dos modelos:** os modelos voltam a se chamar pelo tamanho (**Própons 0.8B**, **2B** e **4B**), agora cada um com a sua logo: ⚡ leve e rápido, ◐ médio e equilibrado, ✦ pesado e mais inteligente.
+
 ## Novidades da 1.9.0
 
-- **Sem tela de download:** na primeira vez o app abre direto no chat. Mande sua mensagem e a lista de modelos sobe de baixo. Toque em **Baixar**: o botão vira uma **bolinha com a porcentagem**. Quando termina, a IA liga e **responde a mensagem que você mandou**.
-- **Leve, médio ou pesado:** cada modelo mostra se é **Leve · Rápido**, **Médio · Equilibrado** ou **Pesado · Mais inteligente**, com o tamanho.
-- **Nomes brasileiros:** os modelos agora se chamam **Própons Sabiá** (leve), **Própons Tucano** (médio) e **Própons Onça** (pesado). Em Ajustes → Aparência → **Nomes dos modelos** dá para trocar para árvores (**Ipê, Jatobá, Jequitibá**) ou frutas (**Acerola, Caju, Jaca**).
+- **Sem tela de download:** na primeira vez o app abre direto no chat. Mande sua mensagem, toque em **Baixar** e acompanhe a **bolinha com a porcentagem**. Quando termina, a IA responde a mensagem que você mandou.
+- Cada modelo mostra se é **Leve · Rápido**, **Médio · Equilibrado** ou **Pesado · Mais inteligente**.
 
 ## Novidades da 1.8.0
 

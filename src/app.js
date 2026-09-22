@@ -423,16 +423,18 @@ async function adicionarArquivos(lista) {
 $('#anexar').onclick = () => abrirMais();
 ['arquivo', 'fotos', 'camera'].forEach(id => $('#' + id).onchange = e => { adicionarArquivos([...e.target.files]); e.target.value = ''; });
 
-/* ---------------- falar: gravar e transcrever (até 10 minutos) ---------------- */
-const LIMITE_AUDIO = 600;   // segundos
-let gravacao = null, transcrevendo = false, esperaVoz = null;
-const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+/* ---------------- falar: gravar e transcrever (qualquer tamanho) ----------------
+   Áudio longo é cortado em trechos (nos silêncios) e transcrito um por um; áudio curtinho ganha silêncio
+   em volta, porque o whisper ignora trechos com menos de 1 segundo. */
+const TRECHO = PLATAFORMA.tipo === 'ios' ? 50 : 180;   // segundos por trecho (o reconhecimento do iPhone aceita ~1 min)
+let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null;
+const mmss = s => (s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') : Math.floor(s / 60)) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 function barraGravacao(modo, texto, pct) {
   const g = $('#gravando');
   if (!modo) { g.hidden = true; return; }
   g.hidden = false;
   $('#pontoGrav').classList.toggle('parado', modo !== 'gravando');
-  $('#onda').hidden = modo !== 'gravando'; $('#limiteGrav').hidden = modo !== 'gravando';
+  $('#onda').hidden = modo !== 'gravando';
   $('#progGrav').hidden = modo === 'gravando';
   $('#pararGrav').hidden = modo !== 'gravando'; $('#cancelarGrav').hidden = modo !== 'gravando';
   if (texto !== undefined) $('#tempoGrav').textContent = texto;
@@ -457,6 +459,13 @@ async function garantirVoz() {
   toast('Baixando a voz…', 2500);
   return new Promise(res => { esperaVoz = { id: v.id, res }; });
 }
+// ondas: cobrem a largura toda e cada barrinha é o volume real de um instante (a mais nova entra pela direita)
+function montarOnda() {
+  const o = $('#onda'), n = Math.max(12, Math.floor((o.clientWidth || 200) / 6));
+  o.innerHTML = '<i></i>'.repeat(n);
+  return [...o.children];
+}
+const nivelDaOnda = rms => { const db = 20 * Math.log10(rms + 1e-6); return Math.max(0.1, Math.min(1, (db + 58) / 46)); };   // -58 dB (silêncio) → 10%, -12 dB (voz alta) → 100%
 async function iniciarGravacao() {
   if (gravacao || transcrevendo || geracao) return;
   if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Este aparelho não permite gravar aqui. Use "+" → Áudio para mandar um arquivo.', 4500); return; }
@@ -468,23 +477,22 @@ async function iniciarGravacao() {
   const rec = new MediaRecorder(fluxo, tipo ? { mimeType: tipo, audioBitsPerSecond: 32000 } : undefined);
   const partes = []; rec.ondataavailable = e => { if (e.data && e.data.size) partes.push(e.data); };
   rec.start(1000);
-  // nível do som (barrinhas), leve: ~20 quadros por segundo
-  let ctx = null, analisador = null, dadosNivel = null;
-  try { ctx = new (window.AudioContext || window.webkitAudioContext)(); analisador = ctx.createAnalyser(); analisador.fftSize = 256; ctx.createMediaStreamSource(fluxo).connect(analisador); dadosNivel = new Uint8Array(analisador.fftSize); } catch (e) {}
-  const barras = [...document.querySelectorAll('#onda i')], hist = barras.map(() => 0.12);
+  let ctx = null, analisador = null, amostras = null;
+  try { ctx = new (window.AudioContext || window.webkitAudioContext)(); analisador = ctx.createAnalyser(); analisador.fftSize = 1024; ctx.createMediaStreamSource(fluxo).connect(analisador); amostras = new Float32Array(analisador.fftSize); } catch (e) {}
   const t0 = Date.now();
   gravacao = { rec, fluxo, partes, tipo, ctx };
   barraGravacao('gravando', '0:00');
+  const barras = montarOnda(), niveis = barras.map(() => 0.1);
+  let soma = 0, qtd = 0, tick = 0;
   gravacao.timer = setInterval(() => {
-    const s = (Date.now() - t0) / 1000;
-    $('#tempoGrav').textContent = mmss(s);
-    if (analisador) {
-      analisador.getByteTimeDomainData(dadosNivel);
-      let pico = 0; for (let i = 0; i < dadosNivel.length; i++) pico = Math.max(pico, Math.abs(dadosNivel[i] - 128));
-      hist.shift(); hist.push(Math.max(0.12, Math.min(1, pico / 64)));
-      barras.forEach((b, i) => b.style.transform = `scaleY(${hist[i].toFixed(2)})`);
-    }
-    if (s >= LIMITE_AUDIO) { toast('Chegou a 10 minutos: transcrevendo.'); pararGravacao(true); }
+    $('#tempoGrav').textContent = mmss((Date.now() - t0) / 1000);
+    if (!analisador) return;
+    analisador.getFloatTimeDomainData(amostras);
+    let q = 0; for (let i = 0; i < amostras.length; i++) q += amostras[i] * amostras[i];
+    soma += Math.sqrt(q / amostras.length); qtd++;
+    if (++tick % 2) return;                                  // uma barrinha nova a cada 100 ms
+    niveis.shift(); niveis.push(nivelDaOnda(soma / qtd)); soma = 0; qtd = 0;
+    for (let i = 0; i < barras.length; i++) barras[i].style.transform = `scaleY(${niveis[i].toFixed(2)})`;
   }, 50);
 }
 function pararGravacao(transcreverDepois) {
@@ -497,54 +505,98 @@ function pararGravacao(transcreverDepois) {
   };
   try { g.rec.stop(); } catch (e) { g.rec.onstop(); }
 }
-// qualquer áudio → WAV 16 kHz mono (o formato do whisper), no máximo 10 minutos
-async function audioParaWav16k(blob) {
+// qualquer áudio → amostras 16 kHz mono (o formato do whisper)
+async function audioPara16k(blob) {
   const buf = await blob.arrayBuffer();
   let ctx; try { ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 }); } catch (e) { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
   let audio; try { audio = await ctx.decodeAudioData(buf); } finally { try { ctx.close(); } catch (e) {} }
-  const taxa = audio.sampleRate, n = Math.min(audio.length, Math.floor(LIMITE_AUDIO * taxa));
+  const taxa = audio.sampleRate, n = Math.floor(audio.length * 16000 / taxa), sai = new Float32Array(n);
   const canais = []; for (let c = 0; c < audio.numberOfChannels; c++) canais.push(audio.getChannelData(c));
-  const saida = Math.floor(n * 16000 / taxa);
-  const wav = new Uint8Array(44 + saida * 2), v = new DataView(wav.buffer);
-  const txt = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  txt(0, 'RIFF'); v.setUint32(4, 36 + saida * 2, true); txt(8, 'WAVE'); txt(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); txt(36, 'data'); v.setUint32(40, saida * 2, true);
-  for (let i = 0; i < saida; i++) {
-    const k = Math.min(n - 1, Math.floor(i * taxa / 16000));
-    let x = 0; for (const c of canais) x += c[k]; x /= canais.length;
-    x = Math.max(-1, Math.min(1, x)); v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+  for (let i = 0; i < n; i++) {
+    const k = Math.min(audio.length - 1, Math.floor(i * taxa / 16000));
+    let x = 0; for (const c of canais) x += c[k]; sai[i] = x / canais.length;
   }
-  return { wav, duracao: audio.duration, cortado: audio.duration > LIMITE_AUDIO + 0.5 };
+  return sai;
 }
+// corta em trechos de até TRECHO segundos, sempre no ponto mais silencioso dos últimos 15 s do trecho
+function cortarEmTrechos(a) {
+  const max = TRECHO * 16000, janela = 1600, trechos = [];
+  let ini = 0;
+  while (a.length - ini > max) {
+    let melhor = ini + max, menor = Infinity;
+    for (let p = ini + max - 15 * 16000; p + janela <= ini + max; p += janela) {
+      let q = 0; for (let i = p; i < p + janela; i++) q += a[i] * a[i];
+      if (q < menor) { menor = q; melhor = p + janela / 2; }
+    }
+    trechos.push(a.subarray(ini, melhor)); ini = melhor;
+  }
+  trechos.push(a.subarray(ini));
+  return trechos;
+}
+// WAV 16 bits; trechos com menos de 2 s ganham silêncio antes e depois (o whisper ignora áudio com menos de 1 s)
+function wav16k(amostras) {
+  const MIN = 2 * 16000, pad = amostras.length < MIN ? Math.ceil((MIN - amostras.length) / 2) + 4000 : 0;
+  const n = amostras.length + pad * 2;
+  const wav = new Uint8Array(44 + n * 2), v = new DataView(wav.buffer);
+  const txt = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  txt(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); txt(8, 'WAVE'); txt(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); txt(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < amostras.length; i++) { const x = Math.max(-1, Math.min(1, amostras[i])); v.setInt16(44 + (pad + i) * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+  return wav;
+}
+// o whisper às vezes "inventa" frases em áudio sem fala; só vale para trechos quase mudos
+const temFala = a => { let pico = 0; for (let i = 0; i < a.length; i += 4) { const x = Math.abs(a[i]); if (x > pico) pico = x; } return pico > 0.015; };
+// tira as marcas que o whisper põe em trechos sem fala: [BLANK_AUDIO], (música), [risos]…
+const limparTranscricao = t => String(t || '').replace(/\[[^\]]{0,40}\]|\((?:m[uú]sica|music|risos?|aplausos|sil[eê]ncio|inaud[ií]vel)[^)]{0,20}\)/gi, ' ').replace(/\s+/g, ' ').trim();
 async function transcreverAudio(blob) {
   if (transcrevendo) return;
   transcrevendo = true;
   barraGravacao('transcrevendo', 'Preparando o áudio…', 0);
   try {
-    let bytes, ext = 'wav';
-    if (PLATAFORMA.tipo === 'ios' && !/webm/.test(blob.type)) { bytes = new Uint8Array(await blob.arrayBuffer()); ext = /mp4|m4a|aac/.test(blob.type) ? 'm4a' : /mpeg|mp3/.test(blob.type) ? 'mp3' : 'wav'; }
-    else {
-      const r = await audioParaWav16k(blob);
-      if (r.duracao < 0.5) { toast('O áudio ficou curto demais.'); return; }
-      if (r.cortado) toast(`O áudio tem ${Math.round(r.duracao / 60)} min: vou transcrever só os primeiros 10 minutos.`, 4500);
-      bytes = r.wav;
+    let amostras = null;
+    try { amostras = await audioPara16k(blob); }
+    catch (e) {
+      // o iPhone lê m4a/mp3 direto; nos outros aparelhos, formato não suportado
+      if (PLATAFORMA.tipo !== 'ios') throw e;
     }
-    barraGravacao('transcrevendo', 'Enviando…', 0);
-    const r = await PLATAFORMA.transcrever(bytes, ext, p => barraGravacao('transcrevendo', 'Enviando… ' + Math.floor(p * 100) + '%', p * 0.1));
-    const texto = String((r && r.texto) || '').trim();
-    if (!texto) { toast('Não entendi nenhuma fala neste áudio.', 3500); return; }
+    let texto = '';
+    if (!amostras) {
+      const ext = /mp4|m4a|aac/.test(blob.type) ? 'm4a' : /mpeg|mp3/.test(blob.type) ? 'mp3' : 'wav';
+      trechoAtual = { i: 0, n: 1 };
+      const r = await PLATAFORMA.transcrever(new Uint8Array(await blob.arrayBuffer()), ext, p => barraGravacao('transcrevendo', 'Enviando… ' + Math.floor(p * 100) + '%', p * 0.1));
+      texto = limparTranscricao(r && r.texto);
+    } else {
+      if (!amostras.length || !temFala(amostras)) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
+      const trechos = cortarEmTrechos(amostras), partes = [];
+      for (let i = 0; i < trechos.length; i++) {
+        trechoAtual = { i, n: trechos.length };
+        const onde = trechos.length > 1 ? ` (parte ${i + 1} de ${trechos.length})` : '';
+        if (!temFala(trechos[i])) continue;
+        barraGravacao('transcrevendo', 'Enviando…' + onde, i / trechos.length);
+        const r = await PLATAFORMA.transcrever(wav16k(trechos[i]), 'wav', p => barraGravacao('transcrevendo', 'Enviando… ' + Math.floor(p * 100) + '%' + onde, (i + p * 0.1) / trechos.length));
+        const t = limparTranscricao(r && r.texto);
+        if (t) partes.push(t);
+      }
+      texto = partes.join(' ').replace(/\s+/g, ' ').trim();
+    }
+    barraGravacao('transcrevendo', 'Pronto', 1);
+    if (!texto) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
     const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
     toast('Pronto! Confira o texto e envie.', 2500);
     guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto });
   } catch (e) {
-    toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : 'Não foi possível transcrever: ' + e.message, 4500);
-  } finally { transcrevendo = false; barraGravacao(null); }
+    toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : /memory|allocation|RangeError/i.test(e.message || e.name) ? 'Áudio grande demais para a memória deste aparelho.' : 'Não foi possível transcrever: ' + e.message, 4500);
+  } finally { transcrevendo = false; trechoAtual = null; barraGravacao(null); }
 }
-PLATAFORMA.ao('transcricao', d => { if (transcrevendo) barraGravacao('transcrevendo', 'Transcrevendo… ' + Math.floor((d.pct || 0) * 100) + '%', 0.1 + (d.pct || 0) * 0.9); });
+PLATAFORMA.ao('transcricao', d => {
+  if (!transcrevendo) return;
+  const t = trechoAtual || { i: 0, n: 1 }, p = d.pct || 0;
+  barraGravacao('transcrevendo', 'Transcrevendo… ' + Math.floor(((t.i + p) / t.n) * 100) + '%' + (t.n > 1 ? ` (parte ${t.i + 1} de ${t.n})` : ''), (t.i + 0.1 + p * 0.9) / t.n);
+});
 $('#falar').onclick = () => iniciarGravacao();
 $('#pararGrav').onclick = () => pararGravacao(true);
 $('#cancelarGrav').onclick = () => { pararGravacao(false); toast('Gravação descartada.'); };
-$('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { if (f.size > 200 * 1048576) toast('Arquivo de áudio grande demais.'); else transcreverAudio(f); } };
+$('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { transcreverAudio(f); } };
 
 /* ---------------- biblioteca da sessão ----------------
    Tudo o que você manda para a IA (fotos, arquivos e áudios transcritos) fica aqui para ver, usar de novo,
@@ -613,7 +665,7 @@ function abrirMais() {
       <button data-op="camera"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.camera}</span>Câmera</button>
       <button data-op="fotos"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.foto}</span>Fotos</button>
       <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos<small>texto e código</small></button>
-      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span>Áudio<small>até 10 min</small></button>
+      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span>Áudio<small>qualquer tamanho</small></button>
       <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span>Biblioteca<small>${biblioteca.length ? biblioteca.length + (biblioteca.length === 1 ? ' item' : ' itens') : 'desta sessão'}</small></button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:4px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
@@ -637,17 +689,18 @@ function abrirMais() {
   document.body.appendChild(f);
 }
 
-/* ---------------- nomes dos modelos (brasileiros) ----------------
-   Três conjuntos à escolha em Ajustes → Aparência: animais (padrão), árvores e frutas. */
-const NOMES_MODELOS = {
-  animais: { leve: 'Sabiá', normal: 'Tucano', avancado: 'Onça' },
-  arvores: { leve: 'Ipê', normal: 'Jatobá', avancado: 'Jequitibá' },
-  frutas: { leve: 'Acerola', normal: 'Caju', avancado: 'Jaca' },
-};
+/* ---------------- nomes e logos dos modelos ----------------
+   Própons 0.8B (leve, raio = rápido), Própons 2B (médio, círculo meio cheio = equilíbrio) e
+   Própons 4B (pesado, brilho = mais inteligente). */
+const TAMANHO_MODELO = { leve: '0.8B', normal: '2B', avancado: '4B' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
-const temaNomes = () => NOMES_MODELOS[pref('temaNomes')] ? pref('temaNomes') : 'animais';
-const nomeCurto = m => (NOMES_MODELOS[temaNomes()][m.id || m] || (m.nome || '').replace(/\s*\(.*\)/, ''));
-const nomeModelo = m => 'Própons ' + nomeCurto(m);
+const nomeModelo = m => 'Própons ' + (TAMANHO_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1'));
+const LOGO_MODELO = {
+  leve: '<path d="M13.2 2.5 5 13.2h6.1l-1.3 8.3 8.2-10.7h-6.1z" fill="currentColor" stroke="none"/>',
+  normal: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/>',
+  avancado: '<path d="M12 2.8c.7 4.6 2.6 6.5 7.2 7.2-4.6.7-6.5 2.6-7.2 7.2-.7-4.6-2.6-6.5-7.2-7.2 4.6-.7 6.5-2.6 7.2-7.2z" fill="currentColor" stroke="none"/><path d="M18.6 15.6c.3 1.9 1 2.6 2.9 2.9-1.9.3-2.6 1-2.9 2.9-.3-1.9-1-2.6-2.9-2.9 1.9-.3 2.6-1 2.9-2.9z" fill="currentColor" stroke="none"/>',
+};
+const logoModelo = (id, extra = '') => `<span class="mico logo ${esc(id)}${extra}" aria-hidden="true"><svg viewBox="0 0 24 24">${LOGO_MODELO[id] || LOGO_MODELO.normal}</svg></span>`;
 // bolinha com a porcentagem do download
 const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, Math.floor(pct * 100)))}"><b>${Math.floor(pct * 100)}%</b></span>`;
 
@@ -686,6 +739,7 @@ async function responderPendente() {
 function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
   $('#nomeModelo').textContent = ESCOLHER ? 'Escolher modelo' : a ? nomeModelo(a) : 'Modelo';
+  $('#logoSeletor').innerHTML = !ESCOLHER && a ? logoModelo(a.id, ' mini') : '';
 }
 async function abrirSeletorModelo(motivo) {
   document.querySelectorAll('.dlg.modelos').forEach(x => x.closest('.dlg-fundo').remove());
@@ -708,13 +762,12 @@ function desenharListaModelos(folha) {
   if (!sis || !sis.modelos) { lm.innerHTML = '<p class="info" style="padding:12px 14px;margin:0">Não foi possível ler os modelos.</p>'; return; }
   const ram = sis.ramTotal || 0, rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
   lm.innerHTML = sis.modelos.map(m => {
-    const [, tam] = PERFIL_MODELO[m.id] || ['', ''];
     const b = baixando[m.id] || (escolhendoId === m.id ? { pct: 0 } : null);
     const emUso = !ESCOLHER && m.atual;
     const st = b ? anel(b.pct || 0) : m.bloqueado ? `<span class="st-txt">${esc(m.bloqueado)}</span>` : emUso ? '<span class="st-txt on">Em uso</span>'
       : `<span class="btn-mini">${m.baixado ? 'Usar' : 'Baixar'}</span>`;
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
-      <span class="mico">${tam}</span><span class="pt"><b>${esc(nomeModelo(m))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
+      ${logoModelo(m.id)}<span class="pt"><b>${esc(nomeModelo(m))}${m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
       <small>${PESO_MODELO[m.id] || ''} · ${gbBonito(m.tamanho)}</small></span><span class="st">${st}</span></button>`;
   }).join('');
   lm.querySelectorAll('[data-m]').forEach(bt => bt.onclick = async () => {
@@ -1143,13 +1196,10 @@ function ligarCopiar(c) { c.querySelectorAll('[data-copiar]').forEach(b => b.onc
 function abaGeral(c) {
   c.innerHTML = `<div class="secao"><h4>Tema</h4>${seg('tema', [['sistema', 'Sistema'], ['claro', 'Claro'], ['escuro', 'Escuro']], pref('tema') || 'sistema')}</div>
     <div class="secao"><h4>Tamanho da letra</h4>${seg('fonte', [['p', 'Pequena'], ['m', 'Média'], ['g', 'Grande']], pref('fonte') || 'm')}</div>
-    <div class="secao"><h4>Nomes dos modelos</h4>${seg('nomes', [['animais', 'Animais'], ['arvores', 'Árvores'], ['frutas', 'Frutas']], temaNomes())}
-      <p class="info" style="margin-top:8px">${['leve', 'normal', 'avancado'].map(id => `<b>${esc(nomeModelo(id))}</b> (${PESO_MODELO[id].toLowerCase()})`).join(' · ')}</p></div>
     ${estreita() ? `<div class="secao"><h4>Gestos</h4><p class="info">Arraste da borda esquerda para abrir o histórico · segure uma conversa para renomear, compartilhar ou apagar · botão voltar fecha menus e telas.</p></div>`
       : `<div class="secao"><h4>Atalhos</h4><p class="info">Enter envia · Shift+Enter quebra linha · ↑ edita a última pergunta · Ctrl+B histórico · Ctrl+K buscar · Ctrl+Shift+O nova conversa · Ctrl+, ajustes</p></div>`}`;
   ligarSeg(c, 'tema', v => { pref('tema', v); aplicarTema(); });
   ligarSeg(c, 'fonte', v => { pref('fonte', v); aplicarFonte(); });
-  ligarSeg(c, 'nomes', v => { pref('temaNomes', v); atualizarSeletorModelo(); abaGeral(c); });
 }
 
 /* ---------------- modelos ---------------- */
@@ -1172,7 +1222,7 @@ function cartaoModelo(m, ram, rec) {
   if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
   const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? `<span class="selo cinza">${esc(m.bloqueado)}</span>` : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
-    <div class="mtopo"><div class="mico">${tam}</div><div class="pt"><b>${esc(nomeModelo(m))}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
+    <div class="mtopo">${logoModelo(m.id)}<div class="pt"><b>${esc(nomeModelo(m))}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
     <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${m.ramMin} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;
@@ -1195,7 +1245,7 @@ async function abaModelo(c) {
       const st = b ? Math.floor(b.pct * 100) + '%' : v.atual ? (v.baixado ? 'Em uso' : 'Escolhida') : v.baixado ? 'Baixada' : gbBonito(v.tamanho);
       const botoes = b ? '' : (!v.atual && v.baixado ? `<button class="btn" data-voz="usar" data-id="${v.id}">Usar</button>` : '') + (!v.baixado ? `<button class="btn" data-voz="baixar" data-id="${v.id}">Baixar</button>` : `<button class="btn link" data-voz="apagar" data-id="${v.id}">Apagar</button>`);
       return `<div class="lm${v.atual ? ' on' : ''}"><span class="mico">${ICO.microfone}</span><span class="pt"><b>${esc(v.nome)}</b><small>${esc(v.descricao)} · ${gbBonito(v.tamanho)}</small></span><span class="st">${st}</span>${botoes}</div>`;
-    }).join('')}</div><p class="info" style="margin-top:8px">Grave com o 🎤 ao lado de enviar ou mande um arquivo pelo "+" → Áudio (até 10 min). O texto aparece na caixa para você conferir.</p></div>` : ''}
+    }).join('')}</div><p class="info" style="margin-top:8px">Grave com o 🎤 ao lado de enviar ou mande um arquivo pelo "+" → Áudio (qualquer tamanho). O texto aparece na caixa para você conferir.</p></div>` : ''}
     <div class="secao" style="margin-top:18px"><h4>Armazenamento</h4><div class="cartao">
       ${livre ? `<div class="uso"><i style="width:${Math.max(usado ? 1.5 : 0, Math.min(100, usado / (usado + livre) * 100)).toFixed(1)}%"></i></div>` : ''}
       <div class="linha-info"><span>Modelos baixados</span><b>${usado ? gbBonito(usado) : 'nenhum'}</b></div>

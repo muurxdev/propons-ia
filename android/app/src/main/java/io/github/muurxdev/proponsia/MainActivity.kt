@@ -800,7 +800,7 @@ class MainActivity : Activity() {
         val nucleos = Runtime.getRuntime().availableProcessors()
         val threads = if (nucleos >= 8) 4 else (nucleos / 2).coerceAtLeast(1)
         val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
-        val pb = ProcessBuilder(*nice, exe.path, "-m", modeloVoz.path, "-f", arq.path, "-l", "pt", "-nt", "-pp", "-mc", "0", "-t", "$threads", "-otxt", "-of", arq.path)
+        val pb = ProcessBuilder(*nice, exe.path, "-m", modeloVoz.path, "-f", arq.path, "-l", "pt", "-pp", "-mc", "0", "-t", "$threads", "-otxt", "-of", arq.path)
         pb.directory(cacheDir); pb.redirectErrorStream(true)
         val t0 = System.currentTimeMillis()
         ocupado(true)

@@ -54,6 +54,6 @@ adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
 sleep 2
 node "$RAIZ/src/teste_celular.mjs" 9444 "$SAIDA"; R=$?
 if [ -n "${FOTO:-}" ]; then echo "== fotos"; node "$RAIZ/src/teste_fotos.mjs" 9444 "$SAIDA" "$FOTO" || R=1; fi
-if [ -n "${VOZ:-}" ]; then echo "== voz"; SEM_MIC=1 node "$RAIZ/src/teste_voz.mjs" 9444 "$SAIDA" "$VOZ" || R=1; fi
+if [ -n "${VOZ:-}" ]; then echo "== voz"; SEM_MIC=1 node "$RAIZ/src/teste_voz.mjs" 9444 "$SAIDA" "$VOZ" "${VOZ_CURTO:-}" || R=1; fi
 adb exec-out screencap -p >"$SAIDA/9-final.png"
 exit $R
