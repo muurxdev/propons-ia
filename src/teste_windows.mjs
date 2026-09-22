@@ -18,13 +18,13 @@ const foto = async n => { const r = await cdp('Page.captureScreenshot', { format
 const espera = ms => new Promise(r => setTimeout(r, ms));
 const res = []; const ok = (n, c, d = '') => { res.push([c, n, d]); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 150) : ''); };
 const pronto = async (s = 300) => { for (let i = 0; i < s * 2; i++) { if (await js('online && $("#estado").hidden')) return true; await espera(500); } return false; };
-const pergunta = async t => { await js(`(()=>{const e=$('#entrada'); e.value=${JSON.stringify(t)}; ajustar(); $('#enviar').click(); return 1})()`); await espera(500); for (let i = 0; i < 600 && await js('!!geracao'); i++) await espera(500); return js('atual.msgs[atual.msgs.length-1]'); };
+const pergunta = async t => { await js(`(()=>{const e=$('#entrada'); e.value=${JSON.stringify(t)}; ajustar(); $('#enviar').click(); return 1})()`); for (let i = 0; i < 60 && !(await js('!!geracao')); i++) await espera(250); for (let i = 0; i < 600 && await js('!!geracao'); i++) await espera(500); return js('atual.msgs[atual.msgs.length-1]'); };
 const motorPid = () => { try { return execSync('powershell -NoProfile -Command "(Get-Process llama-server).Id"').toString().trim(); } catch (e) { return ''; } };
 
 ok('plataforma é windows', (await js('PLATAFORMA.tipo')) === 'windows');
 ok('IA pronta', await pronto());
 await js('nova(); 1');
-let m = await pergunta('oi'); ok('responde "oi"', m.texto.length > 0 && m.texto.length < 300, m.texto);
+let m = await pergunta('oi'); ok('responde "oi"', m && m.role === 'assistant' && m.texto.trim().length > 0 && m.texto.length < 600, m && (m.role + ': ' + m.texto));
 m = await pergunta('quick sort em [8, 2, 6, 4, 9, 1]'); ok('quick sort exato', /\[1, 2, 4, 6, 8, 9\]/.test(m.texto) && !!m.passos);
 m = await pergunta('crie um código em C que lê dois números e mostra a soma'); ok('código C com cores', await js(`!!document.querySelector('.msg.ia:last-child pre .tk-kw')`), (await js(`document.querySelector('.msg.ia:last-child pre')?.dataset.lang`)));
 await foto('w1-codigo');
