@@ -17,15 +17,20 @@ PROPONS_X86_64=1 bash "$AQUI/preparar.sh" >/dev/null || exit 1
 APK="$AQUI/app/build/outputs/apk/debug/app-debug.apk"; ls -la "$APK"
 
 echo "== emulador"
-if ! avdmanager list avd 2>/dev/null | grep -q "Name: propons"; then
-  echo no | avdmanager create avd -n propons -k "system-images;android-35;google_apis;x86_64" -d pixel_6 >/dev/null
+# avdmanager e emulator precisam concordar onde fica o AVD (no CI o avdmanager gravava num lugar e o emulator procurava noutro)
+export ANDROID_USER_HOME="${ANDROID_USER_HOME:-$HOME/.android}"; export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-$ANDROID_USER_HOME/avd}"; mkdir -p "$ANDROID_AVD_HOME"
+AVDM="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+if ! emulator -list-avds 2>/dev/null | grep -qx propons; then
+  echo no | "$AVDM" create avd -n propons -k "system-images;android-35;google_apis;x86_64" -d pixel_6 --force || { echo "avdmanager falhou"; exit 1; }
 fi
+emulator -list-avds | grep -qx propons || { echo "AVD 'propons' não apareceu em $ANDROID_AVD_HOME"; ls -la "$ANDROID_AVD_HOME"; exit 1; }
 adb start-server >/dev/null 2>&1
 if ! adb devices | grep -q emulator; then
   nohup emulator -avd propons -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -cores 4 >"$SAIDA/emulador.log" 2>&1 &
 fi
-adb wait-for-device
-for i in $(seq 1 180); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break; sleep 2; done
+timeout 300 adb wait-for-device || { echo "emulador não apareceu em 5 min"; tail -30 "$SAIDA/emulador.log"; exit 1; }
+BOOT=0; for i in $(seq 1 240); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && { BOOT=1; break; }; sleep 2; done
+[ $BOOT = 1 ] || { echo "emulador não terminou de ligar em 8 min"; tail -30 "$SAIDA/emulador.log"; exit 1; }
 echo "android $(adb shell getprop ro.build.version.release | tr -d '\r') pronto"
 adb shell settings put global window_animation_scale 0; adb shell settings put global transition_animation_scale 0
 
