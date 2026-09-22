@@ -15,9 +15,6 @@ on:
 permissions:
   contents: write
 
-env:
-  # binários de terceiros (llama.cpp, whisper.cpp, WebView2) ficam em cache pelo hash da lista de conferência
-  TERCEIROS_CACHE: ${{ hashFiles('ferramentas/terceiros.sums') }}
 
 jobs:
   versao:
@@ -55,7 +52,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/cache@v4
-        with: { path: "payload/motor\npayload/voz\napp/Microsoft.Web.WebView2.*.dll\npayload/WebView2Loader.dll", key: "terceiros-windows-${{ env.TERCEIROS_CACHE }}" }
+        with: { path: "payload/motor\npayload/voz\napp/Microsoft.Web.WebView2.*.dll\npayload/WebView2Loader.dll", key: "terceiros-windows-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - run: powershell -ExecutionPolicy Bypass -File build.ps1
       - name: A interface embutida é a mesma que foi testada
         uses: actions/download-artifact@v4
@@ -86,7 +83,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/cache@v4
-        with: { path: linux/vendor, key: "terceiros-linux-${{ env.TERCEIROS_CACHE }}" }
+        with: { path: linux/vendor, key: "terceiros-linux-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm dpkg-dev
       - run: bash linux/build.sh
       - name: Instalar e verificar em 4 distros (Docker)
@@ -107,7 +104,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.11.1' }
       - uses: actions/cache@v4
-        with: { path: linux/vendor, key: "terceiros-android-${{ env.TERCEIROS_CACHE }}" }
+        with: { path: linux/vendor, key: "terceiros-android-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - name: Chave de assinatura (segredo do GitHub)
         env:
           KS: ${{ secrets.PROPONS_KEYSTORE_B64 }}
@@ -146,7 +143,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.11.1' }
       - uses: actions/cache@v4
-        with: { path: linux/vendor, key: "terceiros-android-${{ env.TERCEIROS_CACHE }}" }
+        with: { path: linux/vendor, key: "terceiros-android-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - name: Liberar KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -168,7 +165,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/cache@v4
-        with: { path: linux/vendor, key: "terceiros-ios-${{ env.TERCEIROS_CACHE }}" }
+        with: { path: linux/vendor, key: "terceiros-ios-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - run: brew install xcodegen
       - run: bash ios/preparar.sh
       - name: Teste do motor (mesmo Motor.swift, no macOS, modelo real)
@@ -199,7 +196,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: actions/cache@v4
-        with: { path: linux/vendor, key: "terceiros-mac-${{ env.TERCEIROS_CACHE }}" }
+        with: { path: linux/vendor, key: "terceiros-mac-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - name: Compilar o app (Apple Silicon + Intel, motor, voz)
         run: bash mac/compilar.sh
       - name: Autoteste (abre o app, baixa o modelo Leve, responde e roda o Diagnóstico)
