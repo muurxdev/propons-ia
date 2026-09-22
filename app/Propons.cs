@@ -26,7 +26,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.13.1";
+    public const string Versao = "1.13.2";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -332,10 +332,18 @@ class Janela : Form
     // ---------- configuração ----------
     Dictionary<string, object> LerConfig()
     {
-        try { string p = Path.Combine(PastaDados(), "config.json"); if (File.Exists(p)) return json.Deserialize<Dictionary<string, object>>(File.ReadAllText(p, Encoding.UTF8)) ?? new Dictionary<string, object>(); } catch { }
+        foreach (string p in new[] { Path.Combine(PastaDados(), "config.json"), Path.Combine(Raiz(), @"dados\config.json") })
+            try { if (File.Exists(p)) return json.Deserialize<Dictionary<string, object>>(File.ReadAllText(p, Encoding.UTF8)) ?? new Dictionary<string, object>(); } catch { }
+        try { return new Dictionary<string, object>(); } catch { }
         return new Dictionary<string, object>();
     }
-    void SalvarConfig(Dictionary<string, object> c) { try { GravarSeguro(Path.Combine(PastaDados(), "config.json"), json.Serialize(c)); } catch (Exception ex) { Program.Log("config: " + ex.Message); } }
+    // grava ao lado do exe (pendrive) e também em AppData: se uma das cópias sumir (pasta temporária, pendrive tirado), a outra vale
+    void SalvarConfig(Dictionary<string, object> c)
+    {
+        string s = json.Serialize(c);
+        try { GravarSeguro(Path.Combine(PastaDados(), "config.json"), s); } catch (Exception ex) { Program.Log("config: " + ex.Message); }
+        try { Directory.CreateDirectory(Path.Combine(Raiz(), "dados")); GravarSeguro(Path.Combine(Raiz(), @"dados\config.json"), s); } catch (Exception ex) { Program.Log("config (AppData): " + ex.Message); }
+    }
 
     // grava com arquivo temporário + troca atômica, mantendo um .bak do anterior
     static void GravarSeguro(string p, string conteudo)
@@ -350,7 +358,19 @@ class Janela : Form
     {
         if (forcar != null) return Modelo.PorId(forcar) ?? Modelo.Normal;
         object id; Dictionary<string, object> c = LerConfig();
-        if (c.TryGetValue("modelo", out id)) { Modelo m = Modelo.PorId(id as string); if (m != null) return m; }
+        Modelo escolhido = c.TryGetValue("modelo", out id) ? Modelo.PorId(id as string) : null;
+        if (escolhido == null || AcharModelo(escolhido) == null)
+        {
+            // o maior modelo já baixado que cabe na memória deste PC (Lume 3 GB, Aurora 4 GB, Ápice 8 GB)
+            Modelo melhor = null; double ram = RamGB();
+            foreach (Modelo m in Modelo.Todos)
+            {
+                int precisa = m.Id == "leve" ? 3 : m.Id == "normal" ? 4 : 8;
+                if (AcharModelo(m) != null && (m.Id == "leve" || ram == 0 || ram >= precisa * 0.93)) melhor = m;
+            }
+            if (melhor != null) { Program.Log("modelo configurado ausente; usando o já baixado: " + melhor.Id); c["modelo"] = melhor.Id; SalvarConfig(c); return melhor; }
+        }
+        if (escolhido != null) return escolhido;
         return RamGB() < 6 ? Modelo.Leve : Modelo.Normal;
     }
 

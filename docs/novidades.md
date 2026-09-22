@@ -1,3 +1,7 @@
+## Novidades da 1.13.2
+
+- **Windows: o modelo não "some" mais depois de reiniciar.** A escolha do modelo ficava só numa pasta `dados` ao lado do .exe; se ela se perdia (exe numa pasta temporária, pendrive tirado, perfil limpo), o app voltava ao padrão, não achava o modelo e pedia para baixar de novo, embora o arquivo continuasse em `AppData`. Agora a configuração é gravada também em `AppData` e, se mesmo assim faltar, o app usa automaticamente o melhor modelo que já está baixado.
+
 ## Novidades da 1.13.1
 
 - **Limites de memória medidos de verdade.** Medimos o pico do motor com cada modelo (carregado + resposta): Lume 0,9 GB, Aurora 2,0 GB (2,6 com visão), Ápice 4,4 GB (5,1 com visão). Com o que o sistema e o app ocupam, os mínimos ficaram: **PC 3 / 4 / 8 GB** e **celular 3 / 6 / 12 GB** (no celular de 8 GB sobram só ~4,5 GB para apps, por isso o Ápice fechava). O Aurora volta a funcionar em celulares de 6 e 8 GB.
