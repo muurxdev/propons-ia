@@ -754,7 +754,9 @@ const comLimite = (p, ms, oque) => Promise.race([p, new Promise((_, f) => setTim
 async function carregarPdfjs() {
   if (pdfjs) return pdfjs;
   const mod = await comLimite(import(scriptDe('vendor-pdf')), 25000, 'a leitura de PDF');
-  mod.GlobalWorkerOptions.workerPort = new Worker(scriptDe('vendor-pdf-worker'), { type: 'module' });
+  // o pdf.js cria o worker a partir desta URL; se o WebView não deixar (Android), ele mesmo cai para o "worker falso"
+  // na thread principal — por isso não criamos o Worker por conta própria
+  mod.GlobalWorkerOptions.workerSrc = scriptDe('vendor-pdf-worker');
   return pdfjs = mod;
 }
 async function carregarMammoth() {
