@@ -39,12 +39,12 @@ for (let i = 0; i < 300 && !(await c.js('typeof online !== "undefined" && online
 ok('baixou, ligou a IA e abriu o chat', await c.js('online'), `${((Date.now() - t0) / 1000).toFixed(0)} s`);
 // no emulador o processador é emulado: a 1ª geração demora para começar e para terminar
 const t1 = Date.now();
-for (let i = 0; i < 200 && !(await c.js('!!geracao'))
+for (let i = 0; i < 240 && !(await c.js('!!geracao'))
   && !(await c.js('!!(atual && atual.msgs.some(m => m.role === "assistant" && m.texto))')); i++) await espera(500);
-for (let i = 0; i < 960 && (await c.js('!!geracao')); i++) await espera(500);
+for (let i = 0; i < 1800 && (await c.js('!!geracao')); i++) await espera(500);
 const ult = await c.js('atual && atual.msgs[atual.msgs.length-1]');
 ok('a IA respondeu a mensagem pendente', ult && ult.role === 'assistant' && /42/.test(ult.texto),
-  `${((Date.now() - t1) / 1000).toFixed(0)} s · ${(ult && ult.texto) || '(sem resposta)'}`);
+  `${((Date.now() - t1) / 1000).toFixed(0)} s · gerando=${await c.js('!!geracao')} · ${(ult && ult.texto) || '(sem resposta)'}`);
 ok('pendente some do histórico', await c.js('!atual.msgs.some(m => m.pendente)'));
 const nome = await c.js(`$('#nomeModelo').textContent`);
 ok('seletor mostra o nome do modelo', nome === 'Própons ' + NOMES[idModelo], nome);
