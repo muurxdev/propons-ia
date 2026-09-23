@@ -171,6 +171,24 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .tela-corpo{max-width:860px;margin:0 auto}
 /* área de código (estilo Claude Code): abas, editor, diff e o pedido para a IA */
 .cod{display:flex;flex-direction:column;min-height:0;padding:0 2px 6px}
+/* chat de programação: barra da pasta, conversa, caixa */
+.cod-pasta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 4px 10px}
+.cod-pasta .btn svg{width:15px;height:15px}
+.cod-chat{display:flex;flex-direction:column;gap:2px;min-height:120px;max-height:52vh;overflow-y:auto;padding:2px 4px}
+.cod-chat .msg{max-width:100%}
+.cod-vazio{text-align:center;color:var(--muted);padding:24px 12px}
+.cod-vazio svg{width:34px;height:34px;color:var(--faint);margin-bottom:8px}
+.cod-vazio p{margin:0;font-size:13.5px;line-height:1.6}
+.cod-acao{display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;border:1px solid var(--line);border-left:3px solid var(--faint);border-radius:8px;background:var(--surface);font:12.5px var(--mono);color:var(--muted)}
+.cod-acao b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cod-acao.criar,.cod-acao.escrever{border-left-color:var(--accent)} .cod-acao.apagar{border-left-color:var(--danger)}
+.cod-acao.feito{border-left-color:var(--ok)} .cod-acao.feito b::after{content:" ✓";color:var(--ok)}
+.cod-compor{display:flex;align-items:flex-end;gap:8px;margin:10px 4px 0;padding:6px 6px 6px 12px;border:1px solid var(--line);border-radius:18px;background:var(--surface)}
+.cod-entrada{flex:1;min-width:0;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:var(--fs)/1.5 var(--sans);padding:7px 0 5px;max-height:140px}
+.cod-compor .redondo{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);transition:background .15s,transform .1s}
+.cod-compor .redondo:hover{background:var(--accent-hover)} .cod-compor .redondo:active{transform:scale(.94)}
+.cod-compor .redondo svg{width:17px;height:17px}
+.cod-dica{margin:8px 6px 0;font-size:11.5px;text-align:center}
 .cod-abas{display:flex;gap:4px;overflow-x:auto;padding:2px 8px 8px;scrollbar-width:none} .cod-abas::-webkit-scrollbar{display:none}
 .cod-aba{flex:none;max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font:12.5px var(--mono);color:var(--muted)}
 .cod-aba.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}

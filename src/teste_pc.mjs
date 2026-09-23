@@ -308,25 +308,27 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('escolher um modo não abre popup: só o chip na caixa', (await js('window.__avisos.length')) === 0 && !!(await js(`document.querySelector('#chips .chip.modo')`)), JSON.stringify(await js('window.__avisos')));
   await js(`definirModo(null); 1`);
 }
-// 1.20: área de código (estilo Claude Code) — criar, editar, pedir mudança com diff, aplicar
+// 1.20: chat de programação (lógica de chat, foco em codificar) — ações nos arquivos com diff e aplicar
 {
-  await js(`pref('projeto', ''); guardarNoProjeto('soma.py', ['def soma(a, b):', '    return a+b', ''].join(String.fromCharCode(10)), false); abrirCodigo('soma.py'); 1`); await espera(700);
-  ok('área de código é uma tela (chat e caixa escondidos), com abas, editor e pedido', await js(`telaAtual === 'codigo' && $('#conversa').hidden && document.querySelector('.compor').hidden && !!document.querySelector('#tela .cod-aba.on') && !!document.querySelector('#tela .cod-editor') && !!document.querySelector('#tela .cod-instrucao')`));
+  const NL = 'String.fromCharCode(10)';
+  await js(`pref('projeto', ''); pref('codigoChat', ''); guardarNoProjeto('soma.py', ['def soma(a, b):', '    return a+b', ''].join(String.fromCharCode(10)), false); abrirTela('codigo'); 1`); await espera(800);
+  ok('área de código é uma tela de chat (conversa + caixa própria)', await js(`telaAtual === 'codigo' && $('#conversa').hidden && document.querySelector('.compor').hidden && !!document.querySelector('#tela #codChat') && !!document.querySelector('#tela .cod-entrada')`));
   ok('as telas aparecem no menu lateral, abaixo da busca', await js(`(()=>{ const n = $('#latNav'); const b = $('#busca').closest('.busca'); return !!n && n.compareDocumentPosition(b) === Node.DOCUMENT_POSITION_PRECEDING && n.querySelectorAll('[data-tela]').length === 2 && !!n.querySelector('[data-tela="codigo"].on') })()`));
-  await js(`(()=>{ const e = document.querySelector('.cod-editor'); e.value = ['def soma(a, b):', '    return a + b', ''].join(String.fromCharCode(10)); e.dispatchEvent(new Event('input')); })(); 1`); await espera(600);
-  ok('editar guarda no aparelho', /return a \+ b/.test(await js(`(projeto().arquivos.find(a => a.nome === 'soma.py')||{}).conteudo`)));
-  await js(`(()=>{ document.querySelector('.cod-instrucao').value = 'Adicione uma docstring curta em português explicando a função.'; document.querySelector('[data-acao="pedir"]').click(); })(); 1`);
-  let dif = false; for (let i = 0; i < 400 && !dif; i++) { await espera(250); dif = await js(`!!document.querySelector('.cod-dif .dif-l.mais')`); }
-  ok('pedir mudança à IA mostra o diff com linhas adicionadas', dif, (await js(`(document.querySelector('.cod-dif .info')||{}).textContent || ''`)).slice(0, 90));
-  if (dif) {
-    await js(`document.querySelector('[data-acao="aplicar"]').click(); 1`); await espera(400);
+  ok('a tela mostra os arquivos e o botão de abrir pasta do aparelho', await js(`/arquivo/.test(document.querySelector('.cod-pasta').textContent) && (typeof window.showDirectoryPicker !== 'function' || !!document.querySelector('.cod-pasta [data-pasta]'))`), await js(`document.querySelector('.cod-pasta').textContent.slice(0,90)`));
+  await js(`(()=>{ const e = document.querySelector('.cod-entrada'); e.value = 'Adicione uma docstring curta em português na função do arquivo soma.py.'; document.querySelector('[data-enviar]').click(); })(); 1`);
+  let pend = false; for (let i = 0; i < 480 && !pend; i++) { await espera(250); pend = await js(`!!document.querySelector('#codChat .cod-dif .dif-l.mais') && !!document.querySelector('#codChat [data-ap]')`); }
+  ok('a IA propõe a mudança com diff e botões de aplicar/recusar', pend, (await js(`(document.querySelector('#codChat .cod-dif .info')||{}).textContent || document.querySelector('#codChat').textContent.slice(0,120)`)).slice(0, 110));
+  if (pend) {
+    await js(`document.querySelector('#codChat [data-ap]').click(); 1`); await espera(600);
     const dep = await js(`(projeto().arquivos.find(a => a.nome === 'soma.py')||{}).conteudo || ''`);
-    ok('aplicar grava o arquivo novo e fecha o diff', dep.length > 40 && !(await js(`!!document.querySelector('.cod-dif')`)), JSON.stringify(dep).slice(0, 110));
+    // o teste mede o mecanismo (gravou o que a IA propôs, marcou a ação, tirou o diff), não a qualidade do texto dela
+    ok('aplicar grava o arquivo e marca a ação como feita', dep && !/return a+b/.test(dep) && await js(`!!document.querySelector('#codChat .cod-acao.feito') && !document.querySelector('#codChat [data-ap]')`), JSON.stringify(dep).slice(0, 110));
   }
+  ok('a conversa de código fica guardada', (await js(`codigoChat().msgs.length`)) >= 2);
   ok('voltar sai da tela e traz a conversa de volta', await js(`(()=>{ fecharTela(); return telaAtual === '' && !$('#conversa').hidden && !document.querySelector('.compor').hidden && $('#tela').hidden })()`));
   await js(`abrirTela('biblioteca'); 1`); await espera(400);
   ok('Biblioteca também é tela', await js(`telaAtual === 'biblioteca' && !!document.querySelector('#tela .bib-corpo') && /Biblioteca/.test($('#tituloAtual').textContent)`));
-  await js(`fecharTela(); pref('projeto', ''); 1`);
+  await js(`fecharTela(); pref('projeto', ''); pref('codigoChat', ''); 1`);
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);

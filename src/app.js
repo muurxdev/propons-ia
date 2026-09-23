@@ -502,68 +502,231 @@ function htmlDiff(d) {
   }
   return `<div class="dif">${linhas.join('')}</div>`;
 }
-const ESQ_CODIGO = { type: 'object', properties: { explicacao: { type: 'string' }, conteudo: { type: 'string' } }, required: ['explicacao', 'conteudo'], additionalProperties: false };
-let editorPendente = null;   // { nome, novo, explicacao }
-const abrirCodigo = nome => { if (nome) { const p = projeto(); p.aberto = nome; salvarProjeto(p); } abrirTela('codigo'); };
-function telaCodigo(alvoTela) {
-  alvoTela.innerHTML = '<div class="cod"></div>';
-  const folha = alvoTela, sair = () => fecharTela();
-  const desenhar = () => {
-    const p = projeto(), cod = folha.querySelector('.cod');
-    const a = arqDoProjeto(p, p.aberto) || p.arquivos[0];
-    if (a) p.aberto = a.nome;
-    cod.innerHTML = `<div class="cod-abas">${p.arquivos.map(x => `<button class="cod-aba${x.nome === p.aberto ? ' on' : ''}" data-abrir="${esc(x.nome)}">${esc(x.nome)}</button>`).join('')}<button class="cod-aba novo" data-novo aria-label="Novo arquivo">${ICO.mais}</button></div>
-      ${a ? `<div class="cod-barra"><span class="cod-lang">${esc(a.lang || 'texto')}</span><span class="cod-info">${a.conteudo.split('\n').length} linhas · ${tamanhoBonito(new Blob([a.conteudo]).size)}</span>
-          <button class="icone" data-acao="renomear" title="Renomear" aria-label="Renomear">${ICO.renomear}</button>
-          <button class="icone" data-acao="salvar" title="Salvar no aparelho" aria-label="Salvar no aparelho">${ICO.salvar}</button>
-          <button class="icone" data-acao="chat" title="Mandar para o chat" aria-label="Mandar para o chat">${ICO.seguir}</button>
-          <button class="icone" data-acao="apagar" title="Apagar arquivo" aria-label="Apagar arquivo">${ICO.apagar}</button></div>
-        <textarea class="cod-editor" spellcheck="false" placeholder="Escreva ou cole o código…">${esc(a.conteudo)}</textarea>
-        ${editorPendente && editorPendente.nome === a.nome ? `<div class="cod-dif"><p class="info">${esc(editorPendente.explicacao || 'Mudança sugerida pela IA')}</p>${htmlDiff(diffLinhas(a.conteudo, editorPendente.novo))}
-          <div class="botoes" style="justify-content:flex-start"><button class="btn primario" data-acao="aplicar">Aplicar</button><button class="btn" data-acao="descartar">Descartar</button></div></div>` : ''}
-        <div class="cod-pedido"><input class="cod-instrucao" placeholder="O que a IA deve fazer neste arquivo? (ex.: comentar as funções)" maxlength="400"><button class="btn primario" data-acao="pedir">Pedir</button></div>`
-      : `<p class="info" style="padding:16px 14px">Nenhum arquivo ainda. Toque em <b>+</b> para criar, ou use "Guardar na área de código" num bloco de código de uma resposta.</p>`}`;
-    // trocar de arquivo / criar
-    cod.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => { const q = projeto(); q.aberto = b.dataset.abrir; salvarProjeto(q); editorPendente = null; desenhar(); });
-    const bn = cod.querySelector('[data-novo]');
-    if (bn) bn.onclick = async () => { const nome = await perguntarTexto('Nome do arquivo', 'novo.py'); if (!nome) return; guardarNoProjeto(nome, '', false); editorPendente = null; desenhar(); };
-    const ed = cod.querySelector('.cod-editor');
-    if (ed) {
-      let t = null;
-      ed.oninput = () => { clearTimeout(t); t = setTimeout(() => { const q = projeto(), x = arqDoProjeto(q, q.aberto); if (x) { x.conteudo = ed.value.slice(0, LIMITE_CODIGO); salvarProjeto(q); } }, 350); };
-      ed.onkeydown = e => { if (e.key === 'Tab') { e.preventDefault(); const s = ed.selectionStart; ed.setRangeText('  ', s, ed.selectionEnd, 'end'); ed.dispatchEvent(new Event('input')); } };
-    }
-    cod.querySelectorAll('[data-acao]').forEach(b => b.onclick = async () => {
-      const q = projeto(), x = arqDoProjeto(q, q.aberto); if (!x) return;
-      if (b.dataset.acao === 'renomear') { const nome = await perguntarTexto('Renomear arquivo', x.nome); if (!nome) return; x.nome = nome.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60); x.lang = langDoArquivo(x.nome) || 'texto'; q.aberto = x.nome; salvarProjeto(q); desenhar(); }
-      else if (b.dataset.acao === 'salvar') PLATAFORMA.salvarArquivo(x.nome, x.conteudo, 'text/plain').then(r => r !== false && toast('Arquivo salvo.')).catch(e => toast('Não deu para salvar: ' + e.message, 4000));
-      else if (b.dataset.acao === 'chat') { sair(); anexos = anexos.filter(y => y.nome !== x.nome); anexos.push({ nome: x.nome, tam: new Blob([x.conteudo]).size, lang: x.lang, conteudo: x.conteudo }); desenharChips(); ajustar(); $('#entrada').focus(); }
-      else if (b.dataset.acao === 'apagar') { if (!await confirmar('Apagar arquivo?', `<p>"${esc(x.nome)}" sai da área de código (o que você já salvou no aparelho continua lá).</p>`, 'Apagar')) return; q.arquivos = q.arquivos.filter(y => y !== x); q.aberto = (q.arquivos[0] || {}).nome || ''; salvarProjeto(q); editorPendente = null; desenhar(); }
-      else if (b.dataset.acao === 'aplicar') { x.conteudo = editorPendente.novo.slice(0, LIMITE_CODIGO); salvarProjeto(q); editorPendente = null; desenhar(); toast('Mudança aplicada.'); }
-      else if (b.dataset.acao === 'descartar') { editorPendente = null; desenhar(); }
-      else if (b.dataset.acao === 'pedir') await pedirCodigo(cod, x, desenhar);
-    });
-  };
-  desenhar();
-}
-async function pedirCodigo(cod, arq, desenhar) {
-  const campo = cod.querySelector('.cod-instrucao'), instrucao = (campo.value || '').trim();
-  if (!instrucao) { campo.focus(); return; }
-  if (!online) { toast('A IA ainda está ligando.'); return; }
-  if (geracao) { toast('Espere a resposta atual terminar.'); return; }
-  const bt = cod.querySelector('[data-acao="pedir"]'); bt.disabled = true; const antes = bt.textContent; bt.innerHTML = htmlTrabalhando(); const pararP = novaPalavra(bt.firstChild, true);
+/* ---------------- chat de programação (a lógica do chat, focada em codificar) ----------------
+   Igual ao chat normal, mas a IA responde com AÇÕES nos arquivos: ler (feito na hora), criar/escrever/apagar
+   (mostrados com o diff, você aplica ou recusa). Os arquivos vêm de uma pasta de verdade do aparelho quando dá
+   (Windows e Linux: showDirectoryPicker) ou da área interna do app. Nada é gravado sem você aceitar. */
+const ESQ_AGENTE = { type: 'object', properties: {
+  resposta: { type: 'string' },
+  acoes: { type: 'array', maxItems: 6, items: { type: 'object', properties: {
+    tipo: { type: 'string', enum: ['ler', 'criar', 'escrever', 'apagar'] }, arquivo: { type: 'string' }, conteudo: { type: 'string' },
+  }, required: ['tipo', 'arquivo'], additionalProperties: false } } }, required: ['resposta', 'acoes'], additionalProperties: false };
+const TEM_PASTA = typeof window.showDirectoryPicker === 'function';
+const MAX_ARQS = 400, MAX_LER = 60000;
+let pastaRaiz = null;      // FileSystemDirectoryHandle da pasta aberta
+let pastaNome = '';
+let cacheArqs = null;      // [{nome, tam}]
+// guarda a pasta escolhida para as próximas aberturas (o navegador pede a permissão de novo)
+const idbPasta = {
+  abrir: () => new Promise((ok, falha) => { const r = indexedDB.open('propons-codigo', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => falha(r.error); }),
+  async por(k, v) { const db = await this.abrir(); try { return await new Promise((ok, falha) => { const t = db.transaction('kv', 'readwrite'); const s = t.objectStore('kv'); const p = v === undefined ? s.get(k) : s.put(v, k); p.onsuccess = () => ok(p.result); t.onerror = () => falha(t.error); }); } finally { db.close(); } },
+};
+async function restaurarPasta() {
+  if (!TEM_PASTA || pastaRaiz) return;
   try {
-    let saida = '';
-    await PLATAFORMA.gerar([{ role: 'system', content: SYSTEM },
-      { role: 'user', content: `Este é o arquivo "${arq.nome}":\n\n\`\`\`${arq.lang}\n${arq.conteudo}\n\`\`\`\n\nTarefa: ${instrucao}\n\nResponda em JSON: "explicacao" (1 a 3 frases sobre o que mudou, em português do Brasil) e "conteudo" (o arquivo INTEIRO já modificado, sem cercas de código e sem comentários explicativos a mais). Se nada precisar mudar, devolva o arquivo igual e explique por quê.` }],
-      { temperatura: 0.2, exato: true, maxTokens: 4000, esquema: ESQ_CODIGO }, t => { saida += t; });
-    const bruto = extrairJSON(saida);
-    if (!bruto || typeof bruto.conteudo !== 'string' || !bruto.conteudo.trim()) throw new Error('a IA não devolveu o arquivo (tente um pedido menor)');
-    if (bruto.conteudo.trim() === arq.conteudo.trim()) { toast('A IA não viu nada para mudar: ' + String(bruto.explicacao || '').slice(0, 120), 5000); return; }
-    editorPendente = { nome: arq.nome, novo: bruto.conteudo, explicacao: bruto.explicacao };
-    campo.value = '';
-  } catch (e) { toast('Não deu para pedir: ' + e.message, 4000); }
-  finally { if (pararP) pararP(); bt.disabled = false; bt.textContent = antes; desenhar(); }
+    const h = await idbPasta.por('pasta'); if (!h) return;
+    if ((await h.queryPermission({ mode: 'readwrite' })) !== 'granted') { pastaNome = h.name; return; }   // pede ao abrir a tela
+    pastaRaiz = h; pastaNome = h.name; cacheArqs = null;
+  } catch (e) {}
+}
+async function escolherPasta() {
+  try {
+    const h = await window.showDirectoryPicker({ mode: 'readwrite', id: 'propons-codigo' });
+    if ((await h.requestPermission({ mode: 'readwrite' })) !== 'granted') { toast('Sem permissão para essa pasta.'); return false; }
+    pastaRaiz = h; pastaNome = h.name; cacheArqs = null; try { await idbPasta.por('pasta', h); } catch (e) {}
+    return true;
+  } catch (e) { return false; }   // cancelou
+}
+const IGNORAR = /^(node_modules|\.git|dist|build|out|__pycache__|venv|\.venv|target|bin|obj|\.next|\.cache)$/i;
+const TEXTO_CODIGO = /\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|ya?ml|toml|ini|cfg|conf|sh|bash|ps1|bat|lua|r|dart|vue|svelte|env|gitignore|csv)$/i;
+// arquivos da pasta aberta (recursivo, só texto/código) ou da área interna
+const arqs = {
+  get origem() { return pastaRaiz ? 'pasta' : 'interno'; },
+  async listar(recarregar) {
+    if (!pastaRaiz) return projeto().arquivos.map(a => ({ nome: a.nome, tam: new Blob([a.conteudo]).size }));
+    if (cacheArqs && !recarregar) return cacheArqs;
+    const saida = [];
+    const andar = async (dir, prefixo, nivel) => {
+      if (nivel > 6 || saida.length >= MAX_ARQS) return;
+      for await (const [nome, h] of dir.entries()) {
+        if (saida.length >= MAX_ARQS) break;
+        if (nome.startsWith('.') && nome !== '.env' && nome !== '.gitignore') continue;
+        if (h.kind === 'directory') { if (!IGNORAR.test(nome)) await andar(h, prefixo + nome + '/', nivel + 1); continue; }
+        if (!TEXTO_CODIGO.test(nome)) continue;
+        const f = await h.getFile(); if (f.size > MAX_LER) continue;
+        saida.push({ nome: prefixo + nome, tam: f.size });
+      }
+    };
+    await andar(pastaRaiz, '', 0);
+    saida.sort((a, b) => a.nome.localeCompare(b.nome));
+    return cacheArqs = saida;
+  },
+  async handle(caminho, criar) {
+    const partes = caminho.split('/').filter(Boolean); let dir = pastaRaiz;
+    for (const p of partes.slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create: !!criar });
+    return { dir, nome: partes[partes.length - 1] };
+  },
+  async ler(caminho) {
+    if (!pastaRaiz) { const a = arqDoProjeto(projeto(), caminho); if (!a) throw new Error('não existe'); return a.conteudo; }
+    const { dir, nome } = await this.handle(caminho);
+    return (await (await dir.getFileHandle(nome)).getFile()).text();
+  },
+  async gravar(caminho, conteudo) {
+    if (!pastaRaiz) {   // área do app: sobrescreve o arquivo com esse nome (guardarNoProjeto renomeia para não colidir)
+      const p = projeto(), a = arqDoProjeto(p, caminho);
+      if (a) a.conteudo = String(conteudo).slice(0, LIMITE_CODIGO);
+      else p.arquivos.push({ nome: caminho, conteudo: String(conteudo).slice(0, LIMITE_CODIGO), lang: langDoArquivo(caminho) || 'texto', criado: Date.now() });
+      p.aberto = caminho; salvarProjeto(p);   // quem chamou redesenha (redesenhar aqui trocaria o DOM no meio do fluxo)
+      return;
+    }
+    const { dir, nome } = await this.handle(caminho, true);
+    const h = await dir.getFileHandle(nome, { create: true });
+    const w = await h.createWritable(); await w.write(conteudo); await w.close();
+    cacheArqs = null;
+  },
+  async apagar(caminho) {
+    if (!pastaRaiz) { const p = projeto(); p.arquivos = p.arquivos.filter(a => a.nome !== caminho); salvarProjeto(p); return; }
+    const { dir, nome } = await this.handle(caminho); await dir.removeEntry(nome); cacheArqs = null;
+  },
+};
+
+/* conversa da tela de código (separada das conversas normais, guardada no aparelho) */
+function codigoChat() { try { const c = JSON.parse(pref('codigoChat') || 'null'); if (c && Array.isArray(c.msgs)) return c; } catch (e) {} return { msgs: [] }; }
+function salvarCodigoChat(c) { c.msgs = c.msgs.slice(-40); pref('codigoChat', JSON.stringify(c)); }
+const SISTEMA_CODIGO = `Você é a Própons IA no modo programação: ajuda a escrever e corrigir código nos arquivos do aparelho.
+Responda SEMPRE em JSON com "resposta" (o que você vai fazer ou explicar, em português do Brasil, curto) e "acoes" (lista, pode ser vazia).
+Cada ação: {"tipo":"ler"|"criar"|"escrever"|"apagar","arquivo":"caminho/do/arquivo","conteudo":"…"}.
+- "ler": use quando precisar ver um arquivo antes de mudar. Você recebe o conteúdo e continua na próxima rodada.
+- "criar"/"escrever": mande o arquivo INTEIRO já pronto em "conteudo" (sem cercas de código). Nunca use "…" nem "resto igual".
+- "apagar": só quando a pessoa pedir claramente.
+Mexa apenas nos arquivos necessários. Se faltar informação, pergunte em "resposta" e deixe "acoes" vazia.`;
+let agenteOcupado = false, acoesPendentes = [];   // [{tipo, arquivo, conteudo, antes}]
+const nomeCurto = n => String(n).split('/').pop();
+
+function telaCodigo(alvoTela) {
+  alvoTela.innerHTML = `<div class="cod">
+    <div class="cod-pasta"></div>
+    <div class="cod-chat" id="codChat"></div>
+    <div class="cod-compor"><textarea class="cod-entrada" rows="1" placeholder="O que vamos programar? (ex.: crie um jogo da forca em Python)"></textarea>
+      <button class="redondo enviar" data-enviar title="Enviar" aria-label="Enviar">${ICO.seguir}</button></div>
+    <p class="info cod-dica">A IA propõe as mudanças; nada é gravado sem você aplicar.</p></div>`;
+  const cod = alvoTela.querySelector('.cod');
+  const desenharPasta = async () => {
+    const barra = cod.querySelector('.cod-pasta'), lista = await arqs.listar();
+    barra.innerHTML = `${TEM_PASTA ? `<button class="btn" data-pasta>${ICO.pasta}<span>${pastaRaiz ? esc(pastaNome) : pastaNome ? 'Reabrir ' + esc(pastaNome) : 'Abrir pasta do aparelho'}</span></button>` : ''}
+      <span class="cod-info">${lista.length ? `${lista.length} ${lista.length === 1 ? 'arquivo' : 'arquivos'} · ${arqs.origem === 'pasta' ? 'pasta do aparelho' : 'área do app'}` : arqs.origem === 'pasta' ? 'pasta vazia' : 'nenhum arquivo ainda'}</span>
+      ${lista.length ? `<button class="btn link" data-arquivos>ver arquivos</button>` : ''}
+      ${codigoChat().msgs.length ? `<button class="icone" data-limpar title="Limpar a conversa" aria-label="Limpar a conversa">${ICO.apagar}</button>` : ''}`;
+    const bp = barra.querySelector('[data-pasta]');
+    if (bp) bp.onclick = async () => { if (await escolherPasta()) { await desenharPasta(); toast(`Pasta "${pastaNome}" aberta.`); } };
+    const ba = barra.querySelector('[data-arquivos]'); if (ba) ba.onclick = () => listarArquivos();
+    const bl = barra.querySelector('[data-limpar]'); if (bl) bl.onclick = async () => { if (await confirmar('Limpar a conversa de código?', '<p>Os arquivos continuam como estão.</p>', 'Limpar')) { salvarCodigoChat({ msgs: [] }); acoesPendentes = []; desenharChat(); desenharPasta(); } };
+  };
+  const desenharChat = () => {
+    const c = cod.querySelector('#codChat'), ch = codigoChat();
+    c.innerHTML = ch.msgs.length ? '' : `<div class="cod-vazio">${ICO.codigo}<p>Peça em português: <b>"crie um jogo da forca em Python"</b>, <b>"leia o main.py e corrija o erro"</b>, <b>"comente as funções do arquivo X"</b>.${TEM_PASTA ? ' Abra uma pasta do aparelho para eu trabalhar nos seus arquivos de verdade.' : ''}</p></div>`;
+    for (const m of ch.msgs) {
+      const d = document.createElement('div'); d.className = 'msg ' + (m.role === 'user' ? 'eu' : 'ia');
+      d.innerHTML = `<div class="txt">${md(m.texto || '')}</div>`;
+      if (m.acoes && m.acoes.length) d.firstChild.insertAdjacentHTML('afterend', m.acoes.map(a => `<div class="cod-acao ${esc(a.tipo)}${a.feito ? ' feito' : ''}"><b>${a.tipo === 'ler' ? 'Leu' : a.tipo === 'apagar' ? (a.feito ? 'Apagou' : 'Apagar') : a.feito ? 'Gravou' : (a.tipo === 'criar' ? 'Criar' : 'Alterar')} ${esc(a.arquivo)}</b></div>`).join(''));
+      c.appendChild(d); enfeitar(d);
+    }
+    for (const a of acoesPendentes) {
+      const d = document.createElement('div'); d.className = 'msg ia';
+      d.innerHTML = `<div class="cod-dif"><p class="info"><b>${a.tipo === 'apagar' ? 'Apagar' : a.tipo === 'criar' ? 'Criar' : 'Alterar'} ${esc(a.arquivo)}</b></p>
+        ${a.tipo === 'apagar' ? '' : htmlDiff(diffLinhas(a.antes || '', a.conteudo || ''))}
+        <div class="botoes" style="justify-content:flex-start"><button class="btn primario" data-ap="${esc(a.arquivo)}">Aplicar</button><button class="btn" data-rec="${esc(a.arquivo)}">Recusar</button>${acoesPendentes.length > 1 ? '<button class="btn" data-ap-tudo>Aplicar tudo</button>' : ''}</div></div>`;
+      c.appendChild(d);
+    }
+    c.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => aplicarAcoes([b.dataset.ap], desenharChat, desenharPasta));
+    c.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => { acoesPendentes = acoesPendentes.filter(a => a.arquivo !== b.dataset.rec); desenharChat(); });
+    const bt = c.querySelector('[data-ap-tudo]'); if (bt) bt.onclick = () => aplicarAcoes(acoesPendentes.map(a => a.arquivo), desenharChat, desenharPasta);
+    c.scrollTop = c.scrollHeight;
+  };
+  const ent = cod.querySelector('.cod-entrada');
+  const enviar = () => { const t = ent.value.trim(); if (!t || agenteOcupado) return; ent.value = ''; ent.style.height = 'auto'; rodarAgente(t, desenharChat, desenharPasta); };
+  ent.oninput = () => { ent.style.height = 'auto'; ent.style.height = Math.min(ent.scrollHeight, 140) + 'px'; };
+  ent.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !estreita()) { e.preventDefault(); enviar(); } };
+  cod.querySelector('[data-enviar]').onclick = enviar;
+  restaurarPasta().then(desenharPasta);
+  desenharChat();
+}
+// lista de arquivos numa folha: abrir para ver/editar
+async function listarArquivos() {
+  const lista = await arqs.listar(true);
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha">${topoCentro('Arquivos', true)}<div class="lista-modelos">${lista.map(a => `<button class="lm" data-a="${esc(a.nome)}"><span class="pt"><b>${esc(nomeCurto(a.nome))}</b><small>${esc(a.nome)} · ${tamanhoBonito(a.tam)}</small></span></button>`).join('') || '<p class="info" style="padding:14px">Nenhum arquivo.</p>'}</div></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, folha, sair);
+  folha.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => { sair(); await verArquivo(b.dataset.a); });
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#latNav') || $('#anexar'));
+}
+async function verArquivo(caminho) {
+  let conteudo = '';
+  try { conteudo = await arqs.ler(caminho); } catch (e) { toast('Não consegui abrir: ' + e.message, 4000); return; }
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha codigo">${topoCentro(nomeCurto(caminho), true)}
+    <textarea class="cod-editor" spellcheck="false">${esc(conteudo)}</textarea>
+    <div class="botoes" style="justify-content:flex-start;padding:10px 8px 2px"><button class="btn primario" data-gravar>Salvar</button><button class="btn" data-chat>Mandar para o chat</button></div></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, folha, sair);
+  folha.querySelector('[data-gravar]').onclick = async () => { try { await arqs.gravar(caminho, folha.querySelector('.cod-editor').value); toast('Salvo.'); sair(); atualizarTela('codigo'); } catch (e) { toast('Não deu para salvar: ' + e.message, 4000); } };
+  folha.querySelector('[data-chat]').onclick = () => { sair(); fecharTela(); anexos = anexos.filter(y => y.nome !== nomeCurto(caminho)); anexos.push({ nome: nomeCurto(caminho), tam: new Blob([conteudo]).size, lang: langDoArquivo(caminho) || 'texto', conteudo }); desenharChips(); ajustar(); $('#entrada').focus(); };
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
+}
+async function aplicarAcoes(nomes, desenharChat, desenharPasta) {
+  const ch = codigoChat();
+  for (const nome of nomes) {
+    const a = acoesPendentes.find(x => x.arquivo === nome); if (!a) continue;
+    try {
+      if (a.tipo === 'apagar') await arqs.apagar(a.arquivo); else await arqs.gravar(a.arquivo, a.conteudo);
+      const ultima = ch.msgs[ch.msgs.length - 1];
+      if (ultima && ultima.role === 'assistant') { ultima.acoes = (ultima.acoes || []).map(x => x.arquivo === a.arquivo ? Object.assign({}, x, { feito: true }) : x); }
+      acoesPendentes = acoesPendentes.filter(x => x !== a);
+    } catch (e) { toast(`Não deu para gravar "${a.arquivo}": ${e.message}`, 5000); }
+  }
+  salvarCodigoChat(ch); desenharChat(); if (desenharPasta) await desenharPasta();
+}
+async function rodarAgente(pedido, desenharChat, desenharPasta) {
+  if (!online) { toast('A IA ainda está ligando.'); return; }
+  if (geracao) { toast('Espere a resposta do chat terminar.'); return; }
+  const ch = codigoChat();
+  ch.msgs.push({ role: 'user', texto: pedido }); salvarCodigoChat(ch); acoesPendentes = []; desenharChat();
+  agenteOcupado = true;
+  const cont = document.querySelector('#codChat');
+  const espera = document.createElement('div'); espera.className = 'msg ia'; espera.innerHTML = `<div class="txt">${htmlTrabalhando()}</div>`;
+  if (cont) { cont.appendChild(espera); cont.scrollTop = cont.scrollHeight; }
+  const pararP = novaPalavra(espera.querySelector('.trabalhando'), true);
+  const lidos = {};
+  try {
+    for (let rodada = 0; rodada < 3; rodada++) {
+      const lista = await arqs.listar();
+      const contexto = `Arquivos disponíveis (${arqs.origem === 'pasta' ? 'pasta ' + pastaNome : 'área do app'}):\n${lista.length ? lista.map(a => `- ${a.nome} (${tamanhoBonito(a.tam)})` ).join('\n') : '(nenhum)'}`
+        + (Object.keys(lidos).length ? '\n\nConteúdo dos arquivos que você pediu:\n' + Object.entries(lidos).map(([n, c]) => `--- ${n} ---\n${c}`).join('\n\n') : '');
+      const hist = ch.msgs.slice(-8).map(m => ({ role: m.role, content: m.role === 'assistant' ? m.texto + (m.acoes && m.acoes.length ? '\n[ações: ' + m.acoes.map(a => a.tipo + ' ' + a.arquivo).join(', ') + ']' : '') : m.texto }));
+      let saida = '';
+      await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA_CODIGO + '\n\n' + contexto }, ...hist], { temperatura: 0.2, exato: true, maxTokens: 4000, esquema: ESQ_AGENTE }, t => { saida += t; });
+      const d = extrairJSON(saida);
+      if (!d) throw new Error('resposta fora do formato');
+      const acoes = (Array.isArray(d.acoes) ? d.acoes : []).filter(a => a && a.arquivo && ['ler', 'criar', 'escrever', 'apagar'].includes(a.tipo)).slice(0, 6);
+      const paraLer = acoes.filter(a => a.tipo === 'ler' && !(a.arquivo in lidos));
+      const mudancas = acoes.filter(a => a.tipo !== 'ler');
+      ch.msgs.push({ role: 'assistant', texto: String(d.resposta || '').slice(0, 4000), acoes: acoes.map(a => ({ tipo: a.tipo, arquivo: a.arquivo })) });
+      salvarCodigoChat(ch);
+      for (const a of paraLer) { try { lidos[a.arquivo] = (await arqs.ler(a.arquivo)).slice(0, MAX_LER); } catch (e) { lidos[a.arquivo] = '(não encontrei este arquivo)'; } }
+      if (mudancas.length) {
+        for (const a of mudancas) {
+          let antes = ''; try { antes = await arqs.ler(a.arquivo); } catch (e) {}
+          acoesPendentes.push({ tipo: a.tipo, arquivo: a.arquivo, conteudo: String(a.conteudo || ''), antes });
+        }
+        break;
+      }
+      if (!paraLer.length) break;   // nada para ler e nada para mudar: a IA só respondeu
+    }
+  } catch (e) { const c2 = codigoChat(); c2.msgs.push({ role: 'assistant', texto: 'Não consegui completar: ' + e.message }); salvarCodigoChat(c2); }
+  finally { if (pararP) pararP(); espera.remove(); agenteOcupado = false; desenharChat(); if (desenharPasta) await desenharPasta(); }
 }
 
 /* ---------------- "Working": a palavra em inglês com brilho passando enquanto a IA não escreveu nada ----------------
@@ -1398,7 +1561,8 @@ async function responderPendente() {
 function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
   $('#nomeModelo').textContent = ESCOLHER ? (MODELO_INICIAL ? nomeModelo(MODELO_INICIAL) : 'Escolher modelo') : a ? nomeModelo(a) : 'Modelo';
-  const p = $('#pillEsforco'); if (p) { p.textContent = ESFORCO[esforco()][0]; p.hidden = ESCOLHER || esforco() === 'medio'; }
+  // o nível aparece sempre (inclusive "Médio"): todo modelo tem o seu
+  const p = $('#pillEsforco'); if (p) { p.textContent = ESFORCO[esforco()][0]; p.hidden = ESCOLHER; }
 }
 async function abrirSeletorModelo(motivo) {
   document.querySelectorAll('.dlg.modelos').forEach(x => x.closest('.dlg-fundo').remove());
