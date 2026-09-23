@@ -757,14 +757,20 @@ async function carregarPdfjs() {
   if (pdfjs) return pdfjs;
   let mod;
   try { mod = await comLimite(import(scriptDe('vendor-pdf')), 8000, 'a leitura de PDF'); mod.GlobalWorkerOptions.workerSrc = scriptDe('vendor-pdf-worker'); }
-  catch (e) { mod = await comLimite(import('./pdf.min.mjs'), 20000, 'a leitura de PDF'); mod.GlobalWorkerOptions.workerSrc = new URL('./pdf.worker.min.mjs', location.href).href; }
+  catch (e) { mod = await comLimite(import(await urlServida('pdf.min.mjs')), 20000, 'a leitura de PDF'); mod.GlobalWorkerOptions.workerSrc = await urlServida('pdf.worker.min.mjs'); }
   return pdfjs = mod;   // o pdf.js cria o worker a partir de workerSrc e, se não conseguir, roda sem worker
+}
+// arquivo ao lado do index.html, servido pelo motor (que exige a chave): baixa com a chave e vira URL de blob
+async function urlServida(nome) {
+  const r = await fetch('./' + nome, { headers: { Authorization: 'Bearer ' + PLATAFORMA.chave } });
+  if (!r.ok) throw new Error(nome + ': HTTP ' + r.status);
+  return URL.createObjectURL(new Blob([await r.text()], { type: 'text/javascript' }));
 }
 const carregarScript = src => new Promise((ok, falha) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => falha(new Error('não carregou')); document.head.appendChild(s); });
 async function carregarMammoth() {
   if (mammothLib) return mammothLib;
   try { await comLimite(carregarScript(scriptDe('vendor-mammoth')), 8000, 'a leitura do documento'); }
-  catch (e) { await comLimite(carregarScript('./mammoth.browser.min.js'), 20000, 'a leitura do documento'); }
+  catch (e) { await comLimite(carregarScript(await urlServida('mammoth.browser.min.js')), 20000, 'a leitura do documento'); }
   if (!window.mammoth) throw new Error('biblioteca do DOCX não carregou');
   return mammothLib = window.mammoth;
 }

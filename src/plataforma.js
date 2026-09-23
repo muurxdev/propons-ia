@@ -165,7 +165,8 @@ const PLATAFORMA = (() => {
     },
     async textoSistema() {
       if (tipo === 'ios') return pedir('conhecimento');
-      const r = await fetch('conhecimento.md', { cache: 'no-store' }); return r.ok ? r.text() : '';
+      // o motor exige a chave também para os arquivos estáticos (menos o index.html)
+      const r = await fetch('conhecimento.md', { cache: 'no-store', headers: cab() }); return r.ok ? r.text() : '';
     },
     async carregar() {
       if (tipo === 'web') {

@@ -15,6 +15,8 @@ const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  �
 for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 console.log('   janela:', await js('innerWidth + "x" + innerHeight'), '· estreita:', await js('estreita()'));
 ok('sem texto de estado ao abrir', await js(`$('#estado').hidden`), await js(`$('#estado').textContent`));
+// o texto de sistema tem que ser o conhecimento.md de verdade (o motor exige a chave nos arquivos; sem ela caía no texto curto)
+ok('texto de sistema vem do conhecimento.md (não do fallback curto)', (await js('SYSTEM.length')) > 800, await js('SYSTEM.length'));
 await js('abrirLateral(); 1'); await espera(350);
 ok('só o menu lateral flutua: cartão de 24 px com 12 px de margem; o chat continua reto', await js(`(() => { const l = getComputedStyle($('#lateral')), m = getComputedStyle(document.querySelector('main')); const r = $('#lateral').getBoundingClientRect(); return parseInt(l.borderRadius) >= 20 && parseInt(m.borderRadius) === 0 && r.left >= 10 && r.top >= 10 && /rgba\\(0, 0, 0, 0\\)|transparent/.test(m.backgroundColor) })()`));
 ok('botão de apagar todas as conversas no rodapé do menu', await js(`!!$('#apagarConversas')`));
