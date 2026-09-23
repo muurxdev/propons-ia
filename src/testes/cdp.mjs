@@ -27,6 +27,14 @@ export async function conectar({ porta = 9333, saida, filtro = u => /127\.0\.0\.
   const foto = async nome => { if (!saida) return; fs.mkdirSync(saida, { recursive: true }); const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${nome}.png`, Buffer.from(r.result.data, 'base64')); };
   // espera uma condição na página (expressão JS) virar verdadeira
   const ate = async (expr, ms = 60000, passo = 300) => { const t = Date.now(); while (Date.now() - t < ms) { if (await js(expr)) return true; await espera(passo); } return false; };
+  // a interface é um HTML grande (as bibliotecas de PDF vão dentro): espera o app.js terminar de carregar antes de
+  // devolver o controle, senão o primeiro js() do teste dá "ReferenceError: online is not defined"
+  for (let i = 0; i < 240; i++) {
+    let pronto = false;
+    try { pronto = await js(`typeof PLATAFORMA !== 'undefined' && typeof online !== 'undefined' && !!document.getElementById('entrada')`); } catch (e) {}
+    if (pronto) break;
+    await espera(500);
+  }
   return { js, cdp, foto, ate, url: alvo.url, fechar: () => ws.close() };
 }
 

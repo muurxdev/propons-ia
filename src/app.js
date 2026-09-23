@@ -415,6 +415,33 @@ function addIa(m, ultima) {
   if (!m.interno || m.erro) acoes(d, m, ultima);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
 }
+/* ---------------- "Working": a palavra em inglês com brilho passando enquanto a IA não escreveu nada ----------------
+   Uma palavra só, trocando de vez em quando (como no Claude). O brilho é CSS; aqui só trocamos a palavra. */
+const PALAVRAS_TRABALHANDO = ['Working', 'Thinking', 'Reasoning', 'Pondering', 'Analyzing', 'Reflecting', 'Considering', 'Figuring it out', 'Processing'];
+function novaPalavra(el, primeira) {
+  if (!el) return null;
+  let i = primeira ? 0 : Math.floor(Math.random() * PALAVRAS_TRABALHANDO.length);
+  el.textContent = PALAVRAS_TRABALHANDO[i];
+  const t = setInterval(() => {
+    if (!el.isConnected) { clearInterval(t); return; }
+    let j; do { j = Math.floor(Math.random() * PALAVRAS_TRABALHANDO.length); } while (j === i);
+    i = j; el.textContent = PALAVRAS_TRABALHANDO[i];
+  }, 4200);
+  return () => clearInterval(t);
+}
+const htmlTrabalhando = () => '<span class="trabalhando">Working</span>';
+
+/* ---------------- segundo plano: avisa quando a resposta fica pronta com a janela fora de foco ---------------- */
+let janelaEscondida = document.hidden;
+const querAviso = () => (pref('avisarPronto') || 'sim') === 'sim';
+addEventListener('visibilitychange', () => { if (document.hidden) janelaEscondida = true; });
+addEventListener('blur', () => { janelaEscondida = true; });
+function avisarPronto(msg) {
+  if (!janelaEscondida || !querAviso() || !msg || !msg.texto) return;
+  const t = textoParaFala(msg.texto).replace(/\s+/g, ' ').trim();
+  PLATAFORMA.notificar('Resposta pronta', t.slice(0, 160) + (t.length > 160 ? '…' : ''));
+}
+
 /* ---------------- modos de estudo: flashcards, quiz, correção de redação, resumo ----------------
    Cada modo só monta o prompt da próxima mensagem e (quando tem esquema) pede JSON ao motor, que garante a estrutura
    pela gramática; o resultado vira um widget na resposta e um Markdown equivalente (copiar, exportar, ler, histórico). */
@@ -1484,10 +1511,23 @@ async function responder(conv, continuacao) {
     msg = { role: 'assistant', texto: '', llm: '' };
     alvo = atual === conv ? addIa({ texto: '', interno: true }, false) : null;
   }
-  if (alvo) { alvo.classList.add('digitando'); if (comEsquema) alvo.innerHTML = `<p class="info">${esc(modo.espera)}</p>`; }   // JSON não é mostrado enquanto chega
+  // enquanto nada foi escrito: "Working" com brilho (nos modos de estudo, o aviso do modo); pararPalavra() encerra a troca
+  let pararPalavra = null;
+  if (alvo) {
+    alvo.classList.add('digitando');
+    if (comEsquema) alvo.innerHTML = `<p class="info">${esc(modo.espera)}</p>`;
+    else if (!msg.texto) { alvo.innerHTML = htmlTrabalhando(); pararPalavra = novaPalavra(alvo.firstChild, true); }   // msg.texto: "continuar" já tem texto
+  }
+  janelaEscondida = document.hidden;
   // raciocínio (Esforço Alto): bloco recolhível acima da resposta enquanto pensa; recolhe quando a resposta começa
   let pensEl = null, pensTxt = '';
-  if (alvo && pensar) { pensEl = document.createElement('details'); pensEl.className = 'pensando'; pensEl.open = true; pensEl.innerHTML = '<summary>Pensando…</summary><div class="pens-txt"></div>'; alvo.parentNode.insertBefore(pensEl, alvo); }
+  let pararPalavraPens = null;
+  if (alvo && pensar) {
+    pensEl = document.createElement('details'); pensEl.className = 'pensando'; pensEl.open = true;
+    pensEl.innerHTML = `<summary>${htmlTrabalhando()}</summary><div class="pens-txt"></div>`;
+    alvo.parentNode.insertBefore(pensEl, alvo);
+    pararPalavraPens = novaPalavra(pensEl.querySelector('.trabalhando'), true);
+  }
   const aoPensar = pensar ? p => { pensTxt += p; if (pensEl) pensEl.querySelector('.pens-txt').textContent = pensTxt.slice(-3000); rolar(); } : undefined;
   const ctrl = new AbortController();
   geracao = { conv, ctrl, el: alvo };
@@ -1560,13 +1600,16 @@ async function responder(conv, continuacao) {
     const r = await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
       { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
-        if (pensEl && pensEl.open) { pensEl.open = false; pensEl.querySelector('summary').textContent = 'Raciocínio'; }
+        if (pararPalavra) { pararPalavra(); pararPalavra = null; }
+        if (pensEl && pensEl.open) { if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; } pensEl.open = false; pensEl.querySelector('summary').textContent = 'Raciocínio'; }
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';
   } catch (e) {
     if (e.name !== 'AbortError') erro = e.message || String(e);
   } finally {
+    if (pararPalavra) { pararPalavra(); pararPalavra = null; }
+    if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; }
     if (!erro && !comEsquema) await alcancar();
     clearTimeout(tTimer); cancelAnimationFrame(tRaf); tTimer = tRaf = 0;
     geracao = null;
@@ -1599,6 +1642,7 @@ async function responder(conv, continuacao) {
   conv.atualizada = Date.now();
   if (atual === conv && alvo) { alvo.parentNode.remove(); addIa(msg, true); }
   salvar(); desenharLista();
+  if (!erro && !ctrl.signal.aborted) avisarPronto(msg);   // janela em segundo plano: notificação do sistema
 }
 
 /* ---------------- entrada e atalhos ---------------- */
@@ -1777,11 +1821,13 @@ function abaGeral(c) {
   c.innerHTML = `<div class="secao"><h4>Tema</h4>${seg('tema', [['sistema', 'Sistema'], ['claro', 'Claro'], ['escuro', 'Escuro']], pref('tema') || 'sistema')}</div>
     <div class="secao"><h4>Tamanho da letra</h4>${seg('fonte', [['p', 'Pequena'], ['m', 'Média'], ['g', 'Grande']], pref('fonte') || 'm')}</div>
     ${PLATAFORMA.temFala ? `<div class="secao"><h4>Ler em voz alta</h4>${seg('lerRespostas', [['nao', 'Só quando eu pedir'], ['sim', 'Toda resposta']], pref('lerRespostas') || 'nao')}<p class="info">O alto-falante em cada resposta lê o texto com a voz do sistema. Em "Toda resposta", a leitura começa enquanto a IA ainda escreve.</p></div>` : ''}
+    <div class="secao"><h4>Avisar quando ficar pronto</h4>${seg('avisarPronto', [['sim', 'Sim'], ['nao', 'Não']], pref('avisarPronto') || 'sim')}<p class="info">A IA continua respondendo com ${estreita() ? 'o app em segundo plano ou a tela apagada' : 'a janela minimizada ou em outro programa'}; quando terminar, ${estreita() ? 'chega uma notificação' : 'o sistema avisa'}. Sem aviso se você estiver com a Própons na frente.</p></div>
     ${estreita() ? `<div class="secao"><h4>Gestos</h4><p class="info">Arraste da borda esquerda para abrir o histórico · segure uma conversa para renomear, compartilhar ou apagar · botão voltar fecha menus e telas.</p></div>`
       : `<div class="secao"><h4>Atalhos</h4><p class="info">Enter envia · Shift+Enter quebra linha · ↑ edita a última pergunta · Ctrl+B histórico · Ctrl+K buscar · Ctrl+Shift+O nova conversa · Ctrl+, ajustes</p></div>`}`;
   ligarSeg(c, 'tema', v => { pref('tema', v); aplicarTema(); });
   ligarSeg(c, 'fonte', v => { pref('fonte', v); aplicarFonte(); });
   ligarSeg(c, 'lerRespostas', v => { pref('lerRespostas', v); if (v === 'sim' && !falaAtual) { falaAtual = { msg: {}, ultimoId: '', narrando: false, terminou: true, fimIds: new Set() }; falarFrases(['Leitura em voz alta ligada.']); } });
+  ligarSeg(c, 'avisarPronto', v => { pref('avisarPronto', v); if (v === 'sim') PLATAFORMA.notificar('Própons IA', 'Pronto: é assim que eu vou avisar quando a resposta terminar.'); });
 }
 
 /* ---------------- modelos ---------------- */

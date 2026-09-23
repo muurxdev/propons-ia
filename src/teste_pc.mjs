@@ -12,6 +12,8 @@ const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e,
 const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
 const espera = ms => new Promise(r => setTimeout(r, ms));
 const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 160) : ''); };
+// o index.html é grande (bibliotecas de PDF dentro): espera o app.js carregar antes de olhar qualquer coisa
+for (let i = 0; i < 240; i++) { let p = false; try { p = await js(`typeof online !== 'undefined' && !!document.getElementById('entrada')`); } catch (e) {} if (p) break; await espera(500); }
 for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
 console.log('   janela:', await js('innerWidth + "x" + innerHeight'), '· estreita:', await js('estreita()'));
 ok('sem texto de estado ao abrir', await js(`$('#estado').hidden`), await js(`$('#estado').textContent`));
@@ -121,11 +123,14 @@ await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera
 ok('ouvir: começa a falar e o botão vira "parar"', await js(`speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !!falaAtual`));
 await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(400);
 ok('parar: silêncio e botão volta ao normal', await js(`!speechSynthesis.speaking && !document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !falaAtual`));
-await js(`pref('lerRespostas', 'sim'); window.__falas = []; window.__falar0 = window.__falar0 || PLATAFORMA.falar; PLATAFORMA.falar = (t, id) => { window.__falas.push(t); return window.__falar0(t, id); }; (()=>{ nova(); const e=$('#entrada'); e.value='Explique em três frases curtas o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
-let falouDurante = false; for (let i = 0; i < 240; i++) { await espera(250); if (!(await js('!!geracao'))) { if (i > 4) break; continue; } if (await js('window.__falas.length > 0 && speechSynthesis.speaking')) falouDurante = true; }
-for (let i = 0; i < 120 && (await js('!!geracao')); i++) await espera(250);
-ok('leitura automática: começa a falar enquanto a resposta ainda chega', falouDurante, JSON.stringify(await js('window.__falas')).slice(0, 160));
-ok('leitura automática: frases inteiras, sem símbolos de Markdown', await js(`window.__falas.length > 0 && window.__falas.every(f => !/[*#\`]/.test(f))`), await js('window.__falas.length'));
+await js(`pref('lerRespostas', 'sim'); window.__falas = []; window.__falar0 = window.__falar0 || PLATAFORMA.falar; PLATAFORMA.falar = (t, id) => { window.__falas.push([t, !!geracao]); return window.__falar0(t, id); }; (()=>{ nova(); const e=$('#entrada'); e.value='Explique em três frases curtas o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
+// a fala começa antes de a resposta terminar: cada item guarda se geracao ainda existia no momento da chamada
+for (let i = 0; i < 40 && !(await js('!!geracao || window.__falas.length')); i++) await espera(250);
+for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(250);
+await espera(400);
+const falas = await js('window.__falas');
+ok('leitura automática: começa a falar enquanto a resposta ainda chega', falas.length > 0 && falas.some(f => f[1] === true), JSON.stringify(falas).slice(0, 170));
+ok('leitura automática: frases inteiras, sem símbolos de Markdown', falas.length > 0 && falas.every(f => !/[*#`]/.test(f[0])), falas.length);
 await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window.__falar0; conversas = conversas.filter(c => c.titulo !== 'Voz'); nova(); 1`);
 // 1.19: PDF e DOCX anexados viram texto (pdf.js / mammoth embutidos, carregados na hora)
 {
@@ -191,7 +196,8 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 }
 // 1.19: organização (fixar, pastas, desfazer exclusão) e memória ("lembre que…")
 {
-  await js(`conversas.unshift({ id: 'orgA', titulo: 'Org A', criada: Date.now(), atualizada: Date.now(), msgs: [] }, { id: 'orgB', titulo: 'Org B', criada: Date.now(), atualizada: Date.now(), msgs: [] }); const a = conversas.find(c => c.id === 'orgA'); a.fixada = true; const b = conversas.find(c => c.id === 'orgB'); b.pasta = 'Biologia'; desenharLista(); 1`);
+  // sempre dentro de (()=>{}): declarar const/let solto na página vaza para o contexto e a 2ª execução do teste quebra
+  await js(`(()=>{ conversas.unshift({ id: 'orgA', titulo: 'Org A', criada: Date.now(), atualizada: Date.now(), msgs: [] }, { id: 'orgB', titulo: 'Org B', criada: Date.now(), atualizada: Date.now(), msgs: [] }); conversas.find(c => c.id === 'orgA').fixada = true; conversas.find(c => c.id === 'orgB').pasta = 'Biologia'; desenharLista(); })(); 1`);
   const grupos = await js(`[...document.querySelectorAll('#lista .grupo')].map(g => g.textContent)`);
   ok('lista: "Fixadas" primeiro e a pasta como grupo', grupos[0] === 'Fixadas' && grupos.some(g => /Biologia/.test(g)), JSON.stringify(grupos));
   await js(`window.__avisos = []; apagar('orgB'); 1`); await espera(200);
@@ -257,6 +263,31 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
     const fechada = await fetch(`http://${ip}:${r.porta}/health`).then(x => x.ok).catch(() => false);
     ok('API desligada: o IP da rede não responde mais', !fechada);
   } else console.log('     (sem IP de rede neste PC; teste da API pulado)');
+}
+// 1.20: "Working" com brilho enquanto não há texto, bolinha no fim durante a escrita e aviso do sistema ao terminar
+{
+  await js(`window.__notif = []; window.__notif0 = window.__notif0 || PLATAFORMA.notificar.bind(PLATAFORMA); PLATAFORMA.notificar = (t, x) => { window.__notif.push([t, x]); return window.__notif0(t, x); }; pref('avisarPronto', 'sim'); nova(); 1`);
+  await js(`(()=>{ const e=$('#entrada'); e.value='Explique em duas frases o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
+  let viuPalavra = '', animada = false;
+  for (let i = 0; i < 80 && !viuPalavra; i++) { await espera(50); viuPalavra = await js(`(()=>{ const t = document.querySelector('.msg.ia .trabalhando'); if (!t) return ''; animada = getComputedStyle(t).animationName; return t.textContent })()`); }
+  if (viuPalavra) animada = (await js(`(()=>{ const t = document.querySelector('.msg.ia .trabalhando'); return t ? getComputedStyle(t).animationName : '' })()`)) === 'brilho';
+  ok('antes do 1º token: palavra em inglês com brilho (sem cursor roxo)', /^(Working|Thinking|Reasoning|Pondering|Analyzing|Reflecting|Considering|Figuring it out|Processing)$/.test(viuPalavra), viuPalavra + (animada ? ' (animada)' : ''));
+  let bolinha = null;
+  for (let i = 0; i < 80 && !bolinha; i++) { await espera(50); bolinha = await js(`(()=>{ const c = document.querySelector('.msg.ia .txt.digitando .cauda'); if (!c || !c.textContent.trim()) return null; const u = c.lastElementChild || c; const s = getComputedStyle(u, '::after'); return { r: s.borderRadius, an: s.animationName, cor: s.backgroundColor } })()`); }
+  ok('durante a escrita: bolinha que respira no fim do texto', bolinha && bolinha.an === 'respira' && /50%/.test(bolinha.r), JSON.stringify(bolinha));
+  for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(250);
+  // manda de novo e, no mesmo instante, dispara o blur real (é o que acontece ao trocar de janela)
+  await js(`window.__notif = []; (()=>{ const e=$('#entrada'); e.value='Diga apenas: pronto'; ajustar(); $('#enviar').click(); dispatchEvent(new Event('blur')); })(); 1`);
+  for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(100);
+  for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(250);
+  await espera(300);
+  const nf = await js('window.__notif');
+  ok('resposta pronta com a janela escondida: avisa o sistema', nf.length === 1 && /pronta/i.test(nf[0][0]) && nf[0][1].trim().length >= 3, JSON.stringify(nf).slice(0, 140));
+  await js(`window.__notif = []; janelaEscondida = false; (()=>{ const e=$('#entrada'); e.value='Diga apenas: ok'; ajustar(); $('#enviar').click(); })(); 1`);
+  for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
+  for (let i = 0; i < 400 && (await js('!!geracao')); i++) await espera(250);
+  ok('com a janela na frente: não avisa', (await js('window.__notif.length')) === 0);
+  await js(`PLATAFORMA.notificar = window.__notif0; nova(); 1`);
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);

@@ -556,6 +556,7 @@ class MainActivity : Activity() {
                             "atualizar" -> atualizar(args.optString("versao"))
                             "ocupado" -> { ocupado(args.optBoolean("sim")); true }
                             "compartilhar" -> { val t = args.optString("texto"); ui.post { compartilhar(t) }; true }
+                            "notificar" -> { if (!emPrimeiroPlano) ServicoDownload.avisar(this@MainActivity, args.optString("titulo", "Própons IA"), args.optString("texto")); true }
                             "falar" -> { val tx = args.optString("texto"); val i = args.optString("id"); ui.post { falar(tx, i) }; true }
                             "pararFala" -> { ui.post { pararFala() }; true }
                             else -> throw Exception("ação desconhecida: $acao")
@@ -843,7 +844,12 @@ class MainActivity : Activity() {
         val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
         if (travaResposta == null) travaResposta = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ProponsIA:resposta").apply { setReferenceCounted(false) }
         try { if (sim) travaResposta?.acquire(10 * 60 * 1000L) else travaResposta?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
+        // enquanto responde, um serviço em primeiro plano mantém o app vivo com a tela apagada ou em outro app
+        // (o Android mata processos em segundo plano no meio da resposta); o aviso de "pronto" vem depois, se preciso
+        if (sim) { if (!servicoResposta) { servicoResposta = true; ServicoDownload.iniciar(this, "Própons IA", "Respondendo…") } }
+        else if (servicoResposta) { servicoResposta = false; if (baixandoId == null) ServicoDownload.terminar(this) }
     }
+    @Volatile private var servicoResposta = false
     // Android 13+: pede uma vez a permissão para mostrar a notificação do download
     private fun pedirNotificacoes() {
         if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean("pediuNotificacoes", false)) return

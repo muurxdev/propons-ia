@@ -86,6 +86,17 @@ class ServicoDownload : Service() {
                 .setAutoCancel(true).setContentIntent(abrirApp(ctx)).build()
             try { ctx.getSystemService(NotificationManager::class.java).notify(ID_AVISO, n) } catch (_: Exception) {}
         }
+
+        /** aviso solto (sem mexer no serviço): resposta pronta com o app em segundo plano */
+        fun avisar(ctx: Context, titulo: String, texto: String) {
+            canais(ctx)
+            val n = Notification.Builder(ctx, CANAL_AVISOS)
+                .setSmallIcon(R.drawable.ic_notificacao).setColor(0xFF7C5CFF.toInt())
+                .setContentTitle(titulo).setContentText(texto)
+                .setStyle(Notification.BigTextStyle().bigText(texto))
+                .setAutoCancel(true).setContentIntent(abrirApp(ctx)).build()
+            try { ctx.getSystemService(NotificationManager::class.java).notify(ID_AVISO, n) } catch (_: Exception) {}
+        }
     }
 
     private var cpu: PowerManager.WakeLock? = null

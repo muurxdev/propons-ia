@@ -142,7 +142,10 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .passos summary small{color:var(--muted);font-weight:400;margin-left:auto}
 .passos ol{margin:0;padding:10px 16px 12px 42px;border-top:1px solid var(--line);font:12.5px/1.75 var(--mono);max-height:320px;overflow-y:auto}
 .passos li::marker{color:var(--faint)}
-.digitando::after{content:"";display:inline-block;width:7px;height:15px;margin-left:2px;background:var(--accent);border-radius:2px;vertical-align:-2px;animation:pisca 1s steps(1) infinite}
+/* enquanto a IA ainda não escreveu nada: uma palavra em inglês com brilho passando (estilo Claude) */
+.trabalhando{font-size:14.5px;font-weight:500;background:linear-gradient(100deg,var(--faint) 20%,var(--ink) 40%,var(--ink) 52%,var(--faint) 72%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:brilho 2.4s linear infinite}
+@keyframes brilho{0%{background-position:150% 0}100%{background-position:-50% 0}}
+@media (prefers-reduced-motion:reduce){.trabalhando{animation:none;color:var(--muted);background:none;-webkit-background-clip:border-box;background-clip:border-box}}
 .nota{font-size:12px;color:var(--faint);margin-top:6px}
 .nota.erro{color:var(--danger)}
 .acoes{display:flex;gap:2px;margin-top:6px;margin-left:-6px;flex-wrap:wrap}
@@ -154,6 +157,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* raciocínio (Esforço Alto) */
 .pensando{margin:4px 0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px;color:var(--muted)}
 .pensando summary{padding:6px 10px;cursor:pointer;color:var(--muted);font-weight:500;list-style:none;display:flex;align-items:center;gap:6px} .pensando summary::before{content:"▸";font-size:11px} .pensando[open] summary::before{content:"▾"}
+.pensando summary .trabalhando{font-size:13px}
 .pensando[open] summary{border-bottom:1px solid var(--line)}
 .pens-txt{padding:8px 10px;white-space:pre-wrap;max-height:220px;overflow:auto;line-height:1.45}
 /* memória e aviso com ação */
@@ -397,10 +401,11 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .chip.foto{padding:3px 5px 3px 3px}
 .fotos-msg{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-bottom:6px;max-width:85%}
 .fotos-msg img{width:120px;height:120px;object-fit:cover;border-radius:14px;border:1px solid var(--line);display:block}
-/* digitação: cursor no fim do texto */
-.digitando .cauda>:last-child::after,.digitando .cauda:empty::after{content:'';display:inline-block;width:.5em;height:1.05em;margin-left:2px;vertical-align:-.15em;border-radius:2px;background:var(--accent);opacity:.8;animation:cursor 1s steps(2,start) infinite}
+/* digitação: bolinha discreta que respira no fim do texto (em vez do cursor roxo piscando) */
+.digitando .cauda>:last-child::after,.digitando .cauda:empty::after{content:'';display:inline-block;width:.46em;height:.46em;margin-left:.28em;vertical-align:.08em;border-radius:50%;background:var(--ink);animation:respira 1.3s ease-in-out infinite}
 .digitando .cauda pre:last-child::after,.digitando .cauda table:last-child::after{display:none}
-@keyframes cursor{to{visibility:hidden}}
+@keyframes respira{0%,100%{opacity:.25;transform:scale(.78)}50%{opacity:.85;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.digitando .cauda>:last-child::after,.digitando .cauda:empty::after{animation:none;opacity:.5}}
 /* bolinha com a porcentagem do download */
 .anel{--p:0;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:conic-gradient(var(--accent) calc(var(--p) * 1%),var(--hover) 0)}
 .anel b{width:32px;height:32px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-size:10.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}

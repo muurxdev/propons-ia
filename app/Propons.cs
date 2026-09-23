@@ -27,7 +27,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.19.1";
+    public const string Versao = "1.20.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -1019,6 +1019,8 @@ class Janela : Form
                 case "ligarApi":
                     if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
                     dados = await LigarApi(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); break;
+                case "notificar":   // resposta pronta com a janela em segundo plano (Avisar só mostra se não estiver em foco)
+                    Avisar(Arg(args, "titulo") ?? Program.Titulo, Arg(args, "texto") ?? ""); dados = true; break;
                 case "apagarVisao":
                     Modelo mv = Modelo.PorId(Arg(args, "id"));
                     if (mv == null) throw new Exception("modelo desconhecido");

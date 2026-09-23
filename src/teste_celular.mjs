@@ -38,6 +38,8 @@ ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto
   ok('PDF anexado vira texto (pdf.js no WebView, com os polyfills de Promise.try/Uint8Array)', a.length === 1 && a[0].paginas === 2 && /fotossintese/i.test(a[0].texto), a.length ? String(a[0].texto).slice(0, 100) : motivo);
   await js(`anexos = []; desenharChips(); 1`);
 }
+// aviso do sistema pela ponte (só aparece com o app em segundo plano; aqui basta a ponte aceitar)
+ok('ponte aceita notificar', (await js(`PLATAFORMA.notificar('Própons IA', 'teste').then(() => 'ok', e => 'erro: ' + e.message)`)) === 'ok');
 // ler em voz alta pela ponte (TextToSpeech do Android): botão presente e o sintetizador responde (fim ou erro sem travar)
 ok('resposta tem o botão de ouvir', await js(`!!document.querySelector('.msg.ia .acao.ler')`));
 const fala = await js(`new Promise(res => { let fim = false; PLATAFORMA.ao('fala', d => { if (d.id === 'tcel' && !fim) { fim = true; res(d); } }); PLATAFORMA.falar('Teste de voz.', 'tcel').catch(e => res({ estado: 'erro', erro: e.message })); setTimeout(() => !fim && res({ estado: 'sem resposta' }), 15000); })`);

@@ -1,3 +1,8 @@
+## Novidades da 1.20.0
+
+- **Responde em segundo plano e avisa quando termina.** Minimize a janela, troque de app ou apague a tela: a IA continua escrevendo e, quando acabar, o sistema te avisa com o começo da resposta (toque para voltar). No celular, um aviso discreto "Respondendo…" mantém o app vivo enquanto pensa. Dá para desligar em Ajustes → Aparência → "Avisar quando ficar pronto" (não avisa se você já estiver com a Própons na frente).
+- **Enquanto pensa, uma palavra em inglês com brilho passando** (*Working*, *Thinking*, *Reasoning*…) no lugar do cursor roxo; e durante a escrita, uma bolinha discreta que respira no fim do texto.
+
 ## Novidades da 1.19.1
 
 - **Celular (Android):** a leitura de PDF/DOCX não funcionava (a biblioteca usa recursos que o WebView do Android ainda não tem — `Promise.try`, `Uint8Array.toHex`); adicionamos esses recursos e o PDF passa a virar texto normalmente.

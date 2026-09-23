@@ -196,6 +196,19 @@ const PLATAFORMA = (() => {
     temVisao: tipo !== 'ios',
     ligarVisao(ligar) { return pedir('visao', { ligar: !!ligar }, 10000); },
     apagarVisao(id) { return pedir('apagarVisao', { id }, 15000); },
+    // aviso do sistema quando a resposta fica pronta com a janela em segundo plano (cada app decide se mostra)
+    notificar(titulo, texto) {
+      if (tipo === 'web') {   // Linux: notificação do próprio navegador (pede permissão na 1ª vez)
+        try {
+          if (!('Notification' in window)) return Promise.resolve(false);
+          const mostrar = () => new Notification(titulo, { body: texto, tag: 'propons-resposta', icon: 'propons-ia.png' });
+          if (Notification.permission === 'granted') mostrar();
+          else if (Notification.permission !== 'denied') Notification.requestPermission().then(p => { if (p === 'granted') mostrar(); });
+        } catch (e) {}
+        return Promise.resolve(true);
+      }
+      return pedir('notificar', { titulo, texto }, 8000).catch(() => false);
+    },
     // ler em voz alta
     temFala,
     falar(texto, id) { if (tipo === 'android') return pedir('falar', { texto, id }, 5000); try { falarWeb(texto, id); } catch (e) { emitir('fala', { id, estado: 'erro', erro: e.message }); } return Promise.resolve(true); },

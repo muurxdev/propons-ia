@@ -6,6 +6,7 @@ import AppKit
 import WebKit
 import CryptoKit
 import IOKit.pwr_mgt
+import UserNotifications
 
 let VERSAO = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
 let REPO = "muurxdev/propons-ia"
@@ -427,7 +428,16 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         }
     }
     func avisar(_ t: String, _ s: String) {
-        DispatchQueue.main.async { NSApp.requestUserAttention(.informationalRequest); NSApp.dockTile.badgeLabel = "✓" }
+        DispatchQueue.main.async {
+            if NSApp.isActive { return }                      // janela em uso: não incomoda
+            NSApp.requestUserAttention(.informationalRequest); NSApp.dockTile.badgeLabel = "✓"
+            let c = UNUserNotificationCenter.current()
+            c.requestAuthorization(options: [.alert, .sound]) { ok, _ in
+                guard ok else { return }
+                let n = UNMutableNotificationContent(); n.title = t; n.body = s
+                c.add(UNNotificationRequest(identifier: "propons-resposta", content: n, trigger: nil))
+            }
+        }
     }
     func applicationDidBecomeActive(_ n: Notification) { NSApp.dockTile.badgeLabel = nil }
 
@@ -496,6 +506,9 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
                 _ = ativa
                 return r
             }.value
+        case "notificar":   // resposta pronta com a janela em segundo plano (avisar só mostra se o app não está ativo)
+            avisar(a["titulo"] as? String ?? "Própons IA", a["texto"] as? String ?? "")
+            return true
         case "visao":
             if baixandoId != nil || trocando { throw erro("espere o download ou a troca atual terminar") }
             let ligar = a["ligar"] as? Bool ?? false
