@@ -1,3 +1,7 @@
+## Novidades da 1.21.4
+
+- **Arrastar a folha para baixo fecha sempre**, acompanhando o dedo. Antes o primeiro gesto para baixo era gasto para encolher a folha e parecia que ela travava.
+- **Para cima a folha só cresce quando há o que mostrar**, e cresce na hora, sem a animação de altura que engasgava em celular mais simples.
 ## Novidades da 1.21.3
 
 - **Menu volta a abrir pequeno**, do tamanho do que tem dentro: quem decide crescer é você, arrastando pela alça até onde quiser.

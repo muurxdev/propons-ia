@@ -83,40 +83,48 @@ function animarSaida(fundo, folha, depois) {
   fundo.style.transition = 'background-color .2s'; fundo.style.backgroundColor = 'rgba(0,0,0,0)';
   setTimeout(() => { fundo.remove(); if (depois) depois(); }, 200);
 }
+/* arrastar a folha: para baixo sempre fecha (com ela acompanhando o dedo); para cima ela cresce até o fim,
+   e só cresce quando há conteúdo escondido — numa folha pequena, puxar para cima não faz nada. */
 function folhaArrastavel(fundo, folha, fechar) {
-  let y0 = null, dy = 0, t0 = 0, id = null, moveu = false, subindo = false;
+  let y0 = null, dy = 0, t0 = 0, id = null, moveu = false, direcao = 0;
+  const temMais = () => folha.scrollHeight - folha.clientHeight > 8;
   folha.addEventListener('pointerdown', e => {
     if (e.button > 0 || !estreita()) return;
     const zona = e.target.closest('.p-arrastar, .dlg-topo, .p-topo, .p-nav-topo, .folha');
     if (!zona) return;
     if (!e.target.closest('.folha') && e.target.closest('button, input, textarea, select, a')) return;
-    y0 = e.clientY; dy = 0; t0 = performance.now(); id = e.pointerId; moveu = false;
+    if (folha.scrollTop > 2) return;                 // rolando o conteúdo: não é arraste da folha
+    y0 = e.clientY; dy = 0; t0 = performance.now(); id = e.pointerId; moveu = false; direcao = 0;
   });
   folha.addEventListener('pointermove', e => {
     if (y0 === null || e.pointerId !== id) return;
     const bruto = e.clientY - y0;
-    // para cima só vale quando a folha ainda não está inteira: aí ela cresce em vez de arrastar
-    if (bruto < -8 && !folha.classList.contains('cheia')) { subindo = true; folha.classList.add('cheia'); y0 = e.clientY; return; }
+    if (!direcao) {
+      if (Math.abs(bruto) < 7) return;
+      direcao = bruto < 0 ? -1 : 1;
+      if (direcao === -1) { if (temMais()) folha.classList.add('cheia'); y0 = null; return; }   // para cima: cresce e acabou
+      moveu = true;
+      try { folha.setPointerCapture(id); } catch (er) {}
+      folha.style.transition = 'none'; fundo.style.transition = 'none';
+    }
     dy = Math.max(0, bruto);
-    if (moveu) pausarDesenho(200);
-    if (!moveu && dy > 6) { moveu = true; try { folha.setPointerCapture(id); } catch (er) {} folha.style.transition = 'none'; fundo.style.transition = 'none'; }
-    if (moveu) { folha.style.transform = `translateY(${dy}px)`; fundo.style.backgroundColor = `rgba(10,10,14,${(0.45 * Math.max(0, 1 - dy / folha.offsetHeight)).toFixed(3)})`; }
+    pausarDesenho(200);
+    folha.style.transform = `translateY(${dy}px)`;
+    fundo.style.backgroundColor = `rgba(10,10,14,${(0.45 * Math.max(0, 1 - dy / Math.max(1, folha.offsetHeight))).toFixed(3)})`;
   });
   const soltar = () => {
-    if (y0 === null) return;
+    if (y0 === null) { direcao = 0; return; }
     const v = dy / Math.max(1, performance.now() - t0);
     if (moveu) {
       // o toque que arrastou não vira clique no botão embaixo do dedo
       const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
       folha.addEventListener('click', engolir, { capture: true, once: true });
       setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
-      // da folha inteira, o primeiro arraste para baixo volta ao tamanho pequeno; o segundo fecha
-      if (folha.classList.contains('cheia') && dy > 60 && dy < 200 && v < 0.9) folha.classList.remove('cheia');
-      else if (dy > Math.min(140, folha.offsetHeight * 0.3) || v > 0.7) fechar();
+      if (dy > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); y0 = null; direcao = 0; return; }
       folha.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1)'; folha.style.transform = '';
       fundo.style.transition = 'background-color .24s'; fundo.style.backgroundColor = '';
     }
-    y0 = null; subindo = false;
+    y0 = null; direcao = 0;
   };
   folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
 }
