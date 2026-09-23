@@ -44,3 +44,8 @@ ios/TesteMotor/Sources/TesteMotor/Motor.swift
 Payload/
 *.ipa
 vendor-whisper/
+unsloth_compiled_cache/
+treino/saida/
+treino/gguf/
+treino/.llama.cpp/
+treino/dados/tudo.jsonl
