@@ -23,9 +23,12 @@ Resultado em `avaliacao/resultado-<nome>-<data>.md`.
 | Lume (0.8B) | 45 % | 33 % | 0 % | 0 |
 | Lume pensando | 48 % | 33 % | 1 % | 4 |
 | Aurora (2B) | 66 % | 44 % | 13 % | 0 |
+| Aurora pensando | **84 %** | **83 %** | 16 % | 0 |
 
-Leitura: a amostragem da 1.16 zerou a repetição no Lume; o Aurora ainda repete 13 % em texto livre (candidato a XTC
-mais forte). Armadilhas são o ponto fraco dos dois — é o foco dos dados de preferência (Etapa 1c).
+Leitura: a amostragem da 1.16 zerou a repetição no Lume; o Aurora ainda repete 13–16 % em texto livre (candidato a
+XTC mais forte). **Pensar (Esforço Alto) é hoje o maior ganho contra alucinação no Aurora** (armadilhas 44 → 83 %);
+no Lume o orçamento de 1200 tokens é curto (48 %). Armadilhas continuam o foco dos dados de preferência (Etapa 1c);
+a meta 2.0 (acerto +15 pontos, armadilhas < 10 % de invenção) passa a ser medida contra o Aurora pensando.
 
 ## Próximas etapas
 
