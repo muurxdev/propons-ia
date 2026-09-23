@@ -751,17 +751,21 @@ const LIMITE_DOC = 40 * 1048576, MAX_PAGINAS = 300, MAX_TEXTO_DOC = 200000;
 const scriptDe = id => { const el = document.getElementById(id); if (!el || !el.textContent) throw new Error('biblioteca não embutida'); return URL.createObjectURL(new Blob([el.textContent], { type: 'text/javascript' })); };
 let pdfjs = null, mammothLib = null;
 const comLimite = (p, ms, oque) => Promise.race([p, new Promise((_, f) => setTimeout(() => f(new Error(oque + ' demorou demais')), ms))]);   // nunca fica esperando para sempre
+// as bibliotecas vêm de dois lugares: embutidas no HTML (por blob — serve na página local do iPhone) e como arquivos
+// ao lado do index.html, servidos pelo motor (o WebView do Android não importa módulos por blob)
 async function carregarPdfjs() {
   if (pdfjs) return pdfjs;
-  const mod = await comLimite(import(scriptDe('vendor-pdf')), 25000, 'a leitura de PDF');
-  // o pdf.js cria o worker a partir desta URL; se o WebView não deixar (Android), ele mesmo cai para o "worker falso"
-  // na thread principal — por isso não criamos o Worker por conta própria
-  mod.GlobalWorkerOptions.workerSrc = scriptDe('vendor-pdf-worker');
-  return pdfjs = mod;
+  let mod;
+  try { mod = await comLimite(import(scriptDe('vendor-pdf')), 8000, 'a leitura de PDF'); mod.GlobalWorkerOptions.workerSrc = scriptDe('vendor-pdf-worker'); }
+  catch (e) { mod = await comLimite(import('./pdf.min.mjs'), 20000, 'a leitura de PDF'); mod.GlobalWorkerOptions.workerSrc = new URL('./pdf.worker.min.mjs', location.href).href; }
+  return pdfjs = mod;   // o pdf.js cria o worker a partir de workerSrc e, se não conseguir, roda sem worker
 }
+const carregarScript = src => new Promise((ok, falha) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => falha(new Error('não carregou')); document.head.appendChild(s); });
 async function carregarMammoth() {
   if (mammothLib) return mammothLib;
-  await comLimite(new Promise((ok, falha) => { const s = document.createElement('script'); s.src = scriptDe('vendor-mammoth'); s.onload = ok; s.onerror = () => falha(new Error('mammoth não carregou')); document.head.appendChild(s); }), 25000, 'a leitura do documento');
+  try { await comLimite(carregarScript(scriptDe('vendor-mammoth')), 8000, 'a leitura do documento'); }
+  catch (e) { await comLimite(carregarScript('./mammoth.browser.min.js'), 20000, 'a leitura do documento'); }
+  if (!window.mammoth) throw new Error('biblioteca do DOCX não carregou');
   return mammothLib = window.mammoth;
 }
 // → { texto, paginas, cortado }: texto por página ("— página N —"), até MAX_PAGINAS páginas e MAX_TEXTO_DOC caracteres

@@ -282,6 +282,7 @@ escrever_sistema() {
 }
 preparar_interface() {
   cp -f "$APP_DIR/interface/index.html" "$INTERFACE/index.html"
+  for f in "$APP_DIR"/interface/*.mjs "$APP_DIR"/interface/*.js; do [ -f "$f" ] && cp -f "$f" "$INTERFACE/"; done   # pdf.js e mammoth
   if [ -f "$DADOS/conhecimento.md" ]; then cp -f "$DADOS/conhecimento.md" "$INTERFACE/conhecimento.md"
   else cp -f "$APP_DIR/interface/conhecimento.md" "$INTERFACE/conhecimento.md"; fi
   escrever_sistema

@@ -25,4 +25,6 @@ if (/professor|Estruturas de Dados/i.test(html)) console.warn('AVISO: ainda há 
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.copyFileSync(path.join(S, 'conhecimento.md'), path.join(OUT, 'conhecimento.md'));
+// as mesmas bibliotecas também como arquivos servidos pelo motor (o WebView do Android não importa módulos por blob)
+for (const f of ['pdf.min.mjs', 'pdf.worker.min.mjs', 'mammoth.browser.min.js']) fs.copyFileSync(path.join(S, 'vendor', f), path.join(OUT, f));
 console.log(`interface ${VERSAO}: index.html ${html.length} bytes`);

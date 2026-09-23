@@ -50,7 +50,7 @@ lipo -create "$T/ProponsIA-arm64" "$T/ProponsIA-x86_64" -output "$APP/Contents/M
 
 # interface, tela de carregamento e ícone
 mkdir -p "$APP/Contents/Resources/interface"
-cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$APP/Contents/Resources/interface/"
+cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$RAIZ/payload/interface/"*.mjs "$RAIZ/payload/interface/"*.js "$APP/Contents/Resources/interface/"
 cp "$RAIZ/android/app/src/main/assets/splash.html" "$APP/Contents/Resources/splash.html"
 ICONE="$RAIZ/ios/ProponsIA/Assets.xcassets/AppIcon.appiconset/icone-1024.png"
 mkdir -p "$T/AppIcon.iconset"

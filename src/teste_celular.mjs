@@ -33,7 +33,8 @@ ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto
   // com limite de tempo: se o WebView travar carregando o pdf.js, o teste falha em 40 s em vez de pendurar o CI
   await js(`anexos = []; desenharChips(); Promise.race([adicionarArquivos([new File([Uint8Array.from(atob('${pdfB64}'), c => c.charCodeAt(0))], 'teste.pdf', { type: 'application/pdf' })]), new Promise(r => setTimeout(r, 40000))])`);
   const a = await js(`anexos.map(x => ({ paginas: x.paginas, texto: x.conteudo }))`);
-  ok('PDF anexado vira texto (pdf.js no WebView)', a.length === 1 && a[0].paginas === 2 && /fotossintese/i.test(a[0].texto), JSON.stringify(a[0] && a[0].texto).slice(0, 100));
+  const motivo = a.length ? '' : await js(`Promise.race([carregarPdfjs().then(() => 'biblioteca carregou; a extração falhou', e => 'biblioteca: ' + e.message), new Promise(r => setTimeout(() => r('biblioteca não respondeu em 30 s'), 30000))])`);
+  ok('PDF anexado vira texto (pdf.js no WebView)', a.length === 1 && a[0].paginas === 2 && /fotossintese/i.test(a[0].texto), a.length ? String(a[0].texto).slice(0, 100) : motivo);
   await js(`anexos = []; desenharChips(); 1`);
 }
 // ler em voz alta pela ponte (TextToSpeech do Android): botão presente e o sintetizador responde (fim ou erro sem travar)

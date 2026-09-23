@@ -14,6 +14,6 @@ if [ ! -d "$AQUI/Frameworks/llama.xcframework" ]; then
   mv "$T/build-apple/llama.xcframework" "$AQUI/Frameworks/"; rm -rf "$T"
 fi
 node "$RAIZ/src/montar.js" >/dev/null
-cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$AQUI/Recursos/interface/"
+cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$RAIZ/payload/interface/"*.mjs "$RAIZ/payload/interface/"*.js "$AQUI/Recursos/interface/"
 cp "$RAIZ/android/app/src/main/assets/splash.html" "$AQUI/Recursos/splash.html"
 echo "iOS pronto: $(ls "$AQUI/Frameworks") · interface: $(ls "$AQUI/Recursos/interface" | tr '\n' ' ')"
