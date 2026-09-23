@@ -44,9 +44,30 @@ Formato: um `jsonl` por assunto; cada linha `{"licenca","tipo","messages":[…]}
 `conhecimento`, `anti-alucinacao`, `anti-repeticao`, `preferencia`. `node treino/dados/validar.mjs` confere formato,
 duplicatas, vazamento de outras identidades e junta tudo em `dados/tudo.jsonl` (ignorado pelo git).
 
-Semente atual: `identidade.jsonl` (31 diálogos escritos à mão em pt-BR: quem é a Própons, estilo de resposta, casos
-"não sei", 3 respostas diferentes para a mesma pergunta). Meta da etapa: ~5 000 exemplos SFT + ~1 500 pares de
-preferência, gerados com um modelo grande a partir de material público (ENEM/INEP) e **revisados**.
+Escrito à mão até agora (86 exemplos): `identidade.jsonl` (identidade, estilo, "não sei", 3 respostas diferentes para a
+mesma pergunta), `conhecimento.jsonl` (24 exemplos em 7 matérias) e `preferencia.jsonl` (30 pares escolhida/rejeitada
+focados em **não inventar**: premissa falsa, fato inexistente, dado pessoal, fonte inventada, futuro, limite do app).
+Meta da etapa: ~5 000 SFT + ~1 500 pares.
+
+### Gerar em volume (`gerar.mjs`) — medido em 23/09/2026
+
+O gerador usa o modelo local: pergunta (JSON, 3 por chamada) → resposta com raciocínio → revisor que **refaz a conta**
+e reprova pergunta mal escrita, resposta errada ou fora do tom. Em matemática e programação exige duas respostas
+independentes que concordem.
+
+Medições com **Aurora (2B) na RTX 3050**, 3 em paralelo: **~1,4 exemplo aceito por minuto** (≈ 30 % de rejeição).
+Duas lições importantes:
+
+1. **O prompt do revisor decide tudo.** Com um pedido genérico ("confira contas, fatos e o tom") ele aprovou
+   `20,00 + 0,10 × 5 = R$ 25,00`. Pedindo "**refaça você mesmo** a conta, passo a passo, e compare", o 2B acertou
+   4/4 num teste isolado (o 4B, sem pensar, errou 1/4 — o tamanho do modelo importa menos que o prompt).
+2. **Revisor com `enable_thinking` + `response_format` não funciona**: o raciocínio consome todo o orçamento e a
+   resposta volta vazia (`finish_reason: length`). O revisor escreve a análise **dentro** do JSON, antes do veredito.
+
+Qualidade do que passa: contas em geral corretas, mas o português das perguntas é irregular e as respostas saem curtas.
+**Conclusão honesta:** gerar milhares de exemplos com o 2B local custa ~24 h de GPU e entrega qualidade média — serve
+para volume, não para elevar o teto. Para valer a pena, gerar com um modelo grande (API) ou curar material público
+(ENEM/INEP) e usar o `gerar.mjs` só como revisor/filtro.
 
 ## Próximas etapas
 
