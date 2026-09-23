@@ -308,27 +308,85 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('escolher um modo não abre popup: só o chip na caixa', (await js('window.__avisos.length')) === 0 && !!(await js(`document.querySelector('#chips .chip.modo')`)), JSON.stringify(await js('window.__avisos')));
   await js(`definirModo(null); 1`);
 }
-// 1.20: chat de programação (lógica de chat, foco em codificar) — ações nos arquivos com diff e aplicar
+// 1.20: Área de código com a lógica do chat (histórico próprio, moldes, compactação, áudio) e telas sem "voltar"
 {
-  const NL = 'String.fromCharCode(10)';
-  await js(`pref('projeto', ''); pref('codigoChat', ''); guardarNoProjeto('soma.py', ['def soma(a, b):', '    return a+b', ''].join(String.fromCharCode(10)), false); abrirTela('codigo'); 1`); await espera(800);
+  await js(`pref('projeto', ''); pref('codigoChat', ''); pref('codigoSessoes', ''); pref('moldesCodigo', ''); codigoId = '';
+    guardarNoProjeto('soma.py', ['def soma(a, b):', '    return a+b', ''].join(String.fromCharCode(10)), false); abrirTela('codigo'); 1`); await espera(800);
   ok('área de código é uma tela de chat (conversa + caixa própria)', await js(`telaAtual === 'codigo' && $('#conversa').hidden && document.querySelector('.compor').hidden && !!document.querySelector('#tela #codChat') && !!document.querySelector('#tela .cod-entrada')`));
   ok('as telas aparecem no menu lateral, abaixo da busca', await js(`(()=>{ const n = $('#latNav'); const b = $('#busca').closest('.busca'); return !!n && n.compareDocumentPosition(b) === Node.DOCUMENT_POSITION_PRECEDING && n.querySelectorAll('[data-tela]').length === 2 && !!n.querySelector('[data-tela="codigo"].on') })()`));
-  ok('a tela mostra os arquivos e o botão de abrir pasta do aparelho', await js(`/arquivo/.test(document.querySelector('.cod-pasta').textContent) && (typeof window.showDirectoryPicker !== 'function' || !!document.querySelector('.cod-pasta [data-pasta]'))`), await js(`document.querySelector('.cod-pasta').textContent.slice(0,90)`));
+  ok('a tela não tem botão de voltar (só o atalho para a conversa)', await js(`!document.querySelector('#tela [data-voltar]') && !document.querySelector('#tela h2') && !!document.querySelector('#tela [data-conversa]')`));
+  ok('a barra mostra os arquivos e o botão de abrir pasta do aparelho', await js(`/arquivo/.test(document.querySelector('.cod-topo').textContent) && (typeof window.showDirectoryPicker !== 'function' || !!document.querySelector('.cod-topo [data-pasta]'))`), await js(`document.querySelector('.cod-topo').textContent.replace(/\\s+/g,' ').slice(0,90)`));
+  ok('mensagem simples no meio da tela, como no chat', await js(`(()=>{ const v = document.querySelector('#codChat .cod-vazio h1'); return !!v && /programar/.test(v.textContent) })()`));
+  // moldes prontos: um toque cola o pedido na caixa
+  await js(`document.querySelector('.cod-compor [data-molde]').click(); 1`); await espera(400);
+  ok('moldes para colar aparecem numa folha', (await js(`document.querySelectorAll('.dlg [data-m]').length`)) >= 5);
+  await js(`document.querySelector('.dlg [data-m]').click(); 1`); await espera(300);
+  ok('o molde cola o pedido na caixa de código', await js(`/\\{/.test(document.querySelector('.cod-entrada').value)`), await js(`document.querySelector('.cod-entrada').value.slice(0,60)`));
+  ok('gravar áudio na área de código manda a transcrição para a caixa de lá', await js(`(()=>{ const e = document.querySelector('.cod-entrada'); e.value=''; alvoTranscricao = e; porTranscricao('teste de voz'); const v = e.value; alvoTranscricao = null; return v === 'teste de voz' && !!document.querySelector('.cod-compor [data-gravar]') })()`));
   await js(`(()=>{ const e = document.querySelector('.cod-entrada'); e.value = 'Adicione uma docstring curta em português na função do arquivo soma.py.'; document.querySelector('[data-enviar]').click(); })(); 1`);
   let pend = false; for (let i = 0; i < 480 && !pend; i++) { await espera(250); pend = await js(`!!document.querySelector('#codChat .cod-dif .dif-l.mais') && !!document.querySelector('#codChat [data-ap]')`); }
-  ok('a IA propõe a mudança com diff e botões de aplicar/recusar', pend, (await js(`(document.querySelector('#codChat .cod-dif .info')||{}).textContent || document.querySelector('#codChat').textContent.slice(0,120)`)).slice(0, 110));
+  ok('a IA propõe a mudança com diff e botões de aplicar/recusar', pend, (await js(`(document.querySelector('#codChat .cod-dif-topo')||{}).textContent || document.querySelector('#codChat').textContent.slice(0,120)`)).slice(0, 110));
   if (pend) {
     await js(`document.querySelector('#codChat [data-ap]').click(); 1`); await espera(600);
     const dep = await js(`(projeto().arquivos.find(a => a.nome === 'soma.py')||{}).conteudo || ''`);
     // o teste mede o mecanismo (gravou o que a IA propôs, marcou a ação, tirou o diff), não a qualidade do texto dela
-    ok('aplicar grava o arquivo e marca a ação como feita', dep && !/return a+b/.test(dep) && await js(`!!document.querySelector('#codChat .cod-acao.feito') && !document.querySelector('#codChat [data-ap]')`), JSON.stringify(dep).slice(0, 110));
+    ok('aplicar grava o arquivo e marca a ação como feita', dep && !/return a+b/.test(dep) && await js(`!!document.querySelector('#codChat .cod-linha.feito') && !document.querySelector('#codChat [data-ap]')`), JSON.stringify(dep).slice(0, 110));
   }
   ok('a conversa de código fica guardada', (await js(`codigoChat().msgs.length`)) >= 2);
-  ok('voltar sai da tela e traz a conversa de volta', await js(`(()=>{ fecharTela(); return telaAtual === '' && !$('#conversa').hidden && !document.querySelector('.compor').hidden && $('#tela').hidden })()`));
-  await js(`abrirTela('biblioteca'); 1`); await espera(400);
-  ok('Biblioteca também é tela', await js(`telaAtual === 'biblioteca' && !!document.querySelector('#tela .bib-corpo') && /Biblioteca/.test($('#tituloAtual').textContent)`));
-  await js(`fecharTela(); pref('projeto', ''); pref('codigoChat', ''); 1`);
+  // histórico próprio: nova conversa e volta para a anterior
+  const antes = await js(`codigoChat().id`);
+  await js(`novaSessaoCodigo(); atualizarTela('codigo'); 1`); await espera(400);
+  ok('a área de código tem histórico próprio (nova conversa começa vazia)', await js(`codigoChat().msgs.length === 0 && codigoSessoes().length >= 2 && !!document.querySelector('#codChat .cod-vazio')`), JSON.stringify(await js(`codigoSessoes().map(s => s.msgs.length)`)));
+  await js(`document.querySelector('.cod-topo [data-hist]').click(); 1`); await espera(400);
+  const nHist = await js(`document.querySelectorAll('.dlg [data-s]').length`);
+  await js(`(()=>{ const b = [...document.querySelectorAll('.dlg [data-s]')].find(x => x.dataset.s === ${JSON.stringify(antes)}); if (b) b.click(); else fecharDialogo(); })(); 1`); await espera(500);
+  ok('o histórico lista as conversas de código e volta para uma delas', nHist >= 1 && (await js(`codigoChat().id`)) === antes && (await js(`codigoChat().msgs.length`)) >= 2, 'no histórico: ' + nHist);
+  // compactação de contexto: o que passou vira resumo e sai da conversa
+  await js(`(()=>{ const c = codigoChat(); for (let i = 0; i < 6; i++) c.msgs.push({ role: i % 2 ? 'assistant' : 'user', texto: 'Passo ' + i + ': mexemos no arquivo soma.py para somar dois números.' }); salvarCodigoChat(c); })(); 1`);
+  const nAntes = await js(`codigoChat().msgs.length`);
+  await js(`window.__compFim = undefined; compactarCodigo(codigoChat(), false).then(r => window.__compFim = r); 1`);
+  let comp = null; for (let i = 0; i < 240 && comp === null; i++) { await espera(250); comp = await js(`window.__compFim === undefined ? null : window.__compFim`); }
+  const depoisMsgs = await js(`codigoChat().msgs.length`), resumo = await js(`(codigoChat().resumo || '').length`);
+  ok('compactar o contexto resume o que passou e encurta a conversa', comp === true && depoisMsgs < nAntes && resumo > 40, `${nAntes} → ${depoisMsgs} msgs, resumo de ${resumo} letras`);
+  await js(`atualizarTela('codigo'); 1`); await espera(300);
+  ok('o resumo aparece na tela e o contexto é mostrado no pé', await js(`!!document.querySelector('#codChat .cod-resumo') && /contexto ~\\d+%/.test(document.querySelector('.cod-pe').textContent)`), await js(`document.querySelector('.cod-pe').textContent`));
+  ok('o menu lateral leva de volta à conversa', await js(`(()=>{ fecharTela(); return telaAtual === '' && !$('#conversa').hidden && !document.querySelector('.compor').hidden && $('#tela').hidden })()`));
+  await js(`pref('projeto', ''); pref('codigoSessoes', ''); pref('moldesCodigo', ''); codigoId = ''; 1`);
+}
+// 1.20: Biblioteca refinada — duração, baixar de novo, folha proporcional
+{
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/wFV0E5MAAAAAElFTkSuQmCC';
+  await js(`biblioteca = []; filtroBib = 'todos';
+    guardarNaBiblioteca({ tipo: 'audio', nome: 'Gravação de teste', tam: 18000, texto: 'isto é um teste de transcrição', segundos: 32.4 });
+    guardarNaBiblioteca({ tipo: 'arquivo', nome: 'notas.txt', tam: 120, lang: 'texto', conteudo: 'linha 1' + String.fromCharCode(10) + 'linha 2' });
+    guardarNaBiblioteca({ tipo: 'imagem', nome: 'foto.png', tam: 900, dataUrl: ${JSON.stringify(PNG)}, miniatura: ${JSON.stringify(PNG)} });
+    abrirTela('biblioteca'); 1`); await espera(600);
+  ok('a Biblioteca é tela e mostra fotos, arquivos e áudios', await js(`telaAtual === 'biblioteca' && !!document.querySelector('#tela .bib-corpo') && document.querySelectorAll('.bib-linha').length === 2 && document.querySelectorAll('.bib-cart').length === 1`));
+  ok('o áudio mostra a duração na lista', await js(`/0:32/.test(document.querySelector('.bib-lista').textContent)`), await js(`document.querySelector('.bib-lista').textContent.replace(/\\s+/g,' ').slice(0,90)`));
+  ok('cada item tem botão de baixar', (await js(`document.querySelectorAll('[data-baixar]').length`)) === 3);
+  // baixar sem abrir o diálogo do sistema: a ponte é trocada por um espião
+  await js(`window.__salvos = []; window.__salvarReal = PLATAFORMA.salvarArquivo; PLATAFORMA.salvarArquivo = (n, c, t) => { window.__salvos.push([n, typeof c === 'string' ? 'texto' : 'bytes', t]); return Promise.resolve(true); }; 1`);
+  await js(`document.querySelector('.bib-cart [data-baixar]').click(); 1`); await espera(300);
+  await js(`document.querySelector('.bib-linha [data-baixar]').click(); 1`); await espera(300);
+  const salvos = await js(`window.__salvos`);
+  ok('baixar manda a foto como bytes e o áudio como arquivo/transcrição', salvos.length === 2 && salvos[0][1] === 'bytes' && /png/.test(salvos[0][2]), JSON.stringify(salvos));
+  // folha do item: ficha com duração e ações do mesmo tamanho (sem popup desproporcional)
+  await js(`(()=>{ const id = biblioteca.find(i => i.tipo === 'audio').id; document.querySelector('.bib-abrir[data-i="' + id + '"]').click(); })(); 1`); await espera(500);
+  const ficha = await js(`[...document.querySelectorAll('.bib-item .bib-ficha dt')].map(d => d.textContent)`);
+  ok('a folha do item traz a ficha (tipo, tamanho, duração, hora)', ficha.includes('Duração') && ficha.includes('Tamanho') && ficha.length >= 4, JSON.stringify(ficha));
+  const larg = await js(`(()=>{ const b = [...document.querySelectorAll('.bib-item .bib-acoes .btn')].map(x => Math.round(x.getBoundingClientRect().width)); return [b.length, Math.max(...b) - Math.min(...b)] })()`);
+  ok('as ações da folha têm o mesmo tamanho', larg[0] >= 3 && larg[1] <= 2, JSON.stringify(larg));
+  await js(`fecharDialogo(); PLATAFORMA.salvarArquivo = window.__salvarReal; 1`); await espera(300);
+  await js(`fecharTela(); biblioteca = []; 1`);
+}
+// 1.20: permissões com botão, uma por recurso (inclusive a câmera)
+{
+  await js(`abrirConfig('permissoes'); 1`); await espera(900);
+  const perms = await js(`[...document.querySelectorAll('.perm')].map(p => p.querySelector('b').textContent + ':' + p.querySelector('.st').textContent)`);
+  ok('Ajustes → Permissões lista câmera, microfone, avisos e arquivos', perms.length === 4 && perms.some(p => /^Câmera/.test(p)) && perms.some(p => /^Microfone/.test(p)), JSON.stringify(perms));
+  ok('cada permissão tem estado e botão de permitir quando falta', await js(`[...document.querySelectorAll('.perm')].every(p => !!p.querySelector('.st') && (/Permitido|Indisponível/.test(p.querySelector('.st').textContent) || !!p.querySelector('[data-p]')))`));
+  ok('a câmera só é usada depois de pedir permissão', await js(`typeof garantirPermissao === 'function' && /garantirPermissao\\('camera'\\)/.test(abrirMais.toString())`));
+  await js(`fecharModal(true); 1`); await espera(300);
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);

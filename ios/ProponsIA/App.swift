@@ -249,7 +249,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             if baixandoId != nil || trocando { erro(id, "espere o download ou a troca atual terminar"); return }
             responder(id, true)
             if novo.id != modelo.id { Task { await trocarModelo(novo) } }
-        case "salvarArquivo": compartilhar(id: id, nome: args["nome"] as? String ?? "arquivo.txt", conteudo: args["conteudo"] as? String ?? "")
+        case "salvarArquivo": compartilhar(id: id, nome: args["nome"] as? String ?? "arquivo.txt", conteudo: args["conteudo"] as? String ?? "", base64: args["base64"] as? Bool == true)
         case "escolherModelo":
             guard let m = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }), m.id != "avancado" else { erro(id, "modelo indisponível no iPhone"); return }
             if !escolhendo { erro(id, "o modelo já foi escolhido"); return }
@@ -459,9 +459,10 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
                 "versao": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?", "modelos": modelos, "temTranscricao": true, "temVisao": false]
     }
 
-    private func compartilhar(id: Any?, nome: String, conteudo: String) {
+    private func compartilhar(id: Any?, nome: String, conteudo: String, base64: Bool = false) {
         let u = fm.temporaryDirectory.appendingPathComponent(nome)
-        do { try Data(conteudo.utf8).write(to: u) } catch { erro(id, error.localizedDescription); return }
+        let dados = base64 ? (Data(base64Encoded: conteudo) ?? Data()) : Data(conteudo.utf8)
+        do { try dados.write(to: u) } catch { erro(id, error.localizedDescription); return }
         DispatchQueue.main.async {
             let vc = UIActivityViewController(activityItems: [u], applicationActivities: nil)
             vc.completionWithItemsHandler = { _, ok, _, _ in self.responder(id, ok) }

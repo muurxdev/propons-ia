@@ -27,6 +27,12 @@ const ICO = {
   biblioteca: '<svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h3v18H6a2 2 0 0 1-2-2zM9 3h4v18H9zM14.5 4.2l3.9-1 3 16.5-3.9 1z"/></svg>',
   microfone: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
   foto: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>',
+  baixar: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19h14"/></svg>',
+  escudo: '<svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  sino: '<svg viewBox="0 0 24 24"><path d="M18 15V10a6 6 0 0 0-12 0v5l-2 3h16z"/><path d="M10 21h4"/></svg>',
+  historico: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>',
+  compactar: '<svg viewBox="0 0 24 24"><path d="M4 12h16"/><path d="M9 7l3-3 3 3"/><path d="M9 17l3 3 3-3"/></svg>',
+  molde: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="10" height="6" rx="2"/><path d="M17 14h4M17 18h4"/></svg>',
   compartilhar: '<svg viewBox="0 0 24 24"><path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
 };
 
@@ -434,8 +440,8 @@ function abrirTela(nome) {
   telaAtual = nome;
   $('#conversa').hidden = true; document.querySelector('.compor').hidden = true; $('#faixa').hidden = true;
   const el = $('#tela'); el.hidden = false;
-  el.innerHTML = `<div class="tela-topo"><button class="icone" data-voltar title="Voltar para a conversa" aria-label="Voltar para a conversa">${ICO.voltar}</button><h2>${TELAS[nome].nome}</h2></div><div class="tela-corpo"></div>`;
-  el.querySelector('[data-voltar]').onclick = () => fecharTela();
+  // sem botão de voltar nem título repetido (o cabeçalho já mostra o nome): cada tela põe o atalho da conversa na barra dela
+  el.innerHTML = '<div class="tela-corpo"></div>';
   $('#tituloAtual').textContent = TELAS[nome].nome;
   TELAS[nome].render(el.querySelector('.tela-corpo'));
   el.scrollTop = 0;
@@ -452,6 +458,9 @@ function fecharTela() {
 }
 // mexeu no que a tela mostra (arquivo novo, item na biblioteca): redesenha se ela estiver aberta
 function atualizarTela(nome) { if (telaAtual && (!nome || telaAtual === nome)) TELAS[telaAtual].render($('#tela .tela-corpo')); desenharNavLateral(); }
+// botão presente em toda tela: volta para a conversa (no celular o menu fica escondido)
+const htmlVoltarConversa = () => `<button class="cod-chip chip-conversa" data-conversa title="Voltar para a conversa" aria-label="Voltar para a conversa">${ICO.conversas}<b>Conversa</b></button>`;
+const ligarVoltarConversa = el => { const b = el.querySelector('[data-conversa]'); if (b) b.onclick = () => fecharTela(); };
 
 /* ---------------- Área de código (estilo Claude Code, em qualquer aparelho) ----------------
    Um projeto de arquivos guardado no aparelho: criar/editar/apagar arquivos, pedir mudanças à IA (ela devolve o
@@ -590,9 +599,72 @@ const arqs = {
   },
 };
 
-/* conversa da tela de código (separada das conversas normais, guardada no aparelho) */
-function codigoChat() { try { const c = JSON.parse(pref('codigoChat') || 'null'); if (c && Array.isArray(c.msgs)) return c; } catch (e) {} return { msgs: [] }; }
-function salvarCodigoChat(c) { c.msgs = c.msgs.slice(-40); pref('codigoChat', JSON.stringify(c)); }
+/* ---------------- histórico próprio da Área de código ----------------
+   A área de código tem as conversas dela (não se misturam com as do chat): cada uma guarda as mensagens, as ações
+   nos arquivos e o resumo do que já foi feito (o contexto compactado). Fica no aparelho, como as conversas normais. */
+const MAX_SESSOES_CODIGO = 12, MSGS_ANTES_COMPACTAR = 16;
+const tituloCodigo = msgs => { const m = (msgs || []).find(x => x.role === 'user'); return m ? String(m.texto || '').replace(/\s+/g, ' ').trim().slice(0, 60) : ''; };
+function codigoSessoes() {
+  try { const v = JSON.parse(pref('codigoSessoes') || 'null'); if (Array.isArray(v)) return v.filter(s => s && s.id); } catch (e) {}
+  // vinda da versão anterior (uma conversa só)
+  try { const c = JSON.parse(pref('codigoChat') || 'null'); if (c && Array.isArray(c.msgs) && c.msgs.length) return [{ id: novoId(), titulo: tituloCodigo(c.msgs), quando: Date.now(), msgs: c.msgs, resumo: '' }]; } catch (e) {}
+  return [];
+}
+const salvarSessoesCodigo = l => pref('codigoSessoes', JSON.stringify(l.slice(0, MAX_SESSOES_CODIGO)));
+let codigoId = '';
+function novaSessaoCodigo() {
+  const n = { id: novoId(), titulo: '', quando: Date.now(), msgs: [], resumo: '' };
+  codigoId = n.id; acoesPendentes = []; salvarSessoesCodigo([n, ...codigoSessoes().filter(s => s.msgs && s.msgs.length)]);
+  return n;
+}
+function codigoChat() {
+  const l = codigoSessoes();
+  const s = (codigoId && l.find(x => x.id === codigoId)) || l[0];
+  if (!s) return novaSessaoCodigo();
+  codigoId = s.id; if (!Array.isArray(s.msgs)) s.msgs = [];
+  return s;
+}
+function salvarCodigoChat(c) {
+  c.msgs = c.msgs.slice(-40); c.quando = Date.now(); c.titulo = c.titulo || tituloCodigo(c.msgs);
+  salvarSessoesCodigo([c, ...codigoSessoes().filter(x => x.id !== c.id)]);
+}
+function apagarSessaoCodigo(id) {
+  salvarSessoesCodigo(codigoSessoes().filter(x => x.id !== id));
+  if (id === codigoId) { codigoId = ''; acoesPendentes = []; }
+}
+/* compactação de contexto: o que já passou vira um resumo curto e sai da conversa (cabe mais na memória da IA) */
+async function compactarCodigo(c, avisar) {
+  const guardar = 4, velhas = c.msgs.slice(0, -guardar);
+  if (velhas.length < 2) { if (avisar) toast('Ainda não há histórico para compactar.'); return false; }
+  if (!online) { if (avisar) toast('A IA ainda está ligando.'); return false; }
+  const texto = velhas.map(m => (m.role === 'user' ? 'Pedido: ' : 'Própons: ') + String(m.texto || '').slice(0, 1200)
+    + (m.acoes && m.acoes.length ? '\n[arquivos: ' + m.acoes.map(a => a.tipo + ' ' + a.arquivo).join(', ') + ']' : '')).join('\n');
+  let resumo = '';
+  try {
+    await PLATAFORMA.gerar([{ role: 'system', content: 'Resuma em português do Brasil, em até 10 linhas, esta conversa de programação: o objetivo, os arquivos mexidos, as decisões tomadas e o que ainda falta. Escreva só o resumo.' },
+      { role: 'user', content: (c.resumo ? 'Resumo anterior:\n' + c.resumo + '\n\nDepois disso:\n' : '') + texto }],
+      { temperatura: 0.2, exato: true, maxTokens: 700 }, t => { resumo += t; });
+  } catch (e) { if (avisar) toast('Não deu para compactar: ' + e.message, 4000); return false; }
+  resumo = resumo.replace(/^\s+|\s+$/g, '');
+  if (!resumo) { if (avisar) toast('Não consegui resumir agora.'); return false; }
+  c.resumo = resumo.slice(0, 3000); c.msgs = c.msgs.slice(-guardar); c.compactadas = (c.compactadas || 0) + velhas.length;
+  salvarCodigoChat(c);
+  if (avisar) toast(`Contexto compactado: ${velhas.length} mensagens viraram um resumo.`, 4000);
+  return true;
+}
+/* moldes para colar: pedidos prontos (e os seus, guardados no aparelho) */
+const MOLDES_CODIGO = [
+  ['Criar um programa', 'Crie o arquivo {arquivo} em {linguagem} que {faz isso}. Deixe o código pronto para rodar.'],
+  ['Corrigir um erro', 'Leia {arquivo} e corrija este erro: {cole a mensagem de erro}.'],
+  ['Explicar o código', 'Leia {arquivo} e me explique passo a passo o que ele faz, em português simples.'],
+  ['Comentar e organizar', 'Leia {arquivo}, comente as funções em português e organize o código sem mudar o comportamento.'],
+  ['Escrever testes', 'Leia {arquivo} e crie um arquivo de testes para as funções principais.'],
+  ['Traduzir de linguagem', 'Leia {arquivo} e reescreva em {linguagem} mantendo o mesmo comportamento.'],
+  ['Revisar como um colega', 'Leia {arquivo} e aponte problemas de segurança, desempenho e clareza. Não mude nada ainda.'],
+];
+const meusMoldes = () => { try { const v = JSON.parse(pref('moldesCodigo') || '[]'); return Array.isArray(v) ? v.filter(m => Array.isArray(m) && m[1]) : []; } catch (e) { return []; } };
+const salvarMeusMoldes = l => pref('moldesCodigo', JSON.stringify(l.slice(0, 30)));
+
 const SISTEMA_CODIGO = `Você é a Própons IA no modo programação: ajuda a escrever e corrigir código nos arquivos do aparelho.
 Responda SEMPRE em JSON com "resposta" (o que você vai fazer ou explicar, em português do Brasil, curto) e "acoes" (lista, pode ser vazia).
 Cada ação: {"tipo":"ler"|"criar"|"escrever"|"apagar","arquivo":"caminho/do/arquivo","conteudo":"…"}.
@@ -603,53 +675,147 @@ Mexa apenas nos arquivos necessários. Se faltar informação, pergunte em "resp
 let agenteOcupado = false, acoesPendentes = [];   // [{tipo, arquivo, conteudo, antes}]
 const nomeCurto = n => String(n).split('/').pop();
 
+/* ---------------- a tela: mesma lógica do chat, focada em codificar ---------------- */
 function telaCodigo(alvoTela) {
   alvoTela.innerHTML = `<div class="cod">
-    <div class="cod-pasta"></div>
+    <div class="cod-topo"></div>
     <div class="cod-chat" id="codChat"></div>
-    <div class="cod-compor"><textarea class="cod-entrada" rows="1" placeholder="O que vamos programar? (ex.: crie um jogo da forca em Python)"></textarea>
+    <div class="cod-compor">
+      <button class="icone cod-b" data-molde title="Moldes para colar" aria-label="Moldes para colar">${ICO.molde}</button>
+      <textarea class="cod-entrada" rows="1" placeholder="O que vamos programar?" enterkeyhint="send"></textarea>
+      <button class="icone cod-b" data-gravar title="Gravar áudio" aria-label="Gravar áudio">${ICO.microfone}</button>
       <button class="redondo enviar" data-enviar title="Enviar" aria-label="Enviar">${ICO.seguir}</button></div>
-    <p class="info cod-dica">A IA propõe as mudanças; nada é gravado sem você aplicar.</p></div>`;
-  const cod = alvoTela.querySelector('.cod');
-  const desenharPasta = async () => {
-    const barra = cod.querySelector('.cod-pasta'), lista = await arqs.listar();
-    barra.innerHTML = `${TEM_PASTA ? `<button class="btn" data-pasta>${ICO.pasta}<span>${pastaRaiz ? esc(pastaNome) : pastaNome ? 'Reabrir ' + esc(pastaNome) : 'Abrir pasta do aparelho'}</span></button>` : ''}
-      <span class="cod-info">${lista.length ? `${lista.length} ${lista.length === 1 ? 'arquivo' : 'arquivos'} · ${arqs.origem === 'pasta' ? 'pasta do aparelho' : 'área do app'}` : arqs.origem === 'pasta' ? 'pasta vazia' : 'nenhum arquivo ainda'}</span>
-      ${lista.length ? `<button class="btn link" data-arquivos>ver arquivos</button>` : ''}
-      ${codigoChat().msgs.length ? `<button class="icone" data-limpar title="Limpar a conversa" aria-label="Limpar a conversa">${ICO.apagar}</button>` : ''}`;
-    const bp = barra.querySelector('[data-pasta]');
-    if (bp) bp.onclick = async () => { if (await escolherPasta()) { await desenharPasta(); toast(`Pasta "${pastaNome}" aberta.`); } };
-    const ba = barra.querySelector('[data-arquivos]'); if (ba) ba.onclick = () => listarArquivos();
-    const bl = barra.querySelector('[data-limpar]'); if (bl) bl.onclick = async () => { if (await confirmar('Limpar a conversa de código?', '<p>Os arquivos continuam como estão.</p>', 'Limpar')) { salvarCodigoChat({ msgs: [] }); acoesPendentes = []; desenharChat(); desenharPasta(); } };
+    <p class="info cod-pe"></p></div>`;
+  const cod = alvoTela.querySelector('.cod'), ent = cod.querySelector('.cod-entrada');
+
+  const desenharTopo = async () => {
+    const barra = cod.querySelector('.cod-topo'), lista = await arqs.listar(), ch = codigoChat();
+    const nSes = codigoSessoes().filter(s => s.msgs && s.msgs.length).length;
+    barra.innerHTML = `${TEM_PASTA ? `<button class="cod-chip" data-pasta title="Escolher a pasta do aparelho">${ICO.pasta}<b>${pastaRaiz ? esc(pastaNome) : pastaNome ? 'Reabrir ' + esc(pastaNome) : 'Abrir pasta'}</b></button>`
+        : `<span class="cod-chip fixo">${ICO.pasta}<b>Área do app</b></span>`}
+      <button class="cod-tag" data-arquivos>${lista.length ? `${lista.length} ${lista.length === 1 ? 'arquivo' : 'arquivos'}` : 'nenhum arquivo'}</button>
+      <span class="cod-espaco"></span>
+      ${ch.msgs.length ? `<button class="icone cod-b" data-compactar title="Compactar o contexto" aria-label="Compactar o contexto">${ICO.compactar}</button>` : ''}
+      <button class="icone cod-b" data-hist title="Conversas de código${nSes ? ' (' + nSes + ')' : ''}" aria-label="Conversas de código">${ICO.historico}</button>
+      ${ch.msgs.length ? `<button class="icone cod-b" data-nova title="Nova conversa de código" aria-label="Nova conversa de código">${ICO.renomear}</button>` : ''}
+      ${htmlVoltarConversa()}`;
+    const liga = (sel, fn) => { const b = barra.querySelector(sel); if (b) b.onclick = fn; };
+    ligarVoltarConversa(barra);
+    liga('[data-pasta]', async () => { if (await garantirPermissao('pasta')) { await desenharTopo(); toast(`Pasta "${pastaNome}" aberta.`); } });
+    liga('[data-arquivos]', () => listarArquivos());
+    liga('[data-hist]', () => folhaHistoricoCodigo(desenharTudo));
+    liga('[data-nova]', () => { novaSessaoCodigo(); desenharTudo(); ent.focus(); });
+    liga('[data-compactar]', async () => { const ch2 = codigoChat(); toast('Compactando o contexto…', 2000); if (await compactarCodigo(ch2, true)) desenharTudo(); });
+    desenharPe(lista);
+  };
+  const desenharPe = lista => {
+    const p = cod.querySelector('.cod-pe'), ch = codigoChat();
+    const gasto = estimar(SISTEMA_CODIGO + (ch.resumo || '')) + ch.msgs.reduce((s, m) => s + estimar(m.texto || ''), 0) + (lista || []).reduce((s, a) => s + 8, 0);
+    const pct = Math.min(99, Math.round(100 * gasto / Math.max(2048, nCtx - 1500)));
+    p.innerHTML = ch.msgs.length
+      ? `${ch.msgs.length} ${ch.msgs.length === 1 ? 'mensagem' : 'mensagens'}${ch.compactadas ? ` · ${ch.compactadas} resumidas` : ''} · contexto ~${pct}% · nada é gravado sem você aplicar`
+      : 'A IA propõe as mudanças; nada é gravado sem você aplicar.';
   };
   const desenharChat = () => {
     const c = cod.querySelector('#codChat'), ch = codigoChat();
-    c.innerHTML = ch.msgs.length ? '' : `<div class="cod-vazio">${ICO.codigo}<p>Peça em português: <b>"crie um jogo da forca em Python"</b>, <b>"leia o main.py e corrija o erro"</b>, <b>"comente as funções do arquivo X"</b>.${TEM_PASTA ? ' Abra uma pasta do aparelho para eu trabalhar nos seus arquivos de verdade.' : ''}</p></div>`;
+    c.innerHTML = '';
+    if (!ch.msgs.length && !ch.resumo) {
+      c.innerHTML = `<div class="cod-vazio"><h1><span class="sd">${saudacao()},</span> <span class="fr">o que vamos programar?</span></h1>
+        <p>Peça em português. Eu leio e escrevo nos arquivos ${arqs.origem === 'pasta' ? 'da pasta <b>' + esc(pastaNome) + '</b>' : 'da área do app'} e você aplica ou recusa cada mudança.</p></div>`;
+    }
+    if (ch.resumo) {
+      const r = document.createElement('details'); r.className = 'cod-resumo';
+      r.innerHTML = `<summary>${ICO.compactar}Resumo do que já foi feito${ch.compactadas ? ` (${ch.compactadas} mensagens)` : ''}</summary><div class="txt">${md(ch.resumo)}</div>`;
+      c.appendChild(r);
+    }
     for (const m of ch.msgs) {
-      const d = document.createElement('div'); d.className = 'msg ' + (m.role === 'user' ? 'eu' : 'ia');
-      d.innerHTML = `<div class="txt">${md(m.texto || '')}</div>`;
-      if (m.acoes && m.acoes.length) d.firstChild.insertAdjacentHTML('afterend', m.acoes.map(a => `<div class="cod-acao ${esc(a.tipo)}${a.feito ? ' feito' : ''}"><b>${a.tipo === 'ler' ? 'Leu' : a.tipo === 'apagar' ? (a.feito ? 'Apagou' : 'Apagar') : a.feito ? 'Gravou' : (a.tipo === 'criar' ? 'Criar' : 'Alterar')} ${esc(a.arquivo)}</b></div>`).join(''));
-      c.appendChild(d); enfeitar(d);
+      const d = document.createElement('div'); d.className = 'cod-msg ' + (m.role === 'user' ? 'eu' : 'ia');
+      d.innerHTML = m.role === 'user' ? `<span class="cod-seta" aria-hidden="true">&gt;</span><div class="txt">${esc(m.texto || '')}</div>`
+        : `<div class="txt">${md(m.texto || '')}</div>`;
+      if (m.acoes && m.acoes.length) d.insertAdjacentHTML('beforeend', m.acoes.map(a => `<div class="cod-linha ${esc(a.tipo)}${a.feito ? ' feito' : ''}"><i aria-hidden="true"></i><b>${a.tipo === 'ler' ? 'Leu' : a.tipo === 'apagar' ? (a.feito ? 'Apagou' : 'Apagar') : a.feito ? 'Gravou' : (a.tipo === 'criar' ? 'Criar' : 'Alterar')}</b><code>${esc(a.arquivo)}</code></div>`).join(''));
+      c.appendChild(d); if (m.role !== 'user') enfeitar(d);
     }
     for (const a of acoesPendentes) {
-      const d = document.createElement('div'); d.className = 'msg ia';
-      d.innerHTML = `<div class="cod-dif"><p class="info"><b>${a.tipo === 'apagar' ? 'Apagar' : a.tipo === 'criar' ? 'Criar' : 'Alterar'} ${esc(a.arquivo)}</b></p>
-        ${a.tipo === 'apagar' ? '' : htmlDiff(diffLinhas(a.antes || '', a.conteudo || ''))}
-        <div class="botoes" style="justify-content:flex-start"><button class="btn primario" data-ap="${esc(a.arquivo)}">Aplicar</button><button class="btn" data-rec="${esc(a.arquivo)}">Recusar</button>${acoesPendentes.length > 1 ? '<button class="btn" data-ap-tudo>Aplicar tudo</button>' : ''}</div></div>`;
+      const linhas = a.tipo === 'apagar' ? null : diffLinhas(a.antes || '', a.conteudo || '');
+      const mais = linhas ? linhas.filter(l => l[0] === '+').length : 0, menos = linhas ? linhas.filter(l => l[0] === '-').length : 0;
+      const d = document.createElement('div'); d.className = 'cod-msg ia';
+      d.innerHTML = `<div class="cod-dif"><div class="cod-dif-topo"><code>${esc(a.arquivo)}</code>
+          <span class="cod-conta">${a.tipo === 'apagar' ? 'apagar o arquivo' : `<b class="mais">+${mais}</b> <b class="menos">−${menos}</b>`}</span></div>
+        ${linhas ? htmlDiff(linhas) : ''}
+        <div class="cod-dif-pe"><button class="btn primario" data-ap="${esc(a.arquivo)}">Aplicar</button><button class="btn" data-rec="${esc(a.arquivo)}">Recusar</button>${acoesPendentes.length > 1 ? '<button class="btn" data-ap-tudo>Aplicar tudo</button>' : ''}</div></div>`;
       c.appendChild(d);
     }
-    c.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => aplicarAcoes([b.dataset.ap], desenharChat, desenharPasta));
+    c.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => aplicarAcoes([b.dataset.ap], desenharChat, desenharTopo));
     c.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => { acoesPendentes = acoesPendentes.filter(a => a.arquivo !== b.dataset.rec); desenharChat(); });
-    const bt = c.querySelector('[data-ap-tudo]'); if (bt) bt.onclick = () => aplicarAcoes(acoesPendentes.map(a => a.arquivo), desenharChat, desenharPasta);
+    const bt = c.querySelector('[data-ap-tudo]'); if (bt) bt.onclick = () => aplicarAcoes(acoesPendentes.map(a => a.arquivo), desenharChat, desenharTopo);
     c.scrollTop = c.scrollHeight;
   };
-  const ent = cod.querySelector('.cod-entrada');
-  const enviar = () => { const t = ent.value.trim(); if (!t || agenteOcupado) return; ent.value = ''; ent.style.height = 'auto'; rodarAgente(t, desenharChat, desenharPasta); };
+  const desenharTudo = () => { desenharChat(); desenharTopo(); };
+
+  const enviar = () => { const t = ent.value.trim(); if (!t || agenteOcupado) return; ent.value = ''; ent.style.height = 'auto'; rodarAgente(t, desenharChat, desenharTopo); };
   ent.oninput = () => { ent.style.height = 'auto'; ent.style.height = Math.min(ent.scrollHeight, 140) + 'px'; };
   ent.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !estreita()) { e.preventDefault(); enviar(); } };
   cod.querySelector('[data-enviar]').onclick = enviar;
-  restaurarPasta().then(desenharPasta);
+  cod.querySelector('[data-molde]').onclick = () => folhaMoldes(ent);
+  cod.querySelector('[data-gravar]').onclick = async () => {
+    if (!await garantirPermissao('microfone')) return;
+    alvoTranscricao = ent; iniciarGravacao();
+  };
+  restaurarPasta().then(desenharTopo);
   desenharChat();
+}
+/* as conversas de código (histórico próprio) */
+function folhaHistoricoCodigo(depois) {
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  const desenhar = () => {
+    const l = codigoSessoes().filter(s => s.msgs && s.msgs.length);
+    f.innerHTML = `<div class="dlg folha">${topoCentro('Conversas de código', true)}
+      <div class="lista-modelos">${l.length ? l.map(s => `<button class="lm" data-s="${s.id}">${s.id === codigoId ? '<span class="check">' + ICO.ok + '</span>' : ''}<span class="pt"><b>${esc(s.titulo || 'Nova conversa')}</b><small>${s.msgs.length} ${s.msgs.length === 1 ? 'mensagem' : 'mensagens'}${s.resumo ? ' · resumida' : ''} · ${tempoAtras(s.quando)}</small></span><span class="lm-x" data-x-s="${s.id}" role="button" tabindex="0" aria-label="Apagar">${ICO.apagar}</span></button>`).join('')
+        : '<p class="info" style="padding:12px 14px">Nenhuma conversa de código ainda.</p>'}</div>
+      <div class="bib-acoes"><button class="btn primario" data-nova>${ICO.renomear}Nova conversa</button>${codigoChat().msgs.length > 2 ? `<button class="btn" data-compactar>${ICO.compactar}Compactar contexto</button>` : ''}</div></div>`;
+    const folha = f.firstChild, sair = () => animarSaida(f, folha);
+    f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+    folhaArrastavel(f, folha, sair);
+    folha.querySelectorAll('[data-s]').forEach(b => b.onclick = e => {
+      if (e.target.closest('[data-x-s]')) return;
+      codigoId = b.dataset.s; acoesPendentes = []; sair(); depois();
+    });
+    folha.querySelectorAll('[data-x-s]').forEach(b => b.onclick = e => { e.stopPropagation(); apagarSessaoCodigo(b.dataset.xS); desenhar(); depois(); });
+    folha.querySelector('[data-nova]').onclick = () => { novaSessaoCodigo(); sair(); depois(); };
+    const bc = folha.querySelector('[data-compactar]');
+    if (bc) bc.onclick = async () => { sair(); toast('Compactando o contexto…', 2000); if (await compactarCodigo(codigoChat(), true)) depois(); };
+  };
+  desenhar();
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, f.firstChild, $('#latNav'));
+}
+/* moldes: um toque cola o pedido na caixa */
+function folhaMoldes(ent) {
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  const desenhar = () => {
+    const meus = meusMoldes();
+    f.innerHTML = `<div class="dlg folha">${topoCentro('Moldes para colar', true)}
+      <div class="lista-modelos">${[...meus.map((m, i) => [m[0], m[1], i]), ...MOLDES_CODIGO].map(([t, txt, i]) => `<button class="lm" data-m="${esc(txt)}"><span class="pt"><b>${esc(t)}</b><small>${esc(txt.slice(0, 70))}${txt.length > 70 ? '…' : ''}</small></span>${i === undefined ? '' : `<span class="lm-x" data-x-m="${i}" role="button" tabindex="0" aria-label="Apagar molde">${ICO.apagar}</span>`}</button>`).join('')}</div>
+      <div class="bib-acoes">${ent.value.trim() ? `<button class="btn" data-salvar>${ICO.salvar}Salvar o que escrevi como molde</button>` : ''}</div></div>`;
+    const folha = f.firstChild, sair = () => animarSaida(f, folha);
+    f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+    folhaArrastavel(f, folha, sair);
+    folha.querySelectorAll('[data-m]').forEach(b => b.onclick = e => {
+      if (e.target.closest('[data-x-m]')) return;
+      sair(); const t = b.dataset.m;
+      ent.value = t; ent.dispatchEvent(new Event('input')); ent.focus();
+      const p = t.indexOf('{'); if (p >= 0) { try { ent.setSelectionRange(p, t.indexOf('}', p) + 1); } catch (er) {} }
+    });
+    folha.querySelectorAll('[data-x-m]').forEach(b => b.onclick = e => { e.stopPropagation(); const l = meusMoldes(); l.splice(+b.dataset.xM, 1); salvarMeusMoldes(l); desenhar(); });
+    const bs = folha.querySelector('[data-salvar]');
+    if (bs) bs.onclick = async () => {
+      const txt = ent.value.trim();
+      const nome = await perguntarTexto('Nome do molde', txt.slice(0, 40));
+      if (nome === null) return;
+      salvarMeusMoldes([[nome || txt.slice(0, 30), txt], ...meusMoldes()]); desenhar(); toast('Molde salvo.');
+    };
+  };
+  desenhar();
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, f.firstChild, $('.cod-compor [data-molde]'));
 }
 // lista de arquivos numa folha: abrir para ver/editar
 async function listarArquivos() {
@@ -660,7 +826,7 @@ async function listarArquivos() {
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
   folha.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => { sair(); await verArquivo(b.dataset.a); });
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#latNav') || $('#anexar'));
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('.cod-topo [data-arquivos]') || $('#latNav') || $('#anexar'));
 }
 async function verArquivo(caminho) {
   let conteudo = '';
@@ -668,11 +834,12 @@ async function verArquivo(caminho) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha codigo">${topoCentro(nomeCurto(caminho), true)}
     <textarea class="cod-editor" spellcheck="false">${esc(conteudo)}</textarea>
-    <div class="botoes" style="justify-content:flex-start;padding:10px 8px 2px"><button class="btn primario" data-gravar>Salvar</button><button class="btn" data-chat>Mandar para o chat</button></div></div>`;
+    <div class="bib-acoes"><button class="btn primario" data-gravar>${ICO.salvar}Salvar</button><button class="btn" data-baixar>${ICO.baixar}Baixar</button><button class="btn" data-chat>Mandar para o chat</button></div></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
   folha.querySelector('[data-gravar]').onclick = async () => { try { await arqs.gravar(caminho, folha.querySelector('.cod-editor').value); toast('Salvo.'); sair(); atualizarTela('codigo'); } catch (e) { toast('Não deu para salvar: ' + e.message, 4000); } };
+  folha.querySelector('[data-baixar]').onclick = () => PLATAFORMA.salvarArquivo(nomeCurto(caminho), folha.querySelector('.cod-editor').value, 'text/plain').then(r => r !== false && toast('Arquivo salvo.')).catch(e => toast('Não deu para salvar: ' + e.message, 4000));
   folha.querySelector('[data-chat]').onclick = () => { sair(); fecharTela(); anexos = anexos.filter(y => y.nome !== nomeCurto(caminho)); anexos.push({ nome: nomeCurto(caminho), tam: new Blob([conteudo]).size, lang: langDoArquivo(caminho) || 'texto', conteudo }); desenharChips(); ajustar(); $('#entrada').focus(); };
   pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
 }
@@ -692,18 +859,20 @@ async function aplicarAcoes(nomes, desenharChat, desenharPasta) {
 async function rodarAgente(pedido, desenharChat, desenharPasta) {
   if (!online) { toast('A IA ainda está ligando.'); return; }
   if (geracao) { toast('Espere a resposta do chat terminar.'); return; }
-  const ch = codigoChat();
+  let ch = codigoChat();
+  if (ch.msgs.length > MSGS_ANTES_COMPACTAR) { toast('Compactando o contexto…', 1800); await compactarCodigo(ch); ch = codigoChat(); }
   ch.msgs.push({ role: 'user', texto: pedido }); salvarCodigoChat(ch); acoesPendentes = []; desenharChat();
   agenteOcupado = true;
   const cont = document.querySelector('#codChat');
-  const espera = document.createElement('div'); espera.className = 'msg ia'; espera.innerHTML = `<div class="txt">${htmlTrabalhando()}</div>`;
+  const espera = document.createElement('div'); espera.className = 'cod-msg ia'; espera.innerHTML = `<div class="txt">${htmlTrabalhando()}</div>`;
   if (cont) { cont.appendChild(espera); cont.scrollTop = cont.scrollHeight; }
   const pararP = novaPalavra(espera.querySelector('.trabalhando'), true);
   const lidos = {};
   try {
     for (let rodada = 0; rodada < 3; rodada++) {
       const lista = await arqs.listar();
-      const contexto = `Arquivos disponíveis (${arqs.origem === 'pasta' ? 'pasta ' + pastaNome : 'área do app'}):\n${lista.length ? lista.map(a => `- ${a.nome} (${tamanhoBonito(a.tam)})` ).join('\n') : '(nenhum)'}`
+      const contexto = `Arquivos disponíveis (${arqs.origem === 'pasta' ? 'pasta ' + pastaNome : 'área do app'}):\n${lista.length ? lista.map(a => `- ${a.nome} (${tamanhoBonito(a.tam)})`).join('\n') : '(nenhum)'}`
+        + (ch.resumo ? '\n\nResumo do que já foi feito nesta conversa:\n' + ch.resumo : '')
         + (Object.keys(lidos).length ? '\n\nConteúdo dos arquivos que você pediu:\n' + Object.entries(lidos).map(([n, c]) => `--- ${n} ---\n${c}`).join('\n\n') : '');
       const hist = ch.msgs.slice(-8).map(m => ({ role: m.role, content: m.role === 'assistant' ? m.texto + (m.acoes && m.acoes.length ? '\n[ações: ' + m.acoes.map(a => a.tipo + ' ' + a.arquivo).join(', ') + ']' : '') : m.texto }));
       let saida = '';
@@ -728,7 +897,6 @@ async function rodarAgente(pedido, desenharChat, desenharPasta) {
   } catch (e) { const c2 = codigoChat(); c2.msgs.push({ role: 'assistant', texto: 'Não consegui completar: ' + e.message }); salvarCodigoChat(c2); }
   finally { if (pararP) pararP(); espera.remove(); agenteOcupado = false; desenharChat(); if (desenharPasta) await desenharPasta(); }
 }
-
 /* ---------------- "Working": a palavra em inglês com brilho passando enquanto a IA não escreveu nada ----------------
    Uma palavra só, trocando de vez em quando (como no Claude). O brilho é CSS; aqui só trocamos a palavra. */
 const PALAVRAS_TRABALHANDO = ['Working', 'Thinking', 'Reasoning', 'Pondering', 'Analyzing', 'Reflecting', 'Considering', 'Figuring it out', 'Processing'];
@@ -1333,6 +1501,23 @@ const picoDe = a => { let pico = 0; for (let i = 0; i < a.length; i += 4) { cons
 const temFala = a => picoDe(a) > 0.015;
 // tira as marcas que o whisper põe em trechos sem fala: [BLANK_AUDIO], (música), [risos]…
 const limparTranscricao = t => String(t || '').replace(/\[[^\]]{0,40}\]|\((?:m[uú]sica|music|risos?|aplausos|sil[eê]ncio|inaud[ií]vel)[^)]{0,20}\)/gi, ' ').replace(/\s+/g, ' ').trim();
+/* a transcrição cai na caixa do chat ou na caixa da Área de código (quem gravou decide) */
+let alvoTranscricao = null;
+function porTranscricao(texto) {
+  const e = (alvoTranscricao && alvoTranscricao.isConnected) ? alvoTranscricao : $('#entrada');
+  e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto;
+  if (e.id === 'entrada') ajustar(); else { e.style.height = 'auto'; e.style.height = Math.min(e.scrollHeight, 140) + 'px'; }
+  e.focus(); try { e.setSelectionRange(e.value.length, e.value.length); } catch (err) {}
+}
+// duração quando o áudio não foi decodificado aqui (iPhone manda o arquivo inteiro para o motor)
+const duracaoDeAudio = b => new Promise(ok => {
+  try {
+    const u = URL.createObjectURL(b), a = new Audio();
+    const fim = d => { URL.revokeObjectURL(u); ok(isFinite(d) && d > 0 ? d : 0); };
+    a.preload = 'metadata'; a.onloadedmetadata = () => fim(a.duration); a.onerror = () => fim(0);
+    setTimeout(() => fim(0), 4000); a.src = u;
+  } catch (e) { ok(0); }
+});
 async function transcreverAudio(blob, mesmoSemFala) {
   if (transcrevendo) return;
   transcrevendo = true; cancelarTranscricao = new AbortController();
@@ -1372,8 +1557,9 @@ async function transcreverAudio(blob, mesmoSemFala) {
     }
     if (sinal.aborted) { if (texto) toast('Transcrição cancelada; ficou só o que já tinha sido transcrito.', 3500); else { toast('Transcrição cancelada.'); return; } }
     if (!texto) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
-    const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + texto; ajustar(); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
-    guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto });
+    porTranscricao(texto);
+    const segundos = amostras && amostras.length ? amostras.length / 16000 : await duracaoDeAudio(blob);
+    guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto, segundos, audio: blob });
   } catch (e) {
     if (e.name === 'AbortError' || sinal.aborted) toast('Transcrição cancelada.');
     else toast(/decode|EncodingError|Unable to decode/i.test(e.message || e.name) ? 'Não consegui ler este áudio (formato não suportado).' : /memory|allocation|RangeError/i.test(e.message || e.name) ? 'Áudio grande demais para a memória deste aparelho.' : 'Não foi possível transcrever: ' + e.message, 4500);
@@ -1381,13 +1567,91 @@ async function transcreverAudio(blob, mesmoSemFala) {
 }
 // progresso real do whisper (quando o aparelho manda): a barra deixa de ser indeterminada
 PLATAFORMA.ao('transcricao', d => { if (!transcrevendo) return; const t = trechoAtual || { i: 0, n: 1 }; barraGravacao('transcrevendo', undefined, (t.i + (d.pct || 0)) / t.n); });
-$('#falar').onclick = () => iniciarGravacao();
+$('#falar').onclick = async () => { alvoTranscricao = null; if (await garantirPermissao('microfone')) iniciarGravacao(); };
 $('#pararGrav').onclick = () => pararGravacao(true);
 $('#cancelarGrav').onclick = () => { if (gravacao) pararGravacao(false); else if (cancelarTranscricao) { cancelarTranscricao.abort(); $('#tempoGrav').textContent = 'Cancelando'; } };
 $('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { transcreverAudio(f); } };
 
+/* ---------------- permissões (uma por recurso, sempre com botão) ----------------
+   Nada é ligado escondido: câmera, microfone, notificações e a pasta de arquivos têm cada uma o seu pedido, com o
+   motivo escrito. Ajustes → Permissões mostra o estado de todas e o botão "Permitir" de cada uma. */
+const PERMISSOES = {
+  camera: { nome: 'Câmera', ico: 'camera', para: 'tirar uma foto na hora para a IA ver', nav: 'camera' },
+  microfone: { nome: 'Microfone', ico: 'microfone', para: 'gravar a sua voz e transcrever em texto', nav: 'microphone' },
+  notificacao: { nome: 'Notificações', ico: 'sino', para: 'avisar quando a resposta ficar pronta com o app em segundo plano' },
+  pasta: { nome: 'Pasta de arquivos', ico: 'pasta', para: 'ler e gravar os seus arquivos na Área de código' },
+};
+const permLembrada = k => pref('perm:' + k) || '';
+async function estadoPermissao(k) {
+  if (k === 'notificacao') {
+    if (PLATAFORMA.tipo === 'web') return !('Notification' in window) ? 'indisponivel'
+      : Notification.permission === 'granted' ? 'ok' : Notification.permission === 'denied' ? 'negado' : 'pedir';
+    return permLembrada(k) === 'ok' ? 'ok' : 'pedir';       // no aparelho quem pergunta é o sistema
+  }
+  if (k === 'pasta') return !TEM_PASTA ? 'indisponivel' : pastaRaiz ? 'ok' : 'pedir';
+  if (k === 'camera' && !PLATAFORMA.temVisao) return 'indisponivel';
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      const r = await navigator.permissions.query({ name: PERMISSOES[k].nav });
+      if (r.state === 'granted') return 'ok';
+      if (r.state === 'denied') return 'negado';
+      return 'pedir';
+    }
+  } catch (e) {}
+  return permLembrada(k) === 'ok' ? 'ok' : 'pedir';
+}
+async function pedirPermissao(k) {
+  try {
+    if (k === 'notificacao') {
+      if (PLATAFORMA.tipo === 'web' && 'Notification' in window) { if (await Notification.requestPermission() !== 'granted') return false; }
+      else await PLATAFORMA.notificar('Própons IA', 'Pronto: é assim que eu aviso quando a resposta fica pronta.');
+      pref('perm:notificacao', 'ok'); return true;
+    }
+    if (k === 'pasta') return await escolherPasta();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { pref('perm:' + k, 'ok'); return true; }
+    const fluxo = await navigator.mediaDevices.getUserMedia(k === 'camera' ? { video: true } : { audio: true });
+    fluxo.getTracks().forEach(t => t.stop());
+    pref('perm:' + k, 'ok'); return true;
+  } catch (e) { return false; }
+}
+// usar o recurso só depois de explicar e pedir; devolve true quando pode seguir
+async function garantirPermissao(k) {
+  const e = await estadoPermissao(k);
+  if (e === 'ok' || e === 'indisponivel') return true;
+  const p = PERMISSOES[k];
+  const texto = `<p>A Própons IA usa ${p.para}. Tudo continua no aparelho.</p>`
+    + (e === 'negado' ? '<p>Você já negou antes: se o aparelho não perguntar de novo, libere nas configurações do sistema.</p>' : '');
+  if (!await confirmar(`Permitir ${p.nome.toLowerCase()}?`, texto, 'Permitir')) return false;
+  const deu = await pedirPermissao(k);
+  if (!deu) toast(`Sem permissão de ${p.nome.toLowerCase()}.`, 3500);
+  return deu;
+}
+function abaPermissoes(c) {
+  c.innerHTML = `<p class="info">Cada recurso pede a permissão dele, só quando você toca no botão. A IA continua rodando no aparelho: nada é enviado para a internet.</p>
+    <div class="lista-modelos" id="listaPerm"></div>`;
+  const desenhar = async () => {
+    const l = $('#listaPerm'); if (!l) return;
+    const estados = {};
+    for (const k of Object.keys(PERMISSOES)) estados[k] = await estadoPermissao(k);
+    if (!$('#listaPerm')) return;
+    const rotulo = { ok: 'Permitido', pedir: 'Não pedida', negado: 'Negada', indisponivel: 'Indisponível' };
+    l.innerHTML = Object.entries(PERMISSOES).map(([k, p]) => `<div class="perm">
+      <span class="mico">${ICO[p.ico]}</span>
+      <span class="pt"><b>${p.nome}</b><small>Para ${p.para}.</small></span>
+      <span class="st ${estados[k]}">${rotulo[estados[k]]}</span>
+      ${estados[k] === 'ok' || estados[k] === 'indisponivel' ? '' : `<button class="btn" data-p="${k}">Permitir</button>`}</div>`).join('');
+    l.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      const deu = await pedirPermissao(b.dataset.p);
+      toast(deu ? `${PERMISSOES[b.dataset.p].nome}: permitido.` : `${PERMISSOES[b.dataset.p].nome}: sem permissão.`, 3000);
+      desenhar();
+    });
+  };
+  desenhar();
+}
+
 /* ---------------- biblioteca da sessão ----------------
-   Tudo o que você manda para a IA (fotos, arquivos e áudios transcritos) fica aqui para ver, usar de novo,
+   Tudo o que você manda para a IA (fotos, arquivos e áudios transcritos) fica aqui para ver, usar de novo, baixar,
    copiar ou apagar. Fica só na memória: ao fechar a Própons IA, some (ainda não há banco de dados). */
 let biblioteca = [], filtroBib = 'todos';
 function guardarNaBiblioteca(item) {
@@ -1397,7 +1661,13 @@ function guardarNaBiblioteca(item) {
   atualizarTela('biblioteca');
 }
 const iconeBib = i => i.tipo === 'imagem' ? ICO.foto : i.tipo === 'audio' ? ICO.microfone : ICO.arquivo;
-const descBib = i => (i.tipo === 'imagem' ? 'Foto' : i.tipo === 'audio' ? 'Áudio transcrito' : 'Arquivo') + ' · ' + tamanhoBonito(i.tam || 0) + ' · ' + new Date(i.quando).toTimeString().slice(0, 5);
+const tipoBib = i => i.tipo === 'imagem' ? 'Foto' : i.tipo === 'audio' ? 'Áudio' : /\.pdf$/i.test(i.nome) ? 'PDF' : /\.docx?$/i.test(i.nome) ? 'Documento' : 'Arquivo';
+const duracaoBonita = s => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s % 60).padStart(2, '0'); };
+// o "detalhe" de cada tipo: duração do áudio, tamanho da imagem, páginas/linhas do arquivo
+const detalheBib = i => i.tipo === 'audio' ? (i.segundos ? duracaoBonita(i.segundos) : '')
+  : i.tipo === 'imagem' ? (i.w ? i.w + '×' + i.h : '')
+  : i.paginas ? i.paginas + (i.paginas === 1 ? ' página' : ' páginas') : i.conteudo ? String(i.conteudo).split('\n').length + ' linhas' : '';
+const descBib = i => [tipoBib(i), tamanhoBonito(i.tam || 0), detalheBib(i), new Date(i.quando).toTimeString().slice(0, 5)].filter(Boolean).join(' · ');
 const abrirBiblioteca = () => abrirTela('biblioteca');
 function telaBiblioteca(alvoTela) { alvoTela.innerHTML = '<div class="bib-corpo"></div>'; desenharBiblioteca(alvoTela); }
 function desenharBiblioteca(folha) {
@@ -1405,35 +1675,102 @@ function desenharBiblioteca(folha) {
   const n = t => biblioteca.filter(i => t === 'todos' || i.tipo === t).length;
   const lista = biblioteca.filter(i => filtroBib === 'todos' || i.tipo === filtroBib);
   const fotos = lista.filter(i => i.tipo === 'imagem'), outros = lista.filter(i => i.tipo !== 'imagem');
-  c.innerHTML = `<p class="info" style="margin:0 0 12px">Fotos, arquivos e áudios que você mandou nesta sessão. <b>Ao fechar a Própons IA, tudo aqui é apagado.</b></p>
-    ${biblioteca.length ? `<div class="seg bib-filtro" style="margin-bottom:12px">${[['todos', 'Tudo'], ['imagem', 'Fotos'], ['arquivo', 'Arquivos'], ['audio', 'Áudios']].map(([k, r]) => `<button data-f="${k}" class="${filtroBib === k ? 'on' : ''}">${r} ${n(k)}</button>`).join('')}</div>` : ''}
-    ${!lista.length ? `<div class="bib-vazio">${ICO.biblioteca}<p>${biblioteca.length ? 'Nada deste tipo por aqui.' : 'Ainda vazia. Mande uma foto, um arquivo ou grave um áudio pelo "+" ou pelo 🎤.'}</p></div>` : ''}
-    ${fotos.length ? `<div class="bib-fotos">${fotos.map(i => `<button class="bib-foto" data-i="${i.id}" title="${esc(i.nome)}"><img src="${esc(i.miniatura)}" alt="${esc(i.nome)}"></button>`).join('')}</div>` : ''}
-    ${outros.length ? `<div class="lista-modelos" style="margin:${fotos.length ? '12px' : '0'} 0 0">${outros.map(i => `<button class="lm" data-i="${i.id}"><span class="mico">${iconeBib(i)}</span><span class="pt"><b>${esc(i.nome)}</b><small>${esc(descBib(i))}</small></span></button>`).join('')}</div>` : ''}
-    ${biblioteca.length ? `<div class="botoes" style="margin-top:14px"><button class="btn perigo" data-apagar-tudo>${ICO.apagar}Apagar tudo</button></div>` : ''}`;
+  c.innerHTML = `<div class="bib-topo">
+      ${biblioteca.length ? `<div class="seg bib-filtro">${[['todos', 'Tudo'], ['imagem', 'Fotos'], ['arquivo', 'Arquivos'], ['audio', 'Áudios']].map(([k, r]) => `<button data-f="${k}" class="${filtroBib === k ? 'on' : ''}">${r} ${n(k)}</button>`).join('')}</div>` : '<span></span>'}
+      ${htmlVoltarConversa()}</div>
+    <p class="info bib-nota">Fotos, arquivos e áudios que você mandou nesta sessão. <b>Ao fechar a Própons IA, tudo aqui é apagado</b> — baixe o que quiser guardar.</p>
+    ${!lista.length ? `<div class="bib-vazio">${ICO.biblioteca}<p>${biblioteca.length ? 'Nada deste tipo por aqui.' : 'Ainda vazia. Mande uma foto, um arquivo ou grave um áudio pelo "+" ou pelo microfone.'}</p></div>` : ''}
+    ${fotos.length ? `<div class="bib-grade">${fotos.map(i => `<figure class="bib-cart">
+        <button class="bib-foto" data-i="${i.id}" title="Abrir ${esc(i.nome)}"><img src="${esc(i.miniatura)}" alt="${esc(i.nome)}" loading="lazy"></button>
+        <button class="bib-baixar" data-baixar="${i.id}" title="Baixar" aria-label="Baixar ${esc(i.nome)}">${ICO.baixar}</button>
+        <figcaption><b>${esc(i.nome)}</b><small>${esc([tamanhoBonito(i.tam || 0), detalheBib(i)].filter(Boolean).join(' · '))}</small></figcaption></figure>`).join('')}</div>` : ''}
+    ${outros.length ? `<div class="bib-lista">${outros.map(i => `<div class="bib-linha">
+        <button class="bib-abrir" data-i="${i.id}"><span class="mico">${iconeBib(i)}</span><span class="pt"><b>${esc(i.nome)}</b><small>${esc(descBib(i))}</small></span></button>
+        <button class="icone" data-baixar="${i.id}" title="Baixar" aria-label="Baixar ${esc(i.nome)}">${ICO.baixar}</button></div>`).join('')}</div>` : ''}
+    ${biblioteca.length ? `<div class="bib-fim"><button class="btn perigo" data-apagar-tudo>${ICO.apagar}Apagar tudo</button></div>` : ''}`;
+  ligarVoltarConversa(c);
   c.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filtroBib = b.dataset.f; desenharBiblioteca(folha); });
   c.querySelectorAll('[data-i]').forEach(b => b.onclick = () => verItemBiblioteca(biblioteca.find(i => i.id === b.dataset.i), folha));
+  c.querySelectorAll('[data-baixar]').forEach(b => b.onclick = () => baixarItemBib(biblioteca.find(i => i.id === b.dataset.baixar)));
   const at = c.querySelector('[data-apagar-tudo]');
   if (at) at.onclick = async () => { if (await confirmar('Apagar a biblioteca?', 'Apaga todas as fotos, arquivos e transcrições desta sessão. As conversas continuam.', 'Apagar tudo', true)) { biblioteca = []; desenharBiblioteca(folha); toast('Biblioteca apagada.'); } };
+  medirFotosBib(c, folha);
 }
-async function verItemBiblioteca(i, folha) {
+// as fotos não guardam largura/altura: mede uma vez (na miniatura) e redesenha a legenda
+function medirFotosBib(c, folha) {
+  const faltam = biblioteca.filter(i => i.tipo === 'imagem' && !i.w && (i.miniatura || i.dataUrl));
+  if (!faltam.length) return;
+  let pendentes = faltam.length, mudou = false;
+  faltam.forEach(i => {
+    const im = new Image();
+    im.onload = im.onerror = () => {
+      if (im.naturalWidth) { i.w = im.naturalWidth; i.h = im.naturalHeight; mudou = true; } else i.w = -1;
+      if (--pendentes === 0 && mudou && telaAtual === 'biblioteca' && document.querySelector('.bib-corpo')) desenharBiblioteca(folha);
+    };
+    im.src = i.dataUrl || i.miniatura;
+  });
+}
+const bytesDeDataUrl = u => { const b = atob(String(u).split(',')[1] || ''); const a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; };
+const mimeDeDataUrl = u => (String(u).match(/^data:([^;,]+)/) || [, 'application/octet-stream'])[1];
+const extDeMime = m => /wav/.test(m) ? 'wav' : /webm/.test(m) ? 'webm' : /ogg/.test(m) ? 'ogg' : /mp4|m4a|aac/.test(m) ? 'm4a' : /mpeg|mp3/.test(m) ? 'mp3' : 'audio';
+// baixar de novo o que está na biblioteca (foto e áudio como arquivo original; documento como texto extraído)
+async function baixarItemBib(i) {
   if (!i) return;
-  const previa = i.tipo === 'imagem' ? `<img src="${esc(i.dataUrl || i.miniatura)}" alt="" style="width:100%;max-height:52vh;object-fit:contain;border-radius:14px;background:var(--code);display:block">`
-    : `<pre style="max-height:40vh;overflow:auto;white-space:pre-wrap;font:12.5px var(--mono);background:var(--code);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0">${esc((i.tipo === 'audio' ? i.texto : i.conteudo || '').slice(0, 20000))}</pre>`;
-  const acao = await perguntar(i.nome, `<p style="margin:0 0 10px">${esc(descBib(i))}</p>${previa}`,
-    [['Apagar', 'apagar', 'perigo'], ...(i.tipo === 'imagem' ? [] : [['Copiar', 'copiar', '']]), ['Usar na mensagem', 'usar', 'primario']], { voltar: true });
-  if (acao === 'apagar') { biblioteca = biblioteca.filter(x => x !== i); desenharBiblioteca(folha); toast('Apagado da biblioteca.'); }
-  else if (acao === 'copiar') copiarTexto(i.tipo === 'audio' ? i.texto : i.conteudo).then(() => toast('Copiado.'));
-  else if (acao === 'usar') {
-    if (i.tipo === 'audio') { const e = $('#entrada'); e.value = (e.value.trim() ? e.value.trim() + ' ' : '') + i.texto; ajustar(); }
-    else if (anexos.some(a => a.nome === i.nome)) toast('Já está na mensagem.');
-    else if (i.tipo === 'imagem' && anexos.filter(a => a.tipo === 'imagem').length >= MAX_FOTOS) { toast(`Até ${MAX_FOTOS} fotos por mensagem.`); return; }
-    else if (i.tipo === 'arquivo' && anexos.filter(a => a.tipo !== 'imagem').length >= MAX_ANEXOS) { toast(`Até ${MAX_ANEXOS} arquivos por mensagem.`); return; }
-    else anexos.push(i.tipo === 'imagem' ? { tipo: 'imagem', nome: i.nome, tam: i.tam, dataUrl: i.dataUrl, miniatura: i.miniatura } : { nome: i.nome, tam: i.tam, lang: i.lang, conteudo: i.conteudo });
-    desenharChips(); fecharDialogo(); fecharTela(); ajustar(); $('#entrada').focus();   // volta para a conversa com o anexo
-  }
+  try {
+    let r;
+    if (i.tipo === 'imagem' && (i.dataUrl || i.miniatura)) {
+      const u = i.dataUrl || i.miniatura;
+      r = await PLATAFORMA.salvarArquivo(i.nome, bytesDeDataUrl(u), mimeDeDataUrl(u));
+    } else if (i.tipo === 'audio' && i.audio) {
+      const m = i.audio.type || 'audio/wav';
+      r = await PLATAFORMA.salvarArquivo(nomeArquivo(i.nome) + '.' + extDeMime(m), new Uint8Array(await i.audio.arrayBuffer()), m);
+    } else if (i.tipo === 'audio') {
+      r = await PLATAFORMA.salvarArquivo(nomeArquivo(i.nome) + '.txt', i.texto || '', 'text/plain');
+    } else {
+      const soTexto = /\.(pdf|docx?)$/i.test(i.nome);
+      r = await PLATAFORMA.salvarArquivo(soTexto ? nomeArquivo(i.nome.replace(/\.[^.]+$/, '')) + '.txt' : i.nome, i.conteudo || '', 'text/plain');
+    }
+    if (r !== false) toast(i.tipo === 'audio' && !i.audio ? 'Transcrição salva.' : 'Arquivo salvo.');
+  } catch (e) { toast('Não deu para salvar: ' + e.message, 4000); }
 }
-
+// folha do item: prévia, ficha (tipo, tamanho, duração, hora) e as ações do mesmo tamanho
+function verItemBiblioteca(i, folha) {
+  if (!i) return;
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  const previa = i.tipo === 'imagem' ? `<img src="${esc(i.dataUrl || i.miniatura)}" alt="${esc(i.nome)}">`
+    : `<pre>${esc(String(i.tipo === 'audio' ? i.texto : i.conteudo || '').slice(0, 20000))}</pre>`;
+  const ficha = [['Tipo', tipoBib(i)], ['Tamanho', tamanhoBonito(i.tam || 0)],
+    i.tipo === 'audio' ? ['Duração', i.segundos ? duracaoBonita(i.segundos) : 'não medida'] : null,
+    i.tipo === 'imagem' && i.w > 0 ? ['Tamanho da imagem', i.w + ' × ' + i.h] : null,
+    i.paginas ? ['Páginas', String(i.paginas)] : null,
+    i.tipo === 'audio' ? ['Palavras', String(String(i.texto || '').split(/\s+/).filter(Boolean).length)] : null,
+    ['Recebido', new Date(i.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })]].filter(Boolean);
+  f.innerHTML = `<div class="dlg folha bib-item">${topoCentro(i.nome, true)}
+    <div class="bib-previa">${previa}</div>
+    <dl class="bib-ficha">${ficha.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+    <div class="bib-acoes">
+      <button class="btn primario" data-a="usar">${ICO.seguir}${i.tipo === 'audio' ? 'Usar o texto' : 'Usar na mensagem'}</button>
+      <button class="btn" data-a="baixar">${ICO.baixar}Baixar</button>
+      ${i.tipo === 'imagem' ? '' : `<button class="btn" data-a="copiar">${ICO.copiar}Copiar</button>`}
+      <button class="btn perigo" data-a="apagar">${ICO.apagar}Apagar</button></div></div>`;
+  const dlg = f.firstChild, sair = () => animarSaida(f, dlg);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; dlg.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, dlg, sair);
+  dlg.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'baixar') return baixarItemBib(i);
+    if (a === 'copiar') return copiarTexto(i.tipo === 'audio' ? i.texto : i.conteudo).then(() => toast('Copiado.'));
+    if (a === 'apagar') { biblioteca = biblioteca.filter(x => x !== i); sair(); desenharBiblioteca(folha); toast('Apagado da biblioteca.'); return; }
+    // usar na mensagem: volta para a conversa já com o anexo (ou com o texto do áudio na caixa)
+    if (i.tipo === 'audio') porTranscricao(i.texto || '');
+    else if (anexos.some(x => x.nome === i.nome)) { toast('Já está na mensagem.'); return; }
+    else if (i.tipo === 'imagem' && anexos.filter(x => x.tipo === 'imagem').length >= MAX_FOTOS) { toast(`Até ${MAX_FOTOS} fotos por mensagem.`); return; }
+    else if (i.tipo === 'arquivo' && anexos.filter(x => x.tipo !== 'imagem').length >= MAX_ANEXOS) { toast(`Até ${MAX_ANEXOS} arquivos por mensagem.`); return; }
+    else anexos.push(i.tipo === 'imagem' ? { tipo: 'imagem', nome: i.nome, tam: i.tam, dataUrl: i.dataUrl, miniatura: i.miniatura } : { nome: i.nome, tam: i.tam, lang: i.lang, conteudo: i.conteudo });
+    sair(); fecharTela(); desenharChips(); ajustar(); $('#entrada').focus();
+  });
+  pausarDesenho(); document.body.appendChild(f);
+}
 /* ---------------- "+": câmera, fotos, arquivos e modelo ---------------- */
 function abrirMais() {
   const temVisao = PLATAFORMA.temVisao;
@@ -1461,9 +1798,9 @@ function abrirMais() {
   folhaArrastavel(f, folha, sair);
   folha.querySelector('[data-modos]').onclick = () => { sair(); setTimeout(abrirModos, 160); };
   folha.querySelector('[data-codigo]').onclick = () => { sair(); setTimeout(() => abrirCodigo(), 160); };
-  folha.querySelectorAll('[data-op]').forEach(b => b.onclick = () => {
+  folha.querySelectorAll('[data-op]').forEach(b => b.onclick = async () => {
     const op = b.dataset.op; sair();
-    if (op === 'camera') (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam();
+    if (op === 'camera') { if (await garantirPermissao('camera')) (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam(); }
     else if (op === 'fotos') $('#fotos').click();
     else if (op === 'arquivos') $('#arquivo').click();
     else if (op === 'audio') garantirVoz().then(ok => ok && $('#audio').click());
@@ -2047,7 +2384,7 @@ const GB = 1073741824;
 let abaAtual = 'modelo';
 const PAGINAS = [
   [['modelo', 'Modelos de IA', ICO.chip], ['atualizacoes', 'Atualizações', ICO.atualizar]],
-  [['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria]],
+  [['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria], ['permissoes', 'Permissões', ICO.escudo]],
   [['diagnostico', 'Diagnóstico', ICO.diagnostico], ['sobre', 'Sobre', ICO.sobre]],
 ];
 const TITULOS = Object.fromEntries(PAGINAS.flat().map(([k, t]) => [k, t]));
@@ -2082,6 +2419,7 @@ function subtitulo(k) {
     case 'conversas': return `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · backup e limpeza`;
     case 'memoria': { const n = memoria().length; return n ? `${n} ${n === 1 ? 'coisa que a IA sabe' : 'coisas que a IA sabe'} sobre você` : 'O que a IA sabe sobre você'; }
     case 'estudo': { const b = baralho(), n = paraRevisar(b).length; return b.cartoes.length ? `${n ? n + ' para revisar hoje' : 'nada para revisar hoje'} · ${b.cartoes.length} cartões` : 'Flashcards, quiz e redação'; }
+    case 'permissoes': return 'Câmera, microfone, avisos e arquivos';
     case 'diagnostico': return 'Testar tudo e medir a velocidade';
     case 'sobre': return 'Própons IA ' + VERSAO;
   }
@@ -2130,7 +2468,7 @@ $('#abrirConfig').onclick = () => abrirConfig();
 
 function desenharAba() {
   const c = $('#corpoConfig'); if (!c) return;
-  ({ geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
+  ({ geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, permissoes: abaPermissoes, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
 }
 function seg(nome, opcoes, atualV) {
   return `<div class="seg" data-seg="${nome}" role="radiogroup">${opcoes.map(([v, r]) => `<button data-v="${v}" role="radio" aria-checked="${v === atualV}" class="${v === atualV ? 'on' : ''}">${r}</button>`).join('')}</div>`;

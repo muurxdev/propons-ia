@@ -49,6 +49,12 @@ const PLATAFORMA = (() => {
     else if (mac) mac.postMessage(obj);
     else if (ios) ios.postMessage(obj);
   };
+  // bytes -> base64 em pedaços (String.fromCharCode estoura a pilha com arrays grandes)
+  const base64De = b => {
+    const u = b instanceof Uint8Array ? b : new Uint8Array(b);
+    let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192));
+    return btoa(s);
+  };
   const pedir = (acao, args = {}, ms = 30000) => new Promise((ok, falha) => {
     if (tipo === 'web') return falha(new Error('sem ponte'));
     const id = ++seq;
@@ -261,13 +267,15 @@ const PLATAFORMA = (() => {
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },
     abrirLink(url) { if (tipo === 'web' || tipo === 'windows') window.open(url, '_blank', 'noopener'); else pedir('link', { url }, 3000).catch(() => {}); },   // android/ios/mac: o app abre no navegador
+    // conteudo pode ser texto ou bytes (Uint8Array/ArrayBuffer) — para os hosts os bytes vão em base64
     async salvarArquivo(nome, conteudo, tipoMime) {
       if (tipo === 'web') {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([conteudo], { type: tipoMime || 'text/plain' })); a.download = nome;
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); return true;
       }
-      return pedir('salvarArquivo', { nome, conteudo, tipo: tipoMime || 'text/plain' }, 120000);
+      const bytes = typeof conteudo !== 'string';
+      return pedir('salvarArquivo', { nome, conteudo: bytes ? base64De(conteudo) : conteudo, base64: bytes, tipo: tipoMime || 'text/plain' }, 120000);
     },
   };
 })();

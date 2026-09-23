@@ -949,7 +949,7 @@ class Janela : Form
                     if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
                     if (novo.Id != modelo.Id) { var _ = TrocarModelo(novo); }
                     dados = true; break;
-                case "salvarArquivo": dados = SalvarArquivo(Arg(args, "nome"), Arg(args, "conteudo")); break;
+                case "salvarArquivo": dados = SalvarArquivo(Arg(args, "nome"), Arg(args, "conteudo"), args.ContainsKey("base64") && args["base64"] is bool && (bool)args["base64"]); break;
                 case "baixarModelo":
                     Modelo mb = Modelo.PorId(Arg(args, "id"));
                     if (mb == null) throw new Exception("modelo desconhecido");
@@ -1301,16 +1301,20 @@ class Janela : Form
         using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) return sr.ReadToEnd();
     }
 
-    object SalvarArquivo(string nome, string conteudo)
+    object SalvarArquivo(string nome, string conteudo, bool base64)
     {
         using (SaveFileDialog d = new SaveFileDialog())
         {
             d.FileName = nome ?? "arquivo.txt";
-            string ext = Path.GetExtension(d.FileName).TrimStart('.');
-            d.Filter = (ext == "json" ? "JSON|*.json" : ext == "md" ? "Markdown|*.md" : "Texto|*.txt") + "|Todos os arquivos|*.*";
+            string ext = Path.GetExtension(d.FileName).TrimStart('.').ToLowerInvariant();
+            string tipo = ext == "json" ? "JSON|*.json" : ext == "md" ? "Markdown|*.md"
+                : ext == "png" ? "Imagem PNG|*.png" : ext == "jpg" || ext == "jpeg" ? "Imagem JPEG|*.jpg;*.jpeg"
+                : ext == "wav" ? "Áudio WAV|*.wav" : ext == "webm" ? "Áudio WebM|*.webm" : "Texto|*.txt";
+            d.Filter = tipo + "|Todos os arquivos|*.*";
             d.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             if (d.ShowDialog(this) != DialogResult.OK) return false;
-            File.WriteAllText(d.FileName, conteudo ?? "", new UTF8Encoding(false));
+            if (base64) File.WriteAllBytes(d.FileName, Convert.FromBase64String(conteudo ?? ""));
+            else File.WriteAllText(d.FileName, conteudo ?? "", new UTF8Encoding(false));
             return true;
         }
     }

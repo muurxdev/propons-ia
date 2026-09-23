@@ -29,22 +29,24 @@ if (reaberto) {
   await js(`anexos = []; desenharChips(); $('#entrada').value=''; ajustar(); abrirMais(); 1`); await espera(700);
   ok('"+" mostra a Biblioteca com 3 itens', await js(`/3 itens/.test(document.querySelector('[data-op="biblioteca"]').innerText)`));
   await js(`document.querySelector('[data-op="biblioteca"]').click(); 1`); await espera(800);
-  ok('biblioteca abre com a foto em miniatura e a lista', await js(`!!document.querySelector('.dlg.biblioteca .bib-foto img') && document.querySelectorAll('.dlg.biblioteca .lm').length === 2`));
+  ok('biblioteca abre como tela, com a foto em miniatura e a lista', await js(`telaAtual === 'biblioteca' && !!document.querySelector('.bib-cart img') && document.querySelectorAll('.bib-linha').length === 2`));
+  ok('o áudio traz a duração e cada item tem baixar', await js(`/[0-9]+:[0-9][0-9]/.test(document.querySelector('.bib-lista').textContent) && document.querySelectorAll('[data-baixar]').length >= 3`), await js(`document.querySelectorAll('[data-baixar]').length + ' com baixar · ' + document.querySelector('.bib-lista').textContent.replace(/[ ]+/g,' ').slice(0,70)`));
   await foto('b1-biblioteca');
-  await js(`document.querySelector('.dlg.biblioteca [data-f="audio"]').click(); 1`); await espera(300);
-  ok('filtro Áudios mostra só o áudio', await js(`document.querySelectorAll('.dlg.biblioteca .lm').length === 1 && !document.querySelector('.dlg.biblioteca .bib-foto')`));
-  await js(`document.querySelector('.dlg.biblioteca [data-f="todos"]').click(); 1`); await espera(300);
+  await js(`document.querySelector('[data-f="audio"]').click(); 1`); await espera(300);
+  ok('filtro Áudios mostra só o áudio', await js(`document.querySelectorAll('.bib-linha').length === 1 && !document.querySelector('.bib-foto')`));
+  await js(`document.querySelector('[data-f="todos"]').click(); 1`); await espera(300);
   // abre a foto e usa na mensagem
-  await js(`document.querySelector('.dlg.biblioteca .bib-foto').click(); 1`); await espera(700);
+  await js(`document.querySelector('.bib-foto').click(); 1`); await espera(700);
   await foto('b2-ver-foto');
-  await js(`[...document.querySelectorAll('.dlg .btn')].find(b=>b.textContent==='Usar na mensagem').click(); 1`); await espera(700);
+  await js(`document.querySelector('.bib-item [data-a="usar"]').click(); 1`); await espera(700);
   ok('"Usar na mensagem" põe a foto de novo na caixa', await js(`!!document.querySelector('#chips .chip.foto')`));
   // apaga o arquivo
   await js(`abrirBiblioteca(); 1`); await espera(700);
-  await js(`[...document.querySelectorAll('.dlg.biblioteca .lm')].find(b=>/soma\\.py/.test(b.innerText)).click(); 1`); await espera(700);
-  await js(`[...document.querySelectorAll('.dlg .btn')].find(b=>b.textContent==='Apagar').click(); 1`); await espera(500);
+  await js(`[...document.querySelectorAll('.bib-abrir')].find(b=>/soma\\.py/.test(b.innerText)).click(); 1`); await espera(700);
+  await js(`document.querySelector('.bib-item [data-a="apagar"]').click(); 1`); await espera(500);
   ok('apagar tira o item da biblioteca', (await js(`biblioteca.map(i=>i.nome).join(',')`)) === 'aula.wav,conta.jpg' || (await js('biblioteca.length')) === 2, await js(`biblioteca.map(i=>i.nome).join(',')`));
   await foto('b3-depois-de-apagar');
+  await js(`fecharTela(); 1`);
 }
 ws.close();
 const falhas = res.filter(x => !x).length;

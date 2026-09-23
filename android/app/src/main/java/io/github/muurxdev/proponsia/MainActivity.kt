@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AtomicFile
+import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
@@ -94,6 +95,7 @@ class MainActivity : Activity() {
     private var aoTentar: (() -> Unit)? = null
     private var escolhaArquivos: ValueCallback<Array<Uri>>? = null
     private var salvarPendente: String? = null
+    private var salvarPendenteBase64 = false
     private var idSalvarPendente: Any? = null
     private val quedas = ArrayDeque<Long>()
 
@@ -494,7 +496,7 @@ class MainActivity : Activity() {
             when (acao) {
                 "tema" -> ui.post { aplicarTema(args.optString("v") == "escuro") }.also { responder(id, true) }
                 "link" -> { abrirLink(args.optString("url")); responder(id, true) }
-                "salvarArquivo" -> ui.post { salvarArquivo(id, args.optString("nome"), args.optString("conteudo"), args.optString("tipo")) }
+                "salvarArquivo" -> ui.post { salvarArquivo(id, args.optString("nome"), args.optString("conteudo"), args.optString("tipo"), args.optBoolean("base64")) }
                 else -> thread {
                     try {
                         val dados: Any = when (acao) {
@@ -751,8 +753,8 @@ class MainActivity : Activity() {
         try { startActivity(Intent.createChooser(i, "Compartilhar")) } catch (_: Exception) {}
     }
 
-    private fun salvarArquivo(id: Any?, nome: String, conteudo: String, tipo: String) {
-        salvarPendente = conteudo; idSalvarPendente = id
+    private fun salvarArquivo(id: Any?, nome: String, conteudo: String, tipo: String, base64: Boolean) {
+        salvarPendente = conteudo; salvarPendenteBase64 = base64; idSalvarPendente = id
         val i = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(tipo.ifEmpty { "text/plain" }).putExtra(Intent.EXTRA_TITLE, nome)
         try { startActivityForResult(i, PEDIDO_SALVAR) } catch (e: Exception) { responderErro(id, "não há app para salvar arquivos") }
     }
@@ -779,11 +781,15 @@ class MainActivity : Activity() {
                 cb?.onReceiveValue(if (tirou) arrayOf(u!!) else null)
             }
             PEDIDO_SALVAR -> {
-                val id = idSalvarPendente; val conteudo = salvarPendente; salvarPendente = null; idSalvarPendente = null
+                val id = idSalvarPendente; val conteudo = salvarPendente; val emBase64 = salvarPendenteBase64
+                salvarPendente = null; salvarPendenteBase64 = false; idSalvarPendente = null
                 val uri = data?.data
                 if (resultCode != RESULT_OK || uri == null) { responder(id, false); return }
                 thread {
-                    try { contentResolver.openOutputStream(uri)?.use { it.write((conteudo ?: "").toByteArray(Charsets.UTF_8)) }; responder(id, true) }
+                    try {
+                        val bytes = if (emBase64) Base64.decode(conteudo ?: "", Base64.DEFAULT) else (conteudo ?: "").toByteArray(Charsets.UTF_8)
+                        contentResolver.openOutputStream(uri)?.use { it.write(bytes) }; responder(id, true)
+                    }
                     catch (e: Exception) { responderErro(id, e.message ?: "erro ao salvar") }
                 }
             }

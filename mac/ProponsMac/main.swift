@@ -538,7 +538,10 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
             let p = NSSavePanel(); p.nameFieldStringValue = a["nome"] as? String ?? "arquivo.txt"
             p.directoryURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first
             guard p.runModal() == .OK, let u = p.url else { return false }
-            try (a["conteudo"] as? String ?? "").write(to: u, atomically: true, encoding: .utf8); return true
+            let txt = a["conteudo"] as? String ?? ""
+            if a["base64"] as? Bool == true, let d = Data(base64Encoded: txt) { try d.write(to: u) }
+            else { try txt.write(to: u, atomically: true, encoding: .utf8) }
+            return true
         case "atualizar": return try await atualizar(a["versao"] as? String ?? "")
         default: throw erro("ação desconhecida: \(acao)")
         }

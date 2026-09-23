@@ -3,7 +3,13 @@
 <h1 align="center">Própons IA</h1>
 
 <p align="center">IA de estudos que roda no seu aparelho — Windows, Mac, Linux, Android e iPhone.<br>
-Chat com histórico, código completo com cores, anexar arquivos e cálculo exato de algoritmos. Funciona offline.</p>
+Chat, flashcards, quiz, correção de redação do ENEM, leitura de PDF e uma área de código completa. Funciona offline.</p>
+
+<p align="center">
+<a href="https://muurxdev.github.io/propons-ia/"><img alt="Baixar" src="https://img.shields.io/badge/baixar-p%C3%A1gina%20oficial-6a48f5?style=for-the-badge"></a>
+<a href="https://github.com/muurxdev/propons-ia/releases/latest"><img alt="Versão" src="https://img.shields.io/github/v/release/muurxdev/propons-ia?style=for-the-badge&label=vers%C3%A3o&color=4b2fd6"></a>
+<a href="docs/novidades.md"><img alt="Novidades" src="https://img.shields.io/badge/novidades-changelog-8f76ff?style=for-the-badge"></a>
+</p>
 
 ---
 
@@ -68,17 +74,37 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 
 ## O que ela faz
 
-- **Chat** com histórico, busca, renomear, exportar (.md), editar e reenviar a pergunta, backup e importação
-- **Código completo** quando você pede, com **cores** por linguagem, rótulo e botão copiar; botão **Continuar** se a resposta for cortada
-- **Botão "+"**: câmera, fotos, arquivos (texto, código, **PDF e DOCX** — o texto é extraído no aparelho) e troca rápida de modelo
-- **Lê as respostas em voz alta** com a voz do aparelho (botão em cada resposta; opção de ler toda resposta enquanto ela chega)
-- **Fala vira texto**: 🎤 grava ou "+" → Áudio transcreve áudio de qualquer tamanho, no próprio aparelho (voz Base 57 MB ou Small 190 MB; no Linux: `propons-ia --voz`)
-- **Biblioteca da sessão** ("+" → Biblioteca): fotos, arquivos e áudios transcritos que você mandou, para ver, usar de novo, copiar ou apagar; some ao fechar o app
+**No dia a dia de estudo**
+
+- **Chat** com histórico, busca, pastas, fixar, lixeira com desfazer, renomear, exportar (.md), **editar qualquer pergunta**, **gerar a resposta de novo** e **ramificar** a conversa em outra
+- **Modos de estudo** no "+": **flashcards** (com baralho e revisão espaçada), **quiz** com correção comentada, **resumo** e **correção de redação** pelas 5 competências do ENEM, com nota de 0 a 200 em cada
+- **Memória**: diga "lembre que eu vou fazer o ENEM" e ela passa a considerar isso; a lista fica visível e apagável em Ajustes → Memória
+- **Algoritmos** (bubble sort, selection sort, quick sort, busca binária): passo a passo e resumo **calculados por código** — sempre corretos
+- **Esforço por modelo**: no Alto, a IA **pensa antes de responder** e você pode abrir o raciocínio
+
+**Entrando com o seu material**
+
+- **Botão "+"**: câmera, fotos, arquivos de texto e código, **PDF e DOCX** — o texto é extraído no próprio aparelho
 - **Lê fotos e prints** (exercício, conta, gráfico, código) com o módulo de visão, baixado na primeira foto; no Linux: `propons-ia --visao`
-- **Algoritmos** (bubble sort, selection sort, quick sort, busca binária com uma lista de números): passo a passo e resumo **calculados por código** — sempre corretos
-- **Modelos de IA:** Própons Lume (leve e rápido) · Própons Aurora (médio, equilibrado) · Própons Ápice (pesado, o mais inteligente; 8 GB no PC, 12 GB no celular). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
-- **PC com placa de vídeo:** aceleração por GPU (Vulkan — NVIDIA, AMD ou Intel, sem instalar nada), ligada em Ajustes → Modelos de IA; a Própons mede processador × placa e só usa a placa se ela for mais rápida (3–4× numa placa dedicada)
-- **Atualizações:** avisa quando sai versão nova e tem o botão **Atualizar tudo**. No Windows e no Android, o próprio app instala; no iPhone, pelo SideStore/AltStore; no Linux, com `propons-ia --atualizar`
+- **Fala vira texto**: grave pelo microfone ou mande um áudio de qualquer tamanho; a transcrição roda no aparelho (voz Base 57 MB ou Small 190 MB; no Linux: `propons-ia --voz`)
+- **Lê as respostas em voz alta** com a voz do aparelho, se quiser enquanto ela ainda está escrevendo
+- **Biblioteca**: uma tela com tudo que você mandou na sessão — fotos, arquivos e áudios com **duração** — para ver, usar de novo, **baixar** ou apagar
+
+**Programando**
+
+- **Área de código**: uma tela com a lógica do chat e o foco em codificar. Você pede em português, ela **lê os arquivos**, propõe criar, alterar ou apagar e mostra **linha a linha o que muda**; nada é gravado sem você tocar em **Aplicar**
+- **Abre uma pasta de verdade** do computador (Windows e Linux) ou usa a área interna do app no celular
+- **Histórico próprio**, **moldes de pedido** para colar, **compactação de contexto** (o que já passou vira um resumo curto) e **gravação de áudio** na mesma caixa
+- **Código completo nas respostas**, com **cores** por linguagem, botão copiar, "Guardar" para mandar para a área de código e **Continuar** se a resposta for cortada
+
+**Do aparelho**
+
+- **Modelos de IA:** Própons Lume (leve e rápido) · Própons Aurora (médio, equilibrado) · Própons Ápice (o mais inteligente; 8 GB no PC, 12 GB no celular). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
+- **Responde em segundo plano** e avisa quando termina, mesmo com a janela minimizada ou a tela apagada
+- **Permissões uma a uma** (câmera, microfone, avisos, pasta de arquivos), cada uma com botão e motivo, em Ajustes → Permissões
+- **PC com placa de vídeo:** aceleração por GPU (Vulkan — NVIDIA, AMD ou Intel, sem instalar nada); a Própons mede processador × placa e só usa a placa se ela for mais rápida (3–4× numa placa dedicada)
+- **API local** opcional (desligada por padrão): os outros aparelhos da sua rede falam com a Própons pelo formato da OpenAI
+- **Atualizações:** avisa quando sai versão nova e tem o botão **Atualizar tudo**. No Windows, no Mac e no Android o próprio app instala; no iPhone, pelo SideStore/AltStore; no Linux, com `propons-ia --atualizar`
 - **Feita para o celular:** tela cheia, ajustes como um app, gestos (arrastar o histórico, segurar uma conversa), compartilhar respostas
 - **Diagnóstico embutido:** memória, processador, espaço, velocidade real da IA e autoteste, com relatório para copiar
 - **Estável e privada:** o motor religa sozinho se cair; histórico com backup; tudo roda no aparelho e só o próprio app acessa o motor
@@ -98,6 +124,8 @@ Na **primeira vez** em cada aparelho ela baixa o modelo (~0,5 / 1,2 / 2,7 GB) co
 | `mac/` | App do Mac (Swift/AppKit + WKWebView + llama-server), montagem do .app e autoteste no CI |
 | `ios/` | App SwiftUI (WKWebView + llama.cpp dentro do app via `llama.xcframework`), projeto XcodeGen e teste do motor |
 | `.github/workflows/` | Compila todas as plataformas e publica a release ao criar uma tag `v*` |
+| `docs/` | Site de download ([muurxdev.github.io/propons-ia](https://muurxdev.github.io/propons-ia/)), guias de instalação e as novidades de cada versão |
+| `treino/` | Dados, scripts e o placar de avaliação do modelo próprio (LoRA sobre o Qwen3.5, exportação para GGUF) |
 
 Motor: [llama.cpp](https://github.com/ggml-org/llama.cpp) b11070 (MIT) · Modelos: [Qwen3.5](https://huggingface.co/unsloth) (Apache 2.0) · Windows: Microsoft WebView2.
 
