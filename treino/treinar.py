@@ -67,5 +67,18 @@ else:
 
 trainer.train()
 model.save_pretrained(args.saida)                      # adaptador LoRA
-model.save_pretrained_merged(args.saida + "-merged", tokenizer, save_method="merged_16bit")   # para converter em GGUF
-print("pronto:", args.saida)
+tokenizer.save_pretrained(args.saida)
+# modelo mesclado (para converter em GGUF): o merge do unsloth copia arquivos do cache (só leitura) e pode falhar;
+# se falhar, mescla pelo peft e grava com o transformers
+import shutil
+mesclado = args.saida + "-merged"
+shutil.rmtree(mesclado, ignore_errors=True)
+try:
+    model.save_pretrained_merged(mesclado, tokenizer, save_method="merged_16bit")
+except Exception as e:
+    print("merge do unsloth falhou (" + str(e)[:80] + "); mesclando pelo peft")
+    shutil.rmtree(mesclado, ignore_errors=True)
+    m = model.merge_and_unload()
+    m.save_pretrained(mesclado, safe_serialization=True)
+    tokenizer.save_pretrained(mesclado)
+print("pronto:", args.saida, "e", mesclado)
