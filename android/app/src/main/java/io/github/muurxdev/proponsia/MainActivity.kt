@@ -789,8 +789,8 @@ class MainActivity : Activity() {
         try { startActivityForResult(i, PEDIDO_PASTA) } catch (e: Exception) { idPastaPendente = null; responderErro(id, "este aparelho não tem seletor de pastas") }
     }
     // cada arquivo da pasta, com o caminho relativo (só texto/código, como no PC)
-    private val TEXTO_CODIGO = Regex("\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|ya?ml|toml|ini|cfg|conf|sh|bash|ps1|bat|lua|r|dart|vue|svelte|env|gitignore|csv)$", RegexOption.IGNORE_CASE)
-    private val PASTAS_FORA = Regex("^(node_modules|\.git|dist|build|out|__pycache__|venv|\.venv|target|bin|obj|\.next|\.cache)$", RegexOption.IGNORE_CASE)
+    private val TEXTO_CODIGO = Regex("\\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|ya?ml|toml|ini|cfg|conf|sh|bash|ps1|bat|lua|r|dart|vue|svelte|env|gitignore|csv)$", RegexOption.IGNORE_CASE)
+    private val PASTAS_FORA = Regex("^(node_modules|\\.git|dist|build|out|__pycache__|venv|\\.venv|target|bin|obj|\\.next|\\.cache)$", RegexOption.IGNORE_CASE)
     private fun andarPasta(arvore: Uri, docId: String, prefixo: String, nivel: Int, saida: JSONArray, mapa: MutableMap<String, String>) {
         if (nivel > 6 || saida.length() >= 400) return
         val filhos = DocumentsContract.buildChildDocumentsUriUsingTree(arvore, docId)
