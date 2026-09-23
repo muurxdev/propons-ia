@@ -93,7 +93,7 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 **Programando**
 
 - **Área de código**: uma tela com a lógica do chat e o foco em codificar. Você pede em português, ela **lê os arquivos**, propõe criar, alterar ou apagar e mostra **linha a linha o que muda**; nada é gravado sem você tocar em **Aplicar**
-- **Abre uma pasta de verdade** do computador (Windows e Linux) ou usa a área interna do app no celular
+- **Abre uma pasta de verdade** do computador (Windows e Linux) ou do celular (Android, pelo seletor do sistema)
 - **Histórico próprio**, **moldes de pedido** para colar, **compactação de contexto** (o que já passou vira um resumo curto) e **gravação de áudio** na mesma caixa
 - **Código completo nas respostas**, com **cores** por linguagem, botão copiar, "Guardar" para mandar para a área de código e **Continuar** se a resposta for cortada
 
@@ -103,6 +103,7 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Responde em segundo plano** e avisa quando termina, mesmo com a janela minimizada ou a tela apagada
 - **Permissões uma a uma** (câmera, microfone, avisos, pasta de arquivos), cada uma com botão e motivo, em Ajustes → Permissões
 - **PC com placa de vídeo:** aceleração por GPU (Vulkan — NVIDIA, AMD ou Intel, sem instalar nada); a Própons mede processador × placa e só usa a placa se ela for mais rápida (3–4× numa placa dedicada)
+- **Pesquisa na internet** opcional (desligada por padrão): ligada no "+", ela busca, cita as fontes com link e, sem conexão, avisa e responde com o que já sabe
 - **API local** opcional (desligada por padrão): os outros aparelhos da sua rede falam com a Própons pelo formato da OpenAI
 - **Atualizações:** avisa quando sai versão nova e tem o botão **Atualizar tudo**. No Windows, no Mac e no Android o próprio app instala; no iPhone, pelo SideStore/AltStore; no Linux, com `propons-ia --atualizar`
 - **Feita para o celular:** tela cheia, ajustes como um app, gestos (arrastar o histórico, segurar uma conversa), compartilhar respostas
