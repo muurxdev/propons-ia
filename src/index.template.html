@@ -151,6 +151,11 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .acao svg{width:16px;height:16px}
 .acao.feito{color:var(--ok)}
 .acao.on{color:var(--accent)}
+/* raciocínio (Esforço Alto) */
+.pensando{margin:4px 0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px;color:var(--muted)}
+.pensando summary{padding:6px 10px;cursor:pointer;color:var(--muted);font-weight:500;list-style:none;display:flex;align-items:center;gap:6px} .pensando summary::before{content:"▸";font-size:11px} .pensando[open] summary::before{content:"▾"}
+.pensando[open] summary{border-bottom:1px solid var(--line)}
+.pens-txt{padding:8px 10px;white-space:pre-wrap;max-height:220px;overflow:auto;line-height:1.45}
 /* memória e aviso com ação */
 .mem-lista{display:flex;flex-direction:column}
 .mem-item{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-top:1px solid var(--line);font-size:14px} .mem-item:first-child{border-top:0} .mem-item span{flex:1}

@@ -189,7 +189,7 @@ function validar(lista) {
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
       ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
-      ...(m.erro ? { erro: txt(m.erro) } : {}),
+      ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
       ...(m.passos && Array.isArray(m.passos.lista) ? { passos: { titulo: txt(m.passos.titulo), lista: m.passos.lista.map(txt) } } : {}),
@@ -409,6 +409,7 @@ function addIa(m, ultima) {
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
   d.innerHTML = `<div class="txt${widget ? ' widget' : ''}">${widget || md(m.texto || '')}</div>` +
+    (m.pensou ? `<details class="pensando"><summary>Raciocínio</summary><div class="pens-txt">${esc(m.pensou)}</div></details>` : '') +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
@@ -749,15 +750,16 @@ async function prepararFoto(f) {
 const LIMITE_DOC = 40 * 1048576, MAX_PAGINAS = 300, MAX_TEXTO_DOC = 200000;
 const scriptDe = id => { const el = document.getElementById(id); if (!el || !el.textContent) throw new Error('biblioteca não embutida'); return URL.createObjectURL(new Blob([el.textContent], { type: 'text/javascript' })); };
 let pdfjs = null, mammothLib = null;
+const comLimite = (p, ms, oque) => Promise.race([p, new Promise((_, f) => setTimeout(() => f(new Error(oque + ' demorou demais')), ms))]);   // nunca fica esperando para sempre
 async function carregarPdfjs() {
   if (pdfjs) return pdfjs;
-  const mod = await import(scriptDe('vendor-pdf'));
+  const mod = await comLimite(import(scriptDe('vendor-pdf')), 25000, 'a leitura de PDF');
   mod.GlobalWorkerOptions.workerPort = new Worker(scriptDe('vendor-pdf-worker'), { type: 'module' });
   return pdfjs = mod;
 }
 async function carregarMammoth() {
   if (mammothLib) return mammothLib;
-  await new Promise((ok, falha) => { const s = document.createElement('script'); s.src = scriptDe('vendor-mammoth'); s.onload = ok; s.onerror = () => falha(new Error('mammoth não carregou')); document.head.appendChild(s); });
+  await comLimite(new Promise((ok, falha) => { const s = document.createElement('script'); s.src = scriptDe('vendor-mammoth'); s.onload = ok; s.onerror = () => falha(new Error('mammoth não carregou')); document.head.appendChild(s); }), 25000, 'a leitura do documento');
   return mammothLib = window.mammoth;
 }
 // → { texto, paginas, cortado }: texto por página ("— página N —"), até MAX_PAGINAS páginas e MAX_TEXTO_DOC caracteres
@@ -805,7 +807,7 @@ async function adicionarArquivos(lista) {
       if (ESCOLHER) { toast('Mande a primeira mensagem para ligar a IA; depois anexe o documento.', 4000); continue; }
       toast(ePdf ? 'Lendo o PDF…' : 'Lendo o documento…', 2500);
       let d;
-      try { d = ePdf ? await extrairPdf(f) : await extrairDocx(f); }
+      try { d = ePdf ? await comLimite(extrairPdf(f), 120000, 'a leitura do PDF') : await comLimite(extrairDocx(f), 60000, 'a leitura do documento'); }
       catch (e) { toast(`Não consegui ler "${f.name}"${/password|senha|encrypt/i.test(e.message || '') ? ' (tem senha)' : ''}.`, 4000); continue; }
       if (!d.texto.trim()) { toast(ePdf ? `"${f.name}" não tem texto (pode ser só imagem — mande as páginas como fotos).` : `"${f.name}" está vazio.`, 4500); continue; }
       // quanto cabe na memória da IA nesta conversa (o resto é cortado ao enviar)
@@ -1129,7 +1131,7 @@ addEventListener('resize', () => document.querySelectorAll('.dlg-fundo.pop:not(.
    Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado) e Própons Ápice (pesado, o mais capaz). */
 const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
-const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], alto: ['Alto', 'Pensa mais antes de responder. Mais lento e mais cuidadoso.'] };
+const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
 const esforco = () => ESFORCO[pref('esforco')] ? pref('esforco') : 'medio';
 ICO.esforco = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
 function abrirEsforco(depois) {
@@ -1420,6 +1422,8 @@ async function responder(conv, continuacao) {
   const texto = pergunta ? pergunta.texto : '';
   const modo = (pergunta && MODOS[pergunta.modo]) || null, comEsquema = !!(modo && modo.esquema);   // modo de estudo com JSON
   const pedeCodigo = !modo && PEDE_CODIGO.test(texto);
+  // Esforço Alto: o modelo raciocina antes de responder (thinking do Qwen3.5); o raciocínio aparece recolhível
+  const pensar = esforco() === 'alto' && !comEsquema && !continuacao && PLATAFORMA.tipo !== 'ios';
 
   // algoritmo com lista de números: passo a passo e resumo calculados por código (exatos e instantâneos)
   const tr = (continuacao || pedeCodigo || (pergunta && (pergunta.anexos || pergunta.imagens))) ? null : detectTrace(texto);
@@ -1439,7 +1443,7 @@ async function responder(conv, continuacao) {
   }
 
   const nivel = esforco();
-  const maxTokens = nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;
+  const maxTokens = pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;   // pensar gasta tokens do raciocínio
   const SISTEMA = SYSTEM + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.' : nivel === 'alto' ? '\n\nAntes de responder, pense com cuidado: entenda o que foi pedido, resolva passo a passo e confira o resultado. Depois responda de forma completa, organizada e correta.' : '');
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
   const historico = montarHistorico(conv, maxTokens);
@@ -1458,6 +1462,10 @@ async function responder(conv, continuacao) {
     alvo = atual === conv ? addIa({ texto: '', interno: true }, false) : null;
   }
   if (alvo) { alvo.classList.add('digitando'); if (comEsquema) alvo.innerHTML = `<p class="info">${esc(modo.espera)}</p>`; }   // JSON não é mostrado enquanto chega
+  // raciocínio (Esforço Alto): bloco recolhível acima da resposta enquanto pensa; recolhe quando a resposta começa
+  let pensEl = null, pensTxt = '';
+  if (alvo && pensar) { pensEl = document.createElement('details'); pensEl.className = 'pensando'; pensEl.open = true; pensEl.innerHTML = '<summary>Pensando…</summary><div class="pens-txt"></div>'; alvo.parentNode.insertBefore(pensEl, alvo); }
+  const aoPensar = pensar ? p => { pensTxt += p; if (pensEl) pensEl.querySelector('.pens-txt').textContent = pensTxt.slice(-3000); rolar(); } : undefined;
   const ctrl = new AbortController();
   geracao = { conv, ctrl, el: alvo };
   // leitura em voz alta enquanto a resposta chega (Aparência → Ler em voz alta: toda resposta)
@@ -1527,8 +1535,9 @@ async function responder(conv, continuacao) {
     // temperatura livre (0,6–0,7, a recomendada para o Qwen3.5) para a mesma pergunta não cair sempre no mesmo texto;
     // baixa em código e contas. A semente, o DRY e o XTC ficam em plataforma.js.
     const r = await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
-      { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined }, t => {
+      { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
+        if (pensEl && pensEl.open) { pensEl.open = false; pensEl.querySelector('summary').textContent = 'Raciocínio'; }
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';
@@ -1547,6 +1556,8 @@ async function responder(conv, continuacao) {
     novo = novo.trimEnd() + '\n\n*Os números do exemplo acima são só ilustrativos. Para um passo a passo exato, me mande a lista — por exemplo: **bubble sort em [5, 2, 8, 1]**.*';
   }
   msg.texto = (inicio + novo).trim(); msg.llm = msg.texto;
+  if (pensEl) pensEl.remove();
+  if (pensTxt.trim()) msg.pensou = pensTxt.trim().slice(0, 6000); else delete msg.pensou;   // o raciocínio fica gravado, recolhido
   if (comEsquema && !erro) {   // o JSON vira o widget; se não deu (cortado/abortado), avisa
     const d = normalizarModo(pergunta.modo, extrairJSON(novo));
     if (d) { msg[modo.campo] = d; msg.texto = markdownDoModo(pergunta.modo, d); msg.llm = msg.texto; }

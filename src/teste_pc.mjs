@@ -221,6 +221,18 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('reenviar refaz a conversa a partir da pergunta editada', ed.n === 2 && /5 \+ 5/.test(ed.p) && /10|dez/i.test(ed.r), JSON.stringify(ed));
   await js(`conversas = conversas.filter(c => c.id !== 'edit1'); nova(); 1`);
 }
+// 1.19: Esforço Alto = o modelo raciocina antes (thinking), com o raciocínio recolhível e gravado
+{
+  await js(`pref('esforco', 'alto'); atualizarSeletorModelo(); nova(); (()=>{ const e=$('#entrada'); e.value='Quanto é 17 vezes 23? Responda só o número.'; ajustar(); $('#enviar').click(); })(); 1`);
+  let viuPensando = false; for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.ia details.pensando')`); }
+  for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
+  for (let i = 0; i < 960 && (await js('!!geracao')); i++) await espera(250);
+  const pr = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1]; return { pensou: (m.pensou || '').length, texto: m.texto.slice(0, 40), detalhe: !!document.querySelector('.msg.ia:last-child details.pensando'), fechado: !document.querySelector('.msg.ia:last-child details.pensando').open } })()`);
+  ok('esforço Alto: bloco "Pensando…" aparece enquanto raciocina', viuPensando);
+  ok('esforço Alto: raciocínio gravado e recolhido, resposta separada', pr.pensou > 50 && pr.detalhe && pr.fechado && !/Thinking|Process/.test(pr.texto), JSON.stringify(pr));
+  console.log('     resposta (17 × 23):', pr.texto);
+  await js(`pref('esforco', 'medio'); atualizarSeletorModelo(); nova(); 1`);
+}
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
 ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));

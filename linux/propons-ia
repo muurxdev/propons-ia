@@ -338,7 +338,7 @@ ligar_motor() {  # usa PORTA e CHAVE já definidas
   # GPU: o llama.cpp carrega o backend Vulkan da pasta GGML_BACKEND_PATH; sem GPU a variável fica vazia (só CPU)
   local gpu=(); if [ "$GPU_ATIVA" = 1 ]; then gpu=(-ngl 999 -dev "$GPU_DISP"); export GGML_BACKEND_PATH="$GPU_SO"; else unset GGML_BACKEND_PATH; fi
   nice -n 5 "$MOTOR" -m "$ARQ" "${visao[@]}" "${gpu[@]}" --host 127.0.0.1 --port "$PORTA" --path "$INTERFACE" \
-    -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning off --reasoning-budget 0 --api-key-file "$CHAVEFILE" >>"$LOG" 2>&1 &
+    -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning-format auto --reasoning-budget 1200 --api-key-file "$CHAVEFILE" >>"$LOG" 2>&1 &
   MOTOR_PID=$!
   echo "$MOTOR_PID" >"$PIDFILE"; echo "$PORTA" >"$PORTAFILE"
 }

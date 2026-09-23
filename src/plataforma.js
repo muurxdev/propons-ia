@@ -112,8 +112,9 @@ const PLATAFORMA = (() => {
   /* geração via HTTP (llama-server, compatível com OpenAI, com streaming) */
   async function gerarHTTP(mensagens, op, aoToken, sinal) {
     if (op.continuar && mensagens.length && mensagens[mensagens.length - 1].role === 'assistant') return continuarHTTP(mensagens, op, aoToken, sinal);
+    // op.pensar (Esforço Alto): o modelo raciocina antes de responder; o raciocínio chega em reasoning_content (op.aoPensar)
     const corpo = { messages: mensagens, stream: true, ...amostragem(op), max_tokens: op.maxTokens, cache_prompt: true,
-      chat_template_kwargs: { enable_thinking: false }, timings_per_token: false };
+      chat_template_kwargs: { enable_thinking: !!op.pensar }, timings_per_token: false };
     // modos de estudo: a resposta segue um esquema JSON (o motor força pela gramática — nunca vem JSON quebrado)
     if (op.esquema) corpo.response_format = { type: 'json_schema', json_schema: { name: 'resposta', schema: op.esquema } };
     const r = await fetch(base + '/v1/chat/completions', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify(corpo) });
@@ -121,7 +122,7 @@ const PLATAFORMA = (() => {
     let fim = null, timings = null;
     await lerSSE(r, j => {
       const ch = j.choices && j.choices[0];
-      if (ch) { const c = ch.delta && ch.delta.content; if (c) aoToken(c); if (ch.finish_reason) fim = ch.finish_reason; }
+      if (ch) { const c = ch.delta && ch.delta.content; if (c) aoToken(c); const p = ch.delta && ch.delta.reasoning_content; if (p && op.aoPensar) op.aoPensar(p); if (ch.finish_reason) fim = ch.finish_reason; }
       if (j.timings) timings = j.timings;
     });
     return { fim: fim || 'stop', timings };

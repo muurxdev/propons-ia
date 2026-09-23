@@ -370,7 +370,7 @@ class MainActivity : Activity() {
         // prioridade menor (nice) que a da tela: a interface continua lisa enquanto a IA responde
         val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
         val pb = ProcessBuilder(*nice, exe.path, "-m", arq.path, "--host", "127.0.0.1", "--port", "$porta", "--path", pastaInterface.path,
-            "-c", "4096", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning", "off", "--reasoning-budget", "0",
+            "-c", "4096", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "900",
             "--api-key-file", arquivoChave().path, "-t", "$threads", *argsVisao())
         pb.environment()["LD_LIBRARY_PATH"] = dir
         pb.directory(filesDir); pb.redirectErrorStream(true); pb.redirectOutput(File(filesDir, "motor.log"))
