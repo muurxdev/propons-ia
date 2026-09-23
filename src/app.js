@@ -415,6 +415,122 @@ function addIa(m, ultima) {
   if (!m.interno || m.erro) acoes(d, m, ultima);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
 }
+/* ---------------- Área de código (estilo Claude Code, em qualquer aparelho) ----------------
+   Um projeto de arquivos guardado no aparelho: criar/editar/apagar arquivos, pedir mudanças à IA (ela devolve o
+   arquivo inteiro e a gente mostra o diff para aceitar ou recusar), salvar no disco e mandar um arquivo para o chat.
+   Sem rodar código: o que a IA escreve você aceita, recusa ou exporta. */
+ICO.codigo = '<svg viewBox="0 0 24 24"><path d="M9 8l-4 4 4 4"/><path d="M15 8l4 4-4 4"/></svg>';
+ICO.mais = ICO.mais || '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+ICO.salvar = '<svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M9 4v5h6V4"/><path d="M8 13h8v7H8z"/></svg>';
+const LIMITE_CODIGO = 120000;   // por arquivo
+function projeto() { try { const p = JSON.parse(pref('projeto') || 'null'); if (p && Array.isArray(p.arquivos)) return p; } catch (e) {} return { arquivos: [], aberto: '' }; }
+function salvarProjeto(p) { pref('projeto', JSON.stringify(p)); }
+const arqDoProjeto = (p, nome) => p.arquivos.find(a => a.nome === nome);
+function guardarNoProjeto(nome, conteudo, avisar) {
+  const p = projeto(); nome = String(nome || 'arquivo.txt').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60) || 'arquivo.txt';
+  let n = nome, i = 2; while (arqDoProjeto(p, n) && arqDoProjeto(p, n).conteudo !== conteudo) { n = nome.replace(/(\.[^.]*)?$/, `-${i++}$1`); }
+  const a = arqDoProjeto(p, n);
+  if (a) a.conteudo = String(conteudo).slice(0, LIMITE_CODIGO);
+  else p.arquivos.push({ nome: n, conteudo: String(conteudo).slice(0, LIMITE_CODIGO), lang: langDoArquivo(n) || 'texto', criado: Date.now() });
+  p.aberto = n; salvarProjeto(p);
+  if (avisar) toast(`"${n}" está na área de código.`, 2600);
+  return n;
+}
+// diff por linhas (o bastante para mostrar o que a IA mudou)
+function diffLinhas(velho, novo) {
+  const a = String(velho).split('\n'), b = String(novo).split('\n');
+  const m = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) m[i][j] = a[i] === b[j] ? m[i + 1][j + 1] + 1 : Math.max(m[i + 1][j], m[i][j + 1]);
+  const saida = []; let i = 0, j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { saida.push([' ', a[i]]); i++; j++; }
+    else if (m[i + 1][j] >= m[i][j + 1]) { saida.push(['-', a[i]]); i++; }
+    else { saida.push(['+', b[j]]); j++; }
+  }
+  while (i < a.length) saida.push(['-', a[i++]]);
+  while (j < b.length) saida.push(['+', b[j++]]);
+  return saida;
+}
+function htmlDiff(d) {
+  const linhas = [];
+  for (let k = 0; k < d.length; k++) {
+    const [s, t] = d[k];
+    if (s === ' ') {   // contexto: mostra 2 linhas em volta das mudanças
+      const perto = d.slice(Math.max(0, k - 2), k + 3).some(x => x[0] !== ' ');
+      if (!perto) { if (linhas[linhas.length - 1] !== '<i class="dif-corte">⋯</i>') linhas.push('<i class="dif-corte">⋯</i>'); continue; }
+    }
+    linhas.push(`<i class="dif-l${s === '+' ? ' mais' : s === '-' ? ' menos' : ''}">${esc((s === ' ' ? '  ' : s + ' ') + t)}</i>`);
+  }
+  return `<div class="dif">${linhas.join('')}</div>`;
+}
+const ESQ_CODIGO = { type: 'object', properties: { explicacao: { type: 'string' }, conteudo: { type: 'string' } }, required: ['explicacao', 'conteudo'], additionalProperties: false };
+let editorPendente = null;   // { nome, novo, explicacao }
+function abrirCodigo(nomeAbrir) {
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha codigo">${topoCentro('Área de código')}<div class="cod"></div></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, folha, sair);
+  const p0 = projeto(); if (nomeAbrir) { p0.aberto = nomeAbrir; salvarProjeto(p0); }
+  const desenhar = () => {
+    const p = projeto(), cod = folha.querySelector('.cod');
+    const a = arqDoProjeto(p, p.aberto) || p.arquivos[0];
+    if (a) p.aberto = a.nome;
+    cod.innerHTML = `<div class="cod-abas">${p.arquivos.map(x => `<button class="cod-aba${x.nome === p.aberto ? ' on' : ''}" data-abrir="${esc(x.nome)}">${esc(x.nome)}</button>`).join('')}<button class="cod-aba novo" data-novo aria-label="Novo arquivo">${ICO.mais}</button></div>
+      ${a ? `<div class="cod-barra"><span class="cod-lang">${esc(a.lang || 'texto')}</span><span class="cod-info">${a.conteudo.split('\n').length} linhas · ${tamanhoBonito(new Blob([a.conteudo]).size)}</span>
+          <button class="icone" data-acao="renomear" title="Renomear" aria-label="Renomear">${ICO.renomear}</button>
+          <button class="icone" data-acao="salvar" title="Salvar no aparelho" aria-label="Salvar no aparelho">${ICO.salvar}</button>
+          <button class="icone" data-acao="chat" title="Mandar para o chat" aria-label="Mandar para o chat">${ICO.seguir}</button>
+          <button class="icone" data-acao="apagar" title="Apagar arquivo" aria-label="Apagar arquivo">${ICO.apagar}</button></div>
+        <textarea class="cod-editor" spellcheck="false" placeholder="Escreva ou cole o código…">${esc(a.conteudo)}</textarea>
+        ${editorPendente && editorPendente.nome === a.nome ? `<div class="cod-dif"><p class="info">${esc(editorPendente.explicacao || 'Mudança sugerida pela IA')}</p>${htmlDiff(diffLinhas(a.conteudo, editorPendente.novo))}
+          <div class="botoes" style="justify-content:flex-start"><button class="btn primario" data-acao="aplicar">Aplicar</button><button class="btn" data-acao="descartar">Descartar</button></div></div>` : ''}
+        <div class="cod-pedido"><input class="cod-instrucao" placeholder="O que a IA deve fazer neste arquivo? (ex.: comentar as funções)" maxlength="400"><button class="btn primario" data-acao="pedir">Pedir</button></div>`
+      : `<p class="info" style="padding:16px 14px">Nenhum arquivo ainda. Toque em <b>+</b> para criar, ou use "Guardar na área de código" num bloco de código de uma resposta.</p>`}`;
+    // trocar de arquivo / criar
+    cod.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => { const q = projeto(); q.aberto = b.dataset.abrir; salvarProjeto(q); editorPendente = null; desenhar(); });
+    const bn = cod.querySelector('[data-novo]');
+    if (bn) bn.onclick = async () => { const nome = await perguntarTexto('Nome do arquivo', 'novo.py'); if (!nome) return; guardarNoProjeto(nome, '', false); editorPendente = null; desenhar(); };
+    const ed = cod.querySelector('.cod-editor');
+    if (ed) {
+      let t = null;
+      ed.oninput = () => { clearTimeout(t); t = setTimeout(() => { const q = projeto(), x = arqDoProjeto(q, q.aberto); if (x) { x.conteudo = ed.value.slice(0, LIMITE_CODIGO); salvarProjeto(q); } }, 350); };
+      ed.onkeydown = e => { if (e.key === 'Tab') { e.preventDefault(); const s = ed.selectionStart; ed.setRangeText('  ', s, ed.selectionEnd, 'end'); ed.dispatchEvent(new Event('input')); } };
+    }
+    cod.querySelectorAll('[data-acao]').forEach(b => b.onclick = async () => {
+      const q = projeto(), x = arqDoProjeto(q, q.aberto); if (!x) return;
+      if (b.dataset.acao === 'renomear') { const nome = await perguntarTexto('Renomear arquivo', x.nome); if (!nome) return; x.nome = nome.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60); x.lang = langDoArquivo(x.nome) || 'texto'; q.aberto = x.nome; salvarProjeto(q); desenhar(); }
+      else if (b.dataset.acao === 'salvar') PLATAFORMA.salvarArquivo(x.nome, x.conteudo, 'text/plain').then(r => r !== false && toast('Arquivo salvo.')).catch(e => toast('Não deu para salvar: ' + e.message, 4000));
+      else if (b.dataset.acao === 'chat') { sair(); anexos = anexos.filter(y => y.nome !== x.nome); anexos.push({ nome: x.nome, tam: new Blob([x.conteudo]).size, lang: x.lang, conteudo: x.conteudo }); desenharChips(); ajustar(); $('#entrada').focus(); }
+      else if (b.dataset.acao === 'apagar') { if (!await confirmar('Apagar arquivo?', `<p>"${esc(x.nome)}" sai da área de código (o que você já salvou no aparelho continua lá).</p>`, 'Apagar')) return; q.arquivos = q.arquivos.filter(y => y !== x); q.aberto = (q.arquivos[0] || {}).nome || ''; salvarProjeto(q); editorPendente = null; desenhar(); }
+      else if (b.dataset.acao === 'aplicar') { x.conteudo = editorPendente.novo.slice(0, LIMITE_CODIGO); salvarProjeto(q); editorPendente = null; desenhar(); toast('Mudança aplicada.'); }
+      else if (b.dataset.acao === 'descartar') { editorPendente = null; desenhar(); }
+      else if (b.dataset.acao === 'pedir') await pedirCodigo(cod, x, desenhar);
+    });
+  };
+  desenhar();
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
+}
+async function pedirCodigo(cod, arq, desenhar) {
+  const campo = cod.querySelector('.cod-instrucao'), instrucao = (campo.value || '').trim();
+  if (!instrucao) { campo.focus(); return; }
+  if (!online) { toast('A IA ainda está ligando.'); return; }
+  if (geracao) { toast('Espere a resposta atual terminar.'); return; }
+  const bt = cod.querySelector('[data-acao="pedir"]'); bt.disabled = true; const antes = bt.textContent; bt.innerHTML = htmlTrabalhando(); const pararP = novaPalavra(bt.firstChild, true);
+  try {
+    let saida = '';
+    await PLATAFORMA.gerar([{ role: 'system', content: SYSTEM },
+      { role: 'user', content: `Este é o arquivo "${arq.nome}":\n\n\`\`\`${arq.lang}\n${arq.conteudo}\n\`\`\`\n\nTarefa: ${instrucao}\n\nResponda em JSON: "explicacao" (1 a 3 frases sobre o que mudou, em português do Brasil) e "conteudo" (o arquivo INTEIRO já modificado, sem cercas de código e sem comentários explicativos a mais). Se nada precisar mudar, devolva o arquivo igual e explique por quê.` }],
+      { temperatura: 0.2, exato: true, maxTokens: 4000, esquema: ESQ_CODIGO }, t => { saida += t; });
+    const bruto = extrairJSON(saida);
+    if (!bruto || typeof bruto.conteudo !== 'string' || !bruto.conteudo.trim()) throw new Error('a IA não devolveu o arquivo (tente um pedido menor)');
+    if (bruto.conteudo.trim() === arq.conteudo.trim()) { toast('A IA não viu nada para mudar: ' + String(bruto.explicacao || '').slice(0, 120), 5000); return; }
+    editorPendente = { nome: arq.nome, novo: bruto.conteudo, explicacao: bruto.explicacao };
+    campo.value = '';
+  } catch (e) { toast('Não deu para pedir: ' + e.message, 4000); }
+  finally { if (pararP) pararP(); bt.disabled = false; bt.textContent = antes; desenhar(); }
+}
+
 /* ---------------- "Working": a palavra em inglês com brilho passando enquanto a IA não escreveu nada ----------------
    Uma palavra só, trocando de vez em quando (como no Claude). O brilho é CSS; aqui só trocamos a palavra. */
 const PALAVRAS_TRABALHANDO = ['Working', 'Thinking', 'Reasoning', 'Pondering', 'Analyzing', 'Reflecting', 'Considering', 'Figuring it out', 'Processing'];
@@ -641,7 +757,8 @@ function abrirModos() {
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = () => { sair(); abrirMais(); };
   folhaArrastavel(f, folha, sair);
-  folha.querySelectorAll('[data-modo]').forEach(bt => bt.onclick = () => { sair(); if (bt.dataset.modo === 'revisar') abrirRevisao(); else { definirModo(bt.dataset.modo); toast(`Modo ${MODOS[bt.dataset.modo].nome}: cole o conteúdo ou diga o tema e envie.`, 3500); } });
+  // sem aviso na tela: o chip "Modo: …" na caixa e o texto do campo já dizem o que fazer
+  folha.querySelectorAll('[data-modo]').forEach(bt => bt.onclick = () => { sair(); if (bt.dataset.modo === 'revisar') abrirRevisao(); else definirModo(bt.dataset.modo); });
   pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
 }
 function abaEstudo(c) {
@@ -747,6 +864,10 @@ function enfeitar(el) {
     const b = document.createElement('button'); b.className = 'copiar'; b.innerHTML = ICO.copiar + '<span>Copiar</span>';
     b.onclick = () => copiarTexto(p.querySelector('code').innerText).then(() => { b.lastChild.textContent = 'Copiado'; setTimeout(() => b.lastChild.textContent = 'Copiar', 1200); });
     p.appendChild(b);
+    // guardar o bloco na área de código (dá para editar e pedir mudanças lá)
+    const g = document.createElement('button'); g.className = 'copiar guardar'; g.innerHTML = ICO.codigo + '<span>Guardar</span>';
+    g.onclick = () => { const lang = (p.dataset.lang || '').toLowerCase(), ext = ({ python: 'py', javascript: 'js', typescript: 'ts', 'c/c++': 'c', c: 'c', 'c#': 'cs', java: 'java', kotlin: 'kt', html: 'html', css: 'css', json: 'json', sql: 'sql', bash: 'sh', go: 'go', rust: 'rs', php: 'php', ruby: 'rb', swift: 'swift' })[lang] || 'txt'; const nome = guardarNoProjeto('codigo.' + ext, p.querySelector('code').innerText, true); abrirCodigo(nome); };
+    p.appendChild(g);
   });
   el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); });
 }
@@ -1140,6 +1261,7 @@ function abrirMais() {
       <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span><span class="pt"><b>Áudio</b><small>${PLATAFORMA.temTranscricao ? 'Transcrever uma gravação' : 'Indisponível neste aparelho'}</small></span>${ICO.seta}</button>
       <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span><span class="pt"><b>Biblioteca</b><small>${nBib ? nBib + (nBib === 1 ? ' item' : ' itens') + ' nesta sessão' : 'Fotos, arquivos e áudios desta sessão'}</small></span>${ICO.seta}</button>
       <button data-modos><span class="oi">${ICO.estudo}</span><span class="pt"><b>Modos de estudo</b><small>${modoAtivo ? 'Ativo: ' + MODOS[modoAtivo].nome : 'Flashcards, quiz, redação, resumo e revisão'}</small></span>${ICO.seta}</button>
+      <button data-codigo><span class="oi">${ICO.codigo}</span><span class="pt"><b>Área de código</b><small>${(() => { const n = projeto().arquivos.length; return n ? `${n} ${n === 1 ? 'arquivo' : 'arquivos'} · editar e pedir mudanças` : 'Escrever, editar e pedir mudanças à IA'; })()}</small></span>${ICO.seta}</button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:8px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
   const folha = f.firstChild;
@@ -1150,6 +1272,7 @@ function abrirMais() {
   folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
   folha.querySelector('[data-modos]').onclick = () => { sair(); setTimeout(abrirModos, 160); };
+  folha.querySelector('[data-codigo]').onclick = () => { sair(); setTimeout(() => abrirCodigo(), 160); };
   folha.querySelectorAll('[data-op]').forEach(b => b.onclick = () => {
     const op = b.dataset.op; sair();
     if (op === 'camera') (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam();
@@ -1182,17 +1305,22 @@ addEventListener('resize', () => document.querySelectorAll('.dlg-fundo.pop:not(.
 const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
 const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
-const esforco = () => ESFORCO[pref('esforco')] ? pref('esforco') : 'medio';
+/* o esforço é por modelo (cada um tem o seu; o Lume costuma pedir Baixo, o Ápice aguenta Alto) */
+const idModeloAtual = () => (ESCOLHER ? MODELO_INICIAL : ((sistemaCache && (sistemaCache.modelos || []).find(m => m.atual) || {}).id)) || 'normal';
+const esforcoDe = id => { const v = pref('esforco:' + id) || (id === pref('esforcoModelo') ? pref('esforco') : null); return ESFORCO[v] ? v : 'medio'; };
+const esforco = () => esforcoDe(idModeloAtual());
+const definirEsforco = (id, v) => { pref('esforco:' + id, v); pref('esforco', v); pref('esforcoModelo', id); };
 ICO.esforco = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
 function abrirEsforco(depois) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço', true)}<div class="lista-modelos">${Object.entries(ESFORCO).map(([k, [r, d]]) =>
-    `<button class="lm${k === esforco() ? ' on' : ''}" data-e="${k}"><span class="pt"><b>${r}</b><small>${d}</small></span><span class="st">${k === esforco() ? `<span class="check">${ICO.check}</span>` : ''}</span></button>`).join('')}</div></div>`;
+  f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço · ' + nomeModelo(idModeloAtual()), true)}<div class="lista-modelos">${Object.entries(ESFORCO).map(([k, [r, d]]) =>
+    `<button class="lm${k === esforco() ? ' on' : ''}" data-e="${k}"><span class="pt"><b>${r}</b><small>${d}</small></span><span class="st">${k === esforco() ? `<span class="check">${ICO.check}</span>` : ''}</span></button>`).join('')}</div>
+    <p class="info" style="margin:10px 12px 2px">Cada modelo guarda o seu nível: o Lume costuma render mais no Baixo; o Ápice aproveita o Alto.</p></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
-  folha.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { pref('esforco', b.dataset.e); atualizarSeletorModelo(); sair(); if (depois) depois(); });
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
+  folha.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { definirEsforco(idModeloAtual(), b.dataset.e); atualizarSeletorModelo(); sair(); if (depois) depois(); });
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'), 'fim');
 }
 const DESC_MODELO = { leve: 'Leve e rápido', normal: 'Equilibrado, para o dia a dia', avancado: 'Para as tarefas mais difíceis' };
 ICO.check = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -1260,9 +1388,9 @@ async function abrirSeletorModelo(motivo) {
   const g = folha.querySelector('[data-gerenciar]'); if (g) g.onclick = () => { sair(); abrirConfig('modelo'); };
   const ef = folha.querySelector('[data-esforco]'); if (ef) ef.onclick = () => { sair(); abrirEsforco(() => abrirSeletorModelo()); };
   folhaArrastavel(f, folha, sair);
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'), 'fim');
   await lerSistema(); atualizarSeletorModelo();
-  desenharListaModelos(folha); posicionarPop(f, folha, $('#seletorModelo'));
+  desenharListaModelos(folha); posicionarPop(f, folha, $('#seletorModelo'), 'fim');
 }
 // a folha/menu do seletor, se estiver aberta, acompanha downloads e trocas
 function redesenharSeletor() { const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f); }
@@ -1271,13 +1399,16 @@ function desenharListaModelos(folha) {
   if (!sis || !sis.modelos) { lm.innerHTML = '<p class="info" style="padding:12px 14px;margin:0">Não foi possível ler os modelos.</p>'; return; }
   const ram = sis.ramTotal || 0, rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
   lm.innerHTML = sis.modelos.map(m => {
-    const b = baixando[m.id] || (escolhendoId === m.id ? { pct: 0 } : null);
-    const emUso = !ESCOLHER && m.atual && !trocandoPara, ligando = !ESCOLHER && trocandoPara === m.id;
+    // só mostra porcentagem quando está realmente baixando; modelo já baixado que foi clicado mostra "ativando"
+    const b = baixando[m.id] || (escolhendoId === m.id && !m.baixado ? { pct: 0 } : null);
+    const emUso = !ESCOLHER && m.atual && !trocandoPara;
+    const ligando = !b && (trocandoPara === m.id || (escolhendoId === m.id && m.baixado));
     const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b></b></span>' : m.bloqueado ? '' : emUso ? `<span class="check">${ICO.check}</span>`
-      : ESCOLHER ? `<span class="btn-mini">${m.baixado ? 'Usar' : 'Baixar'}</span>` : '';
-    const desc = m.bloqueado ? m.bloqueado : (DESC_MODELO[m.id] || PESO_MODELO[m.id] || '') + (m.baixado ? '' : ' · ' + gbBonito(m.tamanho) + (ESCOLHER ? '' : ' para baixar'));
+      : !m.baixado ? `<span class="btn-mini">Baixar</span>` : '';   // clicar já liga: nada de botão "Usar"
+    const desc = m.bloqueado ? m.bloqueado : ligando ? 'Ativando…' : b ? textoDownload(b) : (DESC_MODELO[m.id] || PESO_MODELO[m.id] || '') + (m.baixado ? '' : ' · ' + gbBonito(m.tamanho) + (ESCOLHER ? '' : ' para baixar'));
+    const esf = m.baixado && !m.bloqueado ? `<span class="pill">${ESFORCO[esforcoDe(m.id)][0]}</span>` : '';
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
-      <span class="pt"><b>${esc(nomeModelo(m))}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
+      <span class="pt"><b>${esc(nomeModelo(m))}${esf}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
       <small>${esc(desc)}</small></span><span class="st">${st}</span></button>`;
   }).join('');
   lm.querySelectorAll('[data-m]').forEach(bt => bt.onclick = async () => {
@@ -1285,7 +1416,7 @@ function desenharListaModelos(folha) {
     if (ESCOLHER) {
       if (escolhendoId) return;
       if (semRam(m, ram)) { toast(`O ${nomeModelo(m)} precisa de ${ramNecessaria(m)} GB de memória; este aparelho tem ${gbBonito(ram)}.`, 4500); return; }
-      escolhendoId = m.id; desenharListaModelos(folha); estado('baixando 0%');
+      escolhendoId = m.id; desenharListaModelos(folha); estado(m.baixado ? 'ativando' : 'baixando 0%');
       try { await PLATAFORMA.escolherModelo(m.id); } catch (e) { escolhendoId = null; estado(''); toast('Não foi possível: ' + e.message, 4000); desenharListaModelos(folha); }
       return;
     }

@@ -127,6 +127,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .txt pre::before{content:attr(data-lang);position:absolute;top:0;left:0;right:0;padding:7px 14px;font:12px var(--sans);color:var(--muted);border-bottom:1px solid var(--line)}
 .txt pre code{white-space:pre}
 .copiar{position:absolute;top:4px;right:6px;font:12px var(--sans);color:var(--muted);padding:3px 9px;border-radius:7px;display:flex;align-items:center;gap:5px}
+.copiar.guardar{right:86px}   /* "Guardar" ao lado de "Copiar" (área de código) */
+.copiar.guardar svg{width:14px;height:14px}
 .copiar:hover{background:var(--hover);color:var(--ink)}
 .copiar svg{width:14px;height:14px}
 .tk-kw{color:var(--tk-kw)} .tk-str{color:var(--tk-str)} .tk-com{color:var(--tk-com);font-style:italic} .tk-num{color:var(--tk-num)}
@@ -154,6 +156,29 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .acao svg{width:16px;height:16px}
 .acao.feito{color:var(--ok)}
 .acao.on{color:var(--accent)}
+/* área de código (estilo Claude Code): abas, editor, diff e o pedido para a IA */
+.cod{display:flex;flex-direction:column;min-height:0;padding:0 2px 6px}
+.cod-abas{display:flex;gap:4px;overflow-x:auto;padding:2px 8px 8px;scrollbar-width:none} .cod-abas::-webkit-scrollbar{display:none}
+.cod-aba{flex:none;max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font:12.5px var(--mono);color:var(--muted)}
+.cod-aba.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.cod-aba.novo{display:grid;place-items:center;width:32px;padding:0;color:var(--muted)} .cod-aba.novo svg{width:15px;height:15px}
+.cod-barra{display:flex;align-items:center;gap:4px;padding:0 8px 6px}
+.cod-lang{font:11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.cod-info{flex:1;font-size:11.5px;color:var(--faint);overflow:hidden;white-space:nowrap}
+.cod-barra .icone{width:30px;height:30px} .cod-barra .icone svg{width:16px;height:16px}
+.cod-editor{width:calc(100% - 16px);margin:0 8px;min-height:180px;max-height:42vh;resize:vertical;border:1px solid var(--line);border-radius:12px;background:var(--code);color:var(--ink);font:12.5px/1.6 var(--mono);padding:10px 12px;outline:0;tab-size:2;white-space:pre;overflow:auto}
+.cod-editor:focus{border-color:var(--accent)}
+.cod-dif{margin:8px 8px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cod-dif .info{margin:0;padding:8px 10px;border-bottom:1px solid var(--line)}
+.cod-dif .botoes{padding:8px 10px;border-top:1px solid var(--line)}
+.dif{max-height:34vh;overflow:auto;background:var(--code);font:12px/1.55 var(--mono)}
+.dif-l{display:block;padding:0 10px;white-space:pre-wrap;word-break:break-word;color:var(--muted)}
+.dif-l.mais{background:var(--ok-soft);color:var(--ok)} .dif-l.menos{background:var(--danger-soft);color:var(--danger)}
+.dif-corte{display:block;padding:1px 10px;color:var(--faint);font-style:normal}
+.cod-pedido{display:flex;gap:8px;align-items:center;padding:10px 8px 2px}
+.cod-instrucao{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:8px 10px;font-size:13.5px;outline:0} .cod-instrucao:focus{border-color:var(--accent)}
+.cod-pedido .btn{flex:none}
+@media (min-width:761px){.dlg-fundo.pop .dlg.codigo{width:min(680px,calc(100vw - 16px));max-height:min(80vh,calc(100vh - 16px))}}
 /* raciocínio (Esforço Alto) */
 .pensando{margin:4px 0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px;color:var(--muted)}
 .pensando summary{padding:6px 10px;cursor:pointer;color:var(--muted);font-weight:500;list-style:none;display:flex;align-items:center;gap:6px} .pensando summary::before{content:"▸";font-size:11px} .pensando[open] summary::before{content:"▾"}
@@ -208,8 +233,11 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .chip button{width:20px;height:20px;display:grid;place-items:center;border-radius:5px;color:var(--muted)}
 .chip button:hover{background:var(--line);color:var(--ink)}
 .chip svg{width:13px;height:13px}
-.linha{display:flex;align-items:center;gap:2px;margin-top:2px}
+/* linha de baixo da caixa: "+" no canto esquerdo, e do outro lado modelo · microfone · enviar (como no Claude) */
+.linha{display:flex;align-items:center;gap:4px;margin-top:4px}
 .linha .espaco{flex:1}
+.linha #anexar{margin-left:-4px}
+.linha #falar{margin-right:2px}
 #entrada{display:block;width:100%;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:var(--fs)/1.5 var(--sans);padding:6px 6px 2px;min-height:34px;max-height:240px}
 .seletor-modelo{display:flex;align-items:center;gap:4px;height:30px;padding:0 8px 0 10px;border-radius:9px;font-size:13px;font-weight:500;color:var(--muted);transition:background .15s,color .15s;max-width:55%}
 .seletor-modelo:hover{background:var(--hover);color:var(--ink)}
@@ -414,6 +442,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 @keyframes girar{to{transform:rotate(360deg)}}
 .btn-mini{display:inline-block;padding:6px 12px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font-size:12.5px;font-weight:600}
 .lm .selo{font-size:10.5px;padding:1px 6px;margin-left:4px}
+.lm b .pill{vertical-align:2px}   /* nível de esforço de cada modelo, ao lado do nome */
+.lm.on b .pill{border-color:var(--accent);color:var(--accent)}
 .lm:disabled{opacity:.5}
 .bib-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
 .bib-foto{aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid var(--line);padding:0;background:var(--code)}
@@ -557,8 +587,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" hidden></span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
         <span class="espaco"></span>
+        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" hidden></span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
         <button class="icone" id="falar" title="Falar e transcrever" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>
       </div>

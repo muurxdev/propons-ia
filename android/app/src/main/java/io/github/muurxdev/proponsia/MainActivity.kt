@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AtomicFile
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -844,12 +845,23 @@ class MainActivity : Activity() {
         val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
         if (travaResposta == null) travaResposta = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ProponsIA:resposta").apply { setReferenceCounted(false) }
         try { if (sim) travaResposta?.acquire(10 * 60 * 1000L) else travaResposta?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
-        // enquanto responde, um serviço em primeiro plano mantém o app vivo com a tela apagada ou em outro app
-        // (o Android mata processos em segundo plano no meio da resposta); o aviso de "pronto" vem depois, se preciso
-        if (sim) { if (!servicoResposta) { servicoResposta = true; ServicoDownload.iniciar(this, "Própons IA", "Respondendo…") } }
-        else if (servicoResposta) { servicoResposta = false; if (baixandoId == null) ServicoDownload.terminar(this) }
+        respondendo = sim
+        if (!sim) pararServicoResposta() else if (!emPrimeiroPlano) iniciarServicoResposta()
     }
+    // com o app em segundo plano (tela apagada ou outro app), um serviço em primeiro plano mantém o processo vivo até
+    // a resposta terminar; em primeiro plano não precisa (e não queremos notificação à toa)
+    @Volatile private var respondendo = false
     @Volatile private var servicoResposta = false
+    private fun iniciarServicoResposta() {
+        if (servicoResposta || baixandoId != null) return
+        servicoResposta = true
+        try { ServicoDownload.iniciar(this, "Própons IA", "Respondendo…") } catch (e: Exception) { servicoResposta = false; Log.w("ProponsIA", "serviço da resposta: ${e.message}") }
+    }
+    private fun pararServicoResposta() {
+        if (!servicoResposta) return
+        servicoResposta = false
+        if (baixandoId == null) try { ServicoDownload.terminar(this) } catch (_: Exception) {}
+    }
     // Android 13+: pede uma vez a permissão para mostrar a notificação do download
     private fun pedirNotificacoes() {
         if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean("pediuNotificacoes", false)) return
@@ -857,7 +869,7 @@ class MainActivity : Activity() {
         prefs.edit().putBoolean("pediuNotificacoes", true).apply()
         ui.post { try { requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 3) } catch (_: Exception) {} }
     }
-    override fun onPause() { super.onPause(); emPrimeiroPlano = false }
+    override fun onPause() { super.onPause(); emPrimeiroPlano = false; if (respondendo) iniciarServicoResposta() }   // saiu do app respondendo: segura o processo
 
     private var pedidoMicrofone: PermissionRequest? = null
     override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
@@ -906,6 +918,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         emPrimeiroPlano = true
+        pararServicoResposta()
         // voltou para o app e o Android tinha encerrado o motor: o vigia já religa; aqui só garante
         val p = motor
         if (!naSplash && !trocando && p != null && !p.isAlive && !desligando) trabalho.execute {

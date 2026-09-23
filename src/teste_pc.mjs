@@ -26,7 +26,7 @@ await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(4
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
 ok('"+" abre menu flutuante (pop) no PC', await js(`!!document.querySelector('.dlg-fundo.pop .dlg')`));
-ok('"+" no estilo Claude: 3 cartões + 3 linhas (Áudio, Biblioteca, Modos de estudo), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 3 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
+ok('"+" no estilo Claude: 3 cartões + 4 linhas (Áudio, Biblioteca, Modos, Código), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 4 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
 const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, x: Math.abs(r.left-b.left) < 40}})()`);
 ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(rp));
 await foto('p1-mais');
@@ -108,7 +108,7 @@ await js(`fecharDialogo(); 1`); await espera(400);
 ok('diálogo: foco volta para a caixa ao fechar', (await js(`document.activeElement === $('#entrada')`)));
 // 1.16: menu flutuante acompanha o botão depois de "resize"
 await js(`abrirEsforco(); 1`); await espera(250);
-const rr = await js(`(()=>{const f=document.querySelector('.dlg-fundo.pop:not(.saindo)'); const d=f.querySelector('.dlg'); d.style.left='0px'; dispatchEvent(new Event('resize')); const r=d.getBoundingClientRect(), b=$('#seletorModelo').getBoundingClientRect(); return { dx: Math.abs(r.left-b.left), pop: !!f._pop }})()`);
+const rr = await js(`(()=>{const f=document.querySelector('.dlg-fundo.pop:not(.saindo)'); const d=f.querySelector('.dlg'); d.style.left='0px'; dispatchEvent(new Event('resize')); const r=d.getBoundingClientRect(), b=$('#seletorModelo').getBoundingClientRect(); return { dx: Math.min(Math.abs(r.left-b.left), Math.abs(r.right-b.right)), pop: !!f._pop }})()`);
 ok('menu flutuante reposicionado no resize', rr.pop && rr.dx < 40, JSON.stringify(rr));
 await js(`fecharDialogo(); 1`); await espera(300);
 // 1.16: rascunho por conversa
@@ -123,7 +123,7 @@ await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera
 ok('ouvir: começa a falar e o botão vira "parar"', await js(`speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !!falaAtual`));
 await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(400);
 ok('parar: silêncio e botão volta ao normal', await js(`!speechSynthesis.speaking && !document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !falaAtual`));
-await js(`pref('lerRespostas', 'sim'); window.__falas = []; window.__falar0 = window.__falar0 || PLATAFORMA.falar; PLATAFORMA.falar = (t, id) => { window.__falas.push([t, !!geracao]); return window.__falar0(t, id); }; (()=>{ nova(); const e=$('#entrada'); e.value='Explique em três frases curtas o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
+await js(`pref('lerRespostas', 'sim'); window.__falas = []; window.__falar0 = window.__falar0 || PLATAFORMA.falar; PLATAFORMA.falar = (t, id) => { window.__falas.push([t, !!geracao]); return window.__falar0(t, id); }; (()=>{ nova(); const e=$('#entrada'); e.value='Explique em cinco frases, uma por linha, o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
 // a fala começa antes de a resposta terminar: cada item guarda se geracao ainda existia no momento da chamada
 for (let i = 0; i < 40 && !(await js('!!geracao || window.__falas.length')); i++) await espera(250);
 for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(250);
@@ -236,7 +236,9 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 }
 // 1.19: Esforço Alto = o modelo raciocina antes (thinking), com o raciocínio recolhível e gravado
 {
-  await js(`pref('esforco', 'alto'); atualizarSeletorModelo(); nova(); (()=>{ const e=$('#entrada'); e.value='Quanto é 17 vezes 23? Responda só o número.'; ajustar(); $('#enviar').click(); })(); 1`);
+  for (let i = 0; i < 200 && (await js('!!geracao')); i++) await espera(250);   // não envia por cima de uma geração em andamento
+  await js(`definirEsforco(idModeloAtual(), 'alto'); atualizarSeletorModelo(); nova(); (()=>{ const e=$('#entrada'); e.value='Quanto é 17 vezes 23? Responda só o número.'; ajustar(); $('#enviar').click(); })(); 1`);
+  for (let i = 0; i < 40 && !(await js('!!atual && atual.msgs.length')); i++) await espera(100);
   let viuPensando = false; for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.ia details.pensando')`); }
   for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
   for (let i = 0; i < 960 && (await js('!!geracao')); i++) await espera(250);
@@ -244,7 +246,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('esforço Alto: bloco "Pensando…" aparece enquanto raciocina', viuPensando);
   ok('esforço Alto: raciocínio gravado e recolhido, resposta separada', pr.pensou > 50 && pr.detalhe && pr.fechado && !/Thinking|Process/.test(pr.texto), JSON.stringify(pr));
   console.log('     resposta (17 × 23):', pr.texto);
-  await js(`pref('esforco', 'medio'); atualizarSeletorModelo(); nova(); 1`);
+  await js(`definirEsforco(idModeloAtual(), 'medio'); atualizarSeletorModelo(); nova(); 1`);
 }
 // 1.19: API na rede local (Windows): liga → motor escuta na rede com a chave; desliga → só 127.0.0.1
 {
@@ -288,6 +290,39 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   for (let i = 0; i < 400 && (await js('!!geracao')); i++) await espera(250);
   ok('com a janela na frente: não avisa', (await js('window.__notif.length')) === 0);
   await js(`PLATAFORMA.notificar = window.__notif0; nova(); 1`);
+}
+// 1.20: ajustes pedidos — "+" no canto, esforço por modelo, clicar liga (sem "Usar"), sem popup ao escolher modo
+{
+  const ordem = await js(`[...document.querySelectorAll('.linha > *')].map(e => e.id || e.className)`);
+  ok('caixa organizada: "+" no canto e modelo/microfone/enviar do outro lado', ordem[0] === 'anexar' && ordem[1] === 'espaco' && ordem[2] === 'seletorModelo' && ordem[3] === 'falar' && ordem[4] === 'enviar', JSON.stringify(ordem));
+  await js(`abrirSeletorModelo(); 1`); await espera(1000);
+  const lm = await js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b => ({ nome: b.querySelector('b').textContent, esf: (b.querySelector('b .pill')||{}).textContent || '', st: b.querySelector('.st').textContent.trim() }))`);
+  ok('cada modelo mostra o nível de esforço', lm.filter(x => x.esf).length >= 1 && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));
+  await js(`fecharDialogo(); 1`); await espera(300);
+  await js(`definirEsforco('leve', 'baixo'); definirEsforco('normal', 'alto'); 1`);
+  ok('esforço é por modelo (Lume Baixo, Aurora Alto)', (await js(`esforcoDe('leve') + '/' + esforcoDe('normal')`)) === 'baixo/alto');
+  await js(`definirEsforco('normal', 'medio'); atualizarSeletorModelo(); 1`);
+  await js(`window.__avisos = []; abrirMais(); 1`); await espera(500);
+  await js(`document.querySelector('.dlg [data-modos]').click(); 1`); await espera(700);
+  await js(`document.querySelector('.dlg.modos [data-modo="flashcards"]').click(); 1`); await espera(500);
+  ok('escolher um modo não abre popup: só o chip na caixa', (await js('window.__avisos.length')) === 0 && !!(await js(`document.querySelector('#chips .chip.modo')`)), JSON.stringify(await js('window.__avisos')));
+  await js(`definirModo(null); 1`);
+}
+// 1.20: área de código (estilo Claude Code) — criar, editar, pedir mudança com diff, aplicar
+{
+  await js(`pref('projeto', ''); guardarNoProjeto('soma.py', 'def soma(a, b):\\n    return a+b\\n', false); abrirCodigo('soma.py'); 1`); await espera(700);
+  ok('área de código abre com abas, editor e campo de pedido', await js(`!!document.querySelector('.dlg.codigo .cod-aba.on') && !!document.querySelector('.dlg.codigo .cod-editor') && !!document.querySelector('.dlg.codigo .cod-instrucao')`));
+  await js(`(()=>{ const e = document.querySelector('.cod-editor'); e.value = 'def soma(a, b):\\n    return a + b\\n'; e.dispatchEvent(new Event('input')); })(); 1`); await espera(600);
+  ok('editar guarda no aparelho', /return a \+ b/.test(await js(`(projeto().arquivos.find(a => a.nome === 'soma.py')||{}).conteudo`)));
+  await js(`(()=>{ document.querySelector('.cod-instrucao').value = 'Adicione uma docstring curta em português explicando a função.'; document.querySelector('[data-acao="pedir"]').click(); })(); 1`);
+  let dif = false; for (let i = 0; i < 400 && !dif; i++) { await espera(250); dif = await js(`!!document.querySelector('.cod-dif .dif-l.mais')`); }
+  ok('pedir mudança à IA mostra o diff com linhas adicionadas', dif, (await js(`(document.querySelector('.cod-dif .info')||{}).textContent || ''`)).slice(0, 90));
+  if (dif) {
+    await js(`document.querySelector('[data-acao="aplicar"]').click(); 1`); await espera(400);
+    const dep = await js(`(projeto().arquivos.find(a => a.nome === 'soma.py')||{}).conteudo || ''`);
+    ok('aplicar grava o arquivo novo e fecha o diff', dep.length > 40 && !(await js(`!!document.querySelector('.cod-dif')`)), JSON.stringify(dep).slice(0, 110));
+  }
+  await js(`fecharDialogo(); pref('projeto', ''); 1`);
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
