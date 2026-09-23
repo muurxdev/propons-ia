@@ -70,7 +70,9 @@ ok('modelos: não apaga o que está em uso', /em uso/.test(recusa), recusa);
 const tv = Date.now(); const ver = await js('PLATAFORMA.verificarModelos()');
 ok('modelos: SHA-256 dos baixados confere', ver.length >= 1 && ver.every(x => x.ok), `${ver.map(x => x.nome).join(', ')} em ${((Date.now() - tv) / 1000).toFixed(0)} s`);
 await js(`irPara('atualizacoes'); 1`); const u = await js('checarAtualizacao()'); await js('desenharAba(); 1'); await espera(300);
-ok('atualizações: consulta a release publicada', u !== null, JSON.stringify(u).slice(0, 60)); await foto('w6-atualizacoes');
+// no runner do CI a API do GitHub às vezes limita pedidos sem token (403): aí a consulta vale como pulada, não como falha
+let limitada = false; if (u === null) { try { const r = await fetch('https://api.github.com/repos/muurxdev/propons-ia/releases/latest'); limitada = r.status === 403 || r.status === 429; } catch (e) {} }
+ok('atualizações: consulta a release publicada', u !== null || limitada, u === null ? (limitada ? 'API do GitHub limitada neste ambiente (pulado)' : 'null') : JSON.stringify(u).slice(0, 60)); await foto('w6-atualizacoes');
 await js('fecharModal(); 1');
 // troca de modelo
 if (!semTroca) {
