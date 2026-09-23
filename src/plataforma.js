@@ -65,7 +65,8 @@ const PLATAFORMA = (() => {
 
   // chave do motor (llama-server --api-key) vem no endereço: #k=...
   const chave = (location.hash.match(/[#&]k=([A-Za-z0-9_-]+)/) || [])[1] || '';
-  const base = location.protocol.startsWith('http') ? '' : 'http://127.0.0.1:8765';
+  // a página vem do motor (127.0.0.1) ou, na abertura fria do Windows, do site local propons.local — aí o motor tem endereço próprio
+const base = (location.protocol.startsWith('http') && location.hostname !== 'propons.local') ? '' : 'http://127.0.0.1:8765';
   const cab = () => Object.assign({ 'Content-Type': 'application/json' }, chave ? { Authorization: 'Bearer ' + chave } : {});
 
   // lê um fluxo SSE do llama-server chamando aoDado(json) para cada evento

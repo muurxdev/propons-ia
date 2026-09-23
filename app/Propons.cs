@@ -427,14 +427,19 @@ class Janela : Form
             s.IsPasswordAutosaveEnabled = false;
             s.IsGeneralAutofillEnabled = false;
             web.CoreWebView2.NewWindowRequested += delegate (object o, CoreWebView2NewWindowRequestedEventArgs a) { a.Handled = true; AbrirLink(a.Uri); };
+            // a interface passa de 2 MB e o NavigateToString recusa esse tamanho: a pasta dela vira um site local
+            try { web.CoreWebView2.SetVirtualHostNameToFolderMapping(HOST_LOCAL, Path.Combine(pasta, "interface"), CoreWebView2HostResourceAccessKind.Allow); }
+            catch (Exception ex) { Program.Log("host local: " + ex); }
             web.CoreWebView2.NavigationStarting += delegate (object o, CoreWebView2NavigationStartingEventArgs a)
             {   // links externos nunca navegam dentro da janela do app
-                if (a.Uri.StartsWith("http", StringComparison.OrdinalIgnoreCase) && !a.Uri.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)) { a.Cancel = true; AbrirLink(a.Uri); }
+                if (a.Uri.StartsWith("http", StringComparison.OrdinalIgnoreCase) && !a.Uri.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)
+                    && !a.Uri.StartsWith(RAIZ_LOCAL, StringComparison.OrdinalIgnoreCase)) { a.Cancel = true; AbrirLink(a.Uri); }
             };
             web.CoreWebView2.WebMessageReceived += Mensagem;
             web.CoreWebView2.PermissionRequested += delegate (object o, CoreWebView2PermissionRequestedEventArgs a)
             {   // a webcam só é liberada para a página da própria Própons IA (quando a pessoa toca em Câmera)
-                if ((a.PermissionKind == CoreWebView2PermissionKind.Camera || a.PermissionKind == CoreWebView2PermissionKind.Microphone) && a.Uri.StartsWith("http://127.0.0.1:" + porta + "/")) a.State = CoreWebView2PermissionState.Allow;
+                if ((a.PermissionKind == CoreWebView2PermissionKind.Camera || a.PermissionKind == CoreWebView2PermissionKind.Microphone)
+                    && (a.Uri.StartsWith("http://127.0.0.1:" + porta + "/") || a.Uri.StartsWith(RAIZ_LOCAL))) a.State = CoreWebView2PermissionState.Allow;
             };
             await Navegar(Splash());
         }
@@ -446,9 +451,7 @@ class Janela : Form
         if (forcar == null && (!teste || AcharModelo(modelo) == null))
         {
             escolhendo = true;
-            string html = File.ReadAllText(Path.Combine(pasta, @"interface\index.html"), Encoding.UTF8);
-            string ini = AcharModelo(modelo) != null ? "window.PROPONS_MODELO=" + json.Serialize(modelo.Id) + ";" : "";
-            await Navegar(html.Replace("<head>", "<head><script>window.PROPONS_ESCOLHER=true;" + ini + "</script>"));
+            await NavegarLocal("#escolher" + (AcharModelo(modelo) != null ? "&modelo=" + modelo.Id : ""));
             return;
         }
         await PrepararModeloEMotor(true);
@@ -503,6 +506,18 @@ class Janela : Form
         return "Na primeira vez em cada PC é preciso internet. Verifique a conexão e tente de novo.";
     }
 
+    const string HOST_LOCAL = "propons.local";
+    const string RAIZ_LOCAL = "http://propons.local/";
+    // abre a interface pelo site local (sem limite de tamanho, ao contrário do NavigateToString)
+    Task NavegarLocal(string hash)
+    {
+        TaskCompletionSource<bool> pronto = new TaskCompletionSource<bool>();
+        EventHandler<CoreWebView2NavigationCompletedEventArgs> h = null;
+        h = delegate { web.CoreWebView2.NavigationCompleted -= h; pronto.TrySetResult(true); };
+        web.CoreWebView2.NavigationCompleted += h;
+        web.CoreWebView2.Navigate(RAIZ_LOCAL + "index.html" + hash);
+        return pronto.Task;
+    }
     Task Navegar(string html)
     {
         TaskCompletionSource<bool> pronto = new TaskCompletionSource<bool>();
@@ -916,7 +931,7 @@ class Janela : Form
     {
         // só a nossa página fala com o app: a servida pelo motor (127.0.0.1) ou a local da abertura fria (NavigateToString → about:blank)
         string origem = a.Source ?? "";
-        if (!origem.StartsWith("http://127.0.0.1:") && origem != "about:blank") return;
+        if (!origem.StartsWith("http://127.0.0.1:") && !origem.StartsWith(RAIZ_LOCAL) && origem != "about:blank") return;
         Dictionary<string, object> m;
         try { m = json.Deserialize<Dictionary<string, object>>(a.WebMessageAsJson); } catch { return; }
         object t; if (m == null || !m.TryGetValue("t", out t)) return;

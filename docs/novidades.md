@@ -7,6 +7,7 @@
 - **Nível de esforço só na caixa**, ao lado do nome do modelo e clicável; cada modelo já vem com o esforço que rende melhor nele (Lume no Baixo, Aurora no Médio, Ápice no Alto).
 - **Área de código virou "Código"**, com o ícone de faísca, e **no celular ela abre uma pasta de verdade**: o próprio Android pede a permissão de armazenamento e a IA lê, grava e apaga os arquivos de lá.
 - O "+" não repete mais o que já está no menu lateral.
+- **Correção importante no Windows:** em PCs que abriam o app sem a IA ligada (a abertura normal, fora dos testes), a janela fechava com o erro "O valor não recai no intervalo esperado". A interface passou de 2 MB e o WebView2 recusa esse tamanho ao receber a página como texto; agora ela é servida por um endereço local. Quem atualizou e viu esse erro, esta versão resolve.
 
 ## Novidades da 1.20.0
 
