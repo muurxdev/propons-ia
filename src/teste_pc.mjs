@@ -424,7 +424,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 // 1.21: pesquisa na internet — desligada por padrão, ligada no "+", botão na caixa e fontes na resposta
 {
   await js(`pref('pesquisaWeb', ''); atualizarBotaoPesquisa(); nova(); 1`); await espera(300);
-  ok('pesquisa vem desligada e sem botão na caixa', !(await js('pesquisaLigada()')) && (await js(`$('#btPesquisa').hidden`)));
+  ok('pesquisa vem desligada, com o botão apagado na caixa', !(await js('pesquisaLigada()')) && !(await js(`$('#btPesquisa').hidden`)) && !(await js(`$('#btPesquisa').classList.contains('on')`)));
   await js(`abrirMais(); 1`); await espera(500);
   ok('o "+" tem a chave de ligar a pesquisa', !!(await js(`document.querySelector('.dlg.mais [data-op="pesquisa"] .chave')`)));
   await js(`document.querySelector('.dlg.mais [data-op="pesquisa"]').click(); 1`); await espera(500);
@@ -441,7 +441,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   const comFonte = await js(`(()=>{ const m = atual.msgs[atual.msgs.length-1]; return { buscou: window.__buscou, fontes: (m.fontes||[]).length, link: !!document.querySelector('.msg.ia .fontes a') } })()`);
   ok('com internet: pesquisa, guarda as fontes e mostra os links', comFonte.buscou === 1 && comFonte.fontes >= 1 && comFonte.link, JSON.stringify(comFonte));
   await js(`pesquisarNaWeb = window.__pesqReal; delete navigator.onLine; definirPesquisa(false); nova(); 1`); await espera(300);
-  ok('desligar tira o botão da caixa', (await js(`$('#btPesquisa').hidden`)) && !(await js('pesquisaLigada()')));
+  ok('o botão da caixa liga e desliga a pesquisa', !(await js('pesquisaLigada()')) && !(await js(`$('#btPesquisa').classList.contains('on')`)) && (await js(`(()=>{ $('#btPesquisa').click(); const on = pesquisaLigada(); definirPesquisa(false); return on })()`)));
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);

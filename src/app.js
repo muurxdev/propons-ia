@@ -1913,9 +1913,10 @@ function definirPesquisa(sim) {
 function atualizarBotaoPesquisa() {
   const b = $('#btPesquisa'); if (!b) return;
   const on = pesquisaLigada();
-  b.hidden = !on || ESCOLHER;                 /* só aparece quando está ligada (liga-se pelo "+") */
+  b.hidden = ESCOLHER;                        /* sempre à mão: aceso quando ligada, apagado quando não */
   b.classList.toggle('on', on);
   b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.title = on ? 'Pesquisa na internet ligada — toque para desligar' : 'Pesquisar na internet (está desligada)';
 }
 const semInternet = () => typeof navigator.onLine === 'boolean' && !navigator.onLine;
 const limparHtml = t => String(t || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/[ \t\n]+/g, " ").trim();
@@ -2131,7 +2132,7 @@ function desenharListaModelos(folha) {
 }
 $('#seletorModelo').onclick = () => abrirSeletorModelo();
 $('#pillEsforco').onclick = e => { e.stopPropagation(); abrirEsforco(); };
-$('#btPesquisa').onclick = () => definirPesquisa(false);
+$('#btPesquisa').onclick = () => definirPesquisa(!pesquisaLigada());
 addEventListener('online', atualizarBotaoPesquisa); addEventListener('offline', atualizarBotaoPesquisa);
 $('#pillEsforco').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); abrirEsforco(); } };
 
