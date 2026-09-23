@@ -7,7 +7,7 @@
 <title>Própons IA</title>
 <script>/* tema antes do primeiro desenho: sem flash branco no escuro */try{var t=localStorage.getItem('tema')||'sistema';document.documentElement.dataset.tema=(t==='escuro'||(t==='sistema'&&matchMedia('(prefers-color-scheme: dark)').matches))?'escuro':'claro'}catch(e){}</script>
 <style>
-:root{
+:root{--folha:64vh;
   --canvas:#eef0f5; --elev:0 4px 16px -4px rgba(19,29,43,.12); --bg:#ffffff; --side:#ffffff; --surface:#ffffff; --hover:#efeff3; --ink:#111114; --muted:#6b6b76; --faint:#7c7c88; --line:#e6e6eb;
   --accent:#7c5cff; --accent-hover:#6a48f5; --accent-ink:#ffffff; --accent-soft:#f1edff;
   --user:#f1f1f4; --code:#f6f6f8; --ok:#1f8a4c; --ok-soft:#e7f5ec; --warn:#b7791f; --warn-soft:#fdf3e1; --danger:#d93f3f; --danger-soft:#fdecec;
@@ -226,13 +226,24 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .dif-l.mais{background:var(--ok-soft);color:var(--ok)} .dif-l.menos{background:var(--danger-soft);color:var(--danger)}
 .dif-corte{display:block;padding:1px 10px;color:var(--faint);font-style:normal}
 @media (min-width:761px){.dlg-fundo.pop .dlg.codigo{width:min(680px,calc(100vw - 16px));max-height:min(80vh,calc(100vh - 16px))}}
-/* fontes da pesquisa na internet */
-.fontes{margin:10px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13px}
-.fontes b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin-bottom:6px}
-.fontes ol{margin:0;padding-left:20px;color:var(--muted)}
-.fontes li{margin:3px 0}
-.fontes a{color:var(--accent);text-decoration:none;overflow-wrap:anywhere}
-.fontes a:hover{text-decoration:underline}
+/* pesquisa na internet: passo ao vivo, cartões das fontes com a logo do site e citações no texto */
+.busca-passo{display:inline-flex;align-items:center;gap:3px;font-size:14px;color:var(--muted)}
+.busca-passo i{width:4px;height:4px;border-radius:50%;background:var(--faint);animation:pisca 1.2s infinite}
+.busca-passo i:nth-child(2){animation-delay:.2s} .busca-passo i:nth-child(3){animation-delay:.4s}
+@keyframes pisca{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.fontes{margin:0 0 10px}
+.fontes-t{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin:0 0 6px}
+.fonte-cards{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.fonte-cards::-webkit-scrollbar{display:none}
+.fonte{flex:0 0 190px;display:block;padding:9px 11px;border:1px solid var(--line);border-radius:12px;background:var(--surface);text-decoration:none;color:var(--ink);transition:border-color .15s,background .15s}
+.fonte:hover{border-color:var(--accent);background:var(--hover)}
+.fonte .fn{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.fonte .fn i{font-style:normal;font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:99px;min-width:16px;height:16px;display:grid;place-items:center;padding:0 4px}
+.fonte .fn img{width:14px;height:14px;border-radius:3px;display:block}
+.fonte .fn b{font-size:11.5px;font-weight:500;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.fonte .ft{display:block;font-size:12.5px;line-height:1.35;max-height:2.7em;overflow:hidden}
+.cit{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;margin:0 1px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-size:10.5px;font-weight:700;text-decoration:none;vertical-align:1px}
+.cit:hover{background:var(--accent);color:var(--accent-ink)}
 /* raciocínio (Esforço Alto): uma linha na conversa; o texto fica na folha */
 .msg.pensa{margin:6px 0 2px}
 .pensa-linha{display:inline-flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;border-radius:99px;border:1px solid var(--line);background:var(--surface);cursor:pointer;transition:background .15s,border-color .15s}
@@ -465,7 +476,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .folha button.op:hover{background:var(--hover)}
 .folha button.op.perigo{color:var(--danger)}
 .folha button.op svg{width:20px;height:20px}
-.toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:13.5px;box-shadow:var(--shadow);animation:aparece .15s ease;max-width:min(90vw,420px);text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--surface);color:var(--muted);border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.28);animation:aparece .15s ease;max-width:min(90vw,420px);text-align:center;backdrop-filter:blur(8px)}
 
 /* "+": câmera, fotos, arquivos, modelo */
 /* folhas no estilo do app do Claude: X à esquerda, título no centro, cartões e linhas */
@@ -653,8 +664,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .macoes .btn{flex:1}
 
   .dlg-fundo{place-items:end stretch}
-  /* no celular a folha abre "cortada" e sobe até o fim quando você arrasta pela alça */
-  .dlg{width:100%;border-left:0;border-right:0;padding:0 16px calc(var(--sb) + 14px);max-height:68vh}
+  /* todo menu abre do mesmo tamanho (o do menu principal) e sobe até o fim quando você arrasta pela alça */
+  .dlg{width:100%;border-left:0;border-right:0;padding:0 16px calc(var(--sb) + 14px);max-height:var(--folha);min-height:var(--folha)}
+  .dlg>*:last-child{margin-bottom:auto}
   .dlg.cheia{max-height:calc(100vh - var(--st) - 14px)}
   .dlg .alca{cursor:grab}
   .folha{padding:0 8px calc(var(--sb) + 10px)}

@@ -497,11 +497,11 @@ function addIa(m, ultima) {
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
   d.innerHTML = (m.pensou ? htmlLinhaPensa('Raciocínio') : '') +
-    `<div class="txt${widget ? ' widget' : ''}">${widget || md(m.texto || '')}</div>` +
     (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +
+    `<div class="txt${widget ? ' widget' : ''}">${widget ? widget : comCitacoes(md(m.texto || ''), m.fontes)}</div>` +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
   if (m.pensou) ligarLinhaPensa(d, m.pensou);
-  d.querySelectorAll('.fontes a').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); });
+  d.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); });
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
@@ -1002,7 +1002,30 @@ async function rodarAgente(pedido, desenharChat, desenharPasta) {
 }
 /* ---------------- raciocínio (Esforço Alto): só a palavra e a flechinha; o texto fica numa folha ----------------
    Na conversa fica uma linha só. A flechinha gira e muda de fundo ao abrir; no celular a folha sobe de baixo. */
-const htmlFontes = fontes => `<div class="fontes"><b>Fontes da pesquisa</b><ol>${fontes.map(f => `<li><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.titulo)}</a></li>`).join('')}</ol></div>`;
+const dominioDe = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+/* cartões das fontes: logo do próprio site (serviço de ícones do buscador), domínio e título.
+   Se a logo não vier (sem rede ou site sem ícone), ela some e fica só o número e o domínio. */
+function htmlFontes(fontes) {
+  const cartao = (f, i) => {
+    const d = dominioDe(f.url);
+    return '<a class="fonte" href="' + esc(f.url) + '" data-link title="' + esc(f.titulo) + '">'
+      + '<span class="fn"><i>' + (i + 1) + '</i>'
+      + (d ? '<img src="https://icons.duckduckgo.com/ip3/' + esc(d) + '.ico" alt="" loading="lazy" onerror="this.remove()">' : '')
+      + '<b>' + esc(d || 'fonte') + '</b></span>'
+      + '<span class="ft">' + esc(f.titulo) + '</span></a>';
+  };
+  return '<div class="fontes"><b class="fontes-t">' + fontes.length + (fontes.length === 1 ? ' fonte' : ' fontes')
+    + '</b><div class="fonte-cards">' + fontes.map(cartao).join('') + '</div></div>';
+}
+// [1] no meio do texto vira um selo clicável para a fonte (não mexe em blocos de código)
+function comCitacoes(html, fontes) {
+  if (!fontes || !fontes.length) return html;
+  return String(html).split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/).map((parte, i) => i % 2 ? parte
+    : parte.replace(/\[(\d{1,2})\]/g, (todo, n) => {
+      const f = fontes[+n - 1];
+      return f ? '<a class="cit" href="' + esc(f.url) + '" data-link title="' + esc(f.titulo) + '">' + n + '</a>' : todo;
+    })).join('');
+}
 const htmlLinhaPensa = rotulo => `<div class="pensa-linha"><span class="pensa-rotulo">${rotulo ? esc(rotulo) : htmlTrabalhando()}</span><button class="pensa-seta" aria-label="Ver o raciocínio" aria-expanded="false">${ICO.baixo}</button></div>`;
 let folhaPensa = null;
 function ligarLinhaPensa(el, texto) {
@@ -1984,8 +2007,10 @@ function lerResultados(html) {
   return saida;
 }
 /* busca de verdade: resultados do buscador + o conteúdo das primeiras páginas */
-async function pesquisarNaWeb(consulta) {
+async function pesquisarNaWeb(consulta, aoPasso) {
+  const passo = t => { try { if (aoPasso) aoPasso(t); } catch (e) {} };
   const q = String(consulta || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+  passo('Pesquisando na internet');
   let achados = [];
   try {
     const html = await paginaDaWeb('https://html.duckduckgo.com/html/?kl=br-pt&q=' + encodeURIComponent(q));
@@ -1993,6 +2018,7 @@ async function pesquisarNaWeb(consulta) {
   } catch (e) {}
   if (!achados.length) achados = await buscaSimples(q);          // sem o buscador (ou sem ponte): resposta direta
   achados = achados.slice(0, 5);
+  if (achados.length) passo('Lendo ' + Math.min(3, achados.length) + ' de ' + achados.length + (achados.length === 1 ? ' fonte' : ' fontes'));
   // abre as três primeiras para ler o que elas realmente dizem
   const lidas = await Promise.all(achados.slice(0, 3).map(async f => {
     try { return textoDaPagina(await paginaDaWeb(f.url)); } catch (e) { return ''; }
@@ -2403,19 +2429,7 @@ async function responder(conv, continuacao) {
   const maxTokens = pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;   // pensar gasta tokens do raciocínio
   let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
     : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '');
-  // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
-  let fontes = null;
-  if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
-    if (semInternet()) SISTEMA += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';
-    else {
-      estado('pesquisando na internet');
-      let r = null;
-      try { r = await pesquisarNaWeb(texto.slice(0, 300)); } catch (e) {}
-      estado('', false, 'rede');
-      if (r && r.fontes.length) { SISTEMA += '\n\n' + blocoPesquisa(r); fontes = r.fontes; }
-      else SISTEMA += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
-    }
-  }
+  let fontes = null;   // a busca em si roda depois de a resposta aparecer na conversa
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
   const historico = montarHistorico(conv, maxTokens);
   // continuar só a partir do texto inteiro: se a resposta cortada não coube na memória da IA, continuar dela sairia errado
@@ -2430,7 +2444,6 @@ async function responder(conv, continuacao) {
     if (alvo) { const a = alvo.parentNode.querySelector('.acoes'); if (a) a.remove(); const n = alvo.parentNode.querySelector('.nota'); if (n) n.remove(); }
   } else {
     msg = { role: 'assistant', texto: '', llm: '' };
-    if (fontes) msg.fontes = fontes;
     alvo = atual === conv ? addIa({ texto: '', interno: true }, false) : null;
   }
   // enquanto nada foi escrito: "Working" com brilho (nos modos de estudo, o aviso do modo); pararPalavra() encerra a troca
@@ -2439,6 +2452,22 @@ async function responder(conv, continuacao) {
     alvo.classList.add('digitando');
     if (comEsquema) alvo.innerHTML = `<p class="info">${esc(modo.espera)}</p>`;
     else if (!msg.texto && !pensar) { alvo.innerHTML = htmlTrabalhando(); pararPalavra = novaPalavra(alvo.firstChild, true); }   // pensando, a palavra fica só na linha do raciocínio
+  }
+  // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
+  if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
+    if (semInternet()) SISTEMA += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';
+    else {
+      estado('pesquisando na internet');
+      // a conversa mostra o passo da busca no lugar da palavra animada
+      const mostrarPasso = t => { if (alvo) { alvo.innerHTML = '<span class="busca-passo">' + esc(t) + '<i></i><i></i><i></i></span>'; rolar(); } };
+      let r = null;
+      try { r = await pesquisarNaWeb(texto.slice(0, 300), mostrarPasso); } catch (e) {}
+      if (alvo && !msg.texto) alvo.innerHTML = htmlTrabalhando();
+      estado('', false, 'rede');
+      if (r && r.fontes.length) { SISTEMA += '\n\n' + blocoPesquisa(r); fontes = r.fontes; msg.fontes = fontes;
+        if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlFontes(fontes); const cartoes = c.firstElementChild; alvo.parentNode.insertBefore(cartoes, alvo); cartoes.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); }); } }
+      else SISTEMA += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
+    }
   }
   janelaEscondida = document.hidden;
   // raciocínio (Esforço Alto): bloco recolhível acima da resposta enquanto pensa; recolhe quando a resposta começa

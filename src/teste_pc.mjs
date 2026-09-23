@@ -455,6 +455,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   for (let i = 0; i < 480 && (await js('!!geracao')); i++) await espera(250);
   const comFonte = await js(`(()=>{ const m = atual.msgs[atual.msgs.length-1]; return { buscou: window.__buscou, fontes: (m.fontes||[]).length, link: !!document.querySelector('.msg.ia .fontes a') } })()`);
   ok('com internet: pesquisa, guarda as fontes e mostra os links', comFonte.buscou === 1 && comFonte.fontes >= 1 && comFonte.link, JSON.stringify(comFonte));
+  ok('as fontes viram cartões com a logo do site e o texto ganha citação clicável', await js(`(()=>{ const c = document.querySelector('.msg.ia .fonte'); const cit = document.querySelector('.msg.ia .cit'); return !!c && /wikipedia/.test(c.querySelector('.fn b').textContent) && (!cit || cit.getAttribute('href').startsWith('https://')) })()`));
   await js(`pesquisarNaWeb = window.__pesqReal; delete navigator.onLine; definirPesquisa(false); nova(); 1`); await espera(300);
   ok('tocar no botão da caixa desliga a pesquisa e ele some', await js(`(()=>{ definirPesquisa(true); if ($('#btPesquisa').hidden) return false; $('#btPesquisa').click(); return !pesquisaLigada() && $('#btPesquisa').hidden })()`));
 }

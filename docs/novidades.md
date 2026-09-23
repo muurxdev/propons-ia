@@ -1,5 +1,8 @@
 ## Novidades da 1.21.1
 
+- **Fontes com a cara do site.** Acima da resposta aparecem cartões com a **logo**, o domínio e o título de cada fonte; dentro do texto, os números [1] viram selos clicáveis que abrem a página. Enquanto pesquisa, a conversa mostra o passo: “Pesquisando na internet”, “Lendo 3 de 5 fontes”.
+- **Sem o retângulo branco no meio da tela:** os avisos viraram uma linha discreta, do mesmo tom do app.
+- **Todo menu abre do mesmo tamanho**, usando o menu principal como medida, e sobe até o fim no arrasto.
 - **A pesquisa na internet virou busca de verdade.** Ligada em "+", a pergunta vai para o buscador, o app abre as primeiras páginas — sites, blogs, fóruns — lê o conteúdo e a resposta sai citando [1], [2]… com os **links reais** logo abaixo. Nada de resumo enlatado de uma fonte só. Sem internet, ela avisa em uma linha e responde com o que já sabe.
 - **A IA entende o próprio aplicativo por dentro**, inclusive como ele é feito: peça melhorias e ela diz onde a mudança encostaria, o que ganharia e o que custaria.
 - Enquanto pensa aparece **uma coisa só**: a linha do raciocínio, sem a palavra repetida embaixo.
