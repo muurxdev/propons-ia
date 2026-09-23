@@ -426,9 +426,17 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 // 1.21: pesquisa na internet — desligada por padrão, ligada no "+", botão na caixa e fontes na resposta
 {
   await js(`pref('pesquisaWeb', ''); atualizarBotaoPesquisa(); nova(); 1`); await espera(300);
-  ok('pesquisa vem desligada, com o botão apagado na caixa', !(await js('pesquisaLigada()')) && !(await js(`$('#btPesquisa').hidden`)) && !(await js(`$('#btPesquisa').classList.contains('on')`)));
+  ok('pesquisa vem desligada e sem botão na caixa', !(await js('pesquisaLigada()')) && (await js(`$('#btPesquisa').hidden`)));
   await js(`abrirMais(); 1`); await espera(500);
   ok('o "+" tem a chave de ligar a pesquisa', !!(await js(`document.querySelector('.dlg.mais [data-op="pesquisa"] .chave')`)));
+  // a leitura dos resultados do buscador e a limpeza das páginas não dependem de internet
+  ok('entende os resultados do buscador (link de verdade, não o do redirecionador)', await js(`(()=>{
+    const h = '<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexemplo.com%2Fpagina&rut=x">Título do site</a><a class="result__snippet">Trecho <b>com marca</b>.</a>';
+    const r = lerResultados(h);
+    return r.length === 1 && r[0].url === 'https://exemplo.com/pagina' && r[0].titulo === 'Título do site' && /Trecho com marca/.test(r[0].trecho) })()`));
+  ok('a página lida vira texto limpo (sem menu, sem script)', await js(`(()=>{
+    const t = textoDaPagina('<html><head><style>a{color:red}</style></head><body><nav>menu inutil</nav><article><p>Conte&uacute;do de verdade.</p><scr' + 'ipt>var x = 1;</scr' + 'ipt></article></body></html>');
+    return /Conteúdo de verdade/.test(t) && !/menu inutil/.test(t) && !/var x/.test(t) })()`));
   await js(`document.querySelector('.dlg.mais [data-op="pesquisa"]').click(); 1`); await espera(500);
   ok('ligou: o botão aparece na caixa, ao lado do modelo', (await js('pesquisaLigada()')) && !(await js(`$('#btPesquisa').hidden`)) && (await js(`$('#btPesquisa').classList.contains('on')`)));
   // sem internet, a IA avisa em vez de tentar pesquisar
@@ -443,7 +451,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   const comFonte = await js(`(()=>{ const m = atual.msgs[atual.msgs.length-1]; return { buscou: window.__buscou, fontes: (m.fontes||[]).length, link: !!document.querySelector('.msg.ia .fontes a') } })()`);
   ok('com internet: pesquisa, guarda as fontes e mostra os links', comFonte.buscou === 1 && comFonte.fontes >= 1 && comFonte.link, JSON.stringify(comFonte));
   await js(`pesquisarNaWeb = window.__pesqReal; delete navigator.onLine; definirPesquisa(false); nova(); 1`); await espera(300);
-  ok('o botão da caixa liga e desliga a pesquisa', !(await js('pesquisaLigada()')) && !(await js(`$('#btPesquisa').classList.contains('on')`)) && (await js(`(()=>{ $('#btPesquisa').click(); const on = pesquisaLigada(); definirPesquisa(false); return on })()`)));
+  ok('tocar no botão da caixa desliga a pesquisa e ele some', await js(`(()=>{ definirPesquisa(true); if ($('#btPesquisa').hidden) return false; $('#btPesquisa').click(); return !pesquisaLigada() && $('#btPesquisa').hidden })()`));
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);

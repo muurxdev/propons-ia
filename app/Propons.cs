@@ -27,7 +27,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.21.0";
+    public const string Versao = "1.21.1";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -958,6 +958,9 @@ class Janela : Form
                 case "sistema": dados = await Task.Run(delegate { return Sistema(); }); break;
                 case "tema": Tema(Arg(args, "v") == "escuro"); dados = true; break;
                 case "link": AbrirLink(Arg(args, "url")); dados = true; break;
+                // pesquisa na internet (só quando a pessoa liga): o app busca a página, porque a janela web não
+                // consegue ler sites de fora por conta da política de origem
+                case "buscar": { string alvo = Arg(args, "url"); dados = await Task.Run(delegate { return PaginaDaWeb(alvo); }); } break;
                 case "modelo":
                     Modelo novo = Modelo.PorId(Arg(args, "id"));
                     if (novo == null) throw new Exception("modelo desconhecido");
@@ -1305,6 +1308,28 @@ class Janela : Form
         fechar.Tick += delegate { fechar.Stop(); Close(); };
         fechar.Start();
         return true;
+    }
+
+    // baixa uma página da internet como texto (limite de tamanho e tempo; só http/https)
+    static string PaginaDaWeb(string url)
+    {
+        if (string.IsNullOrEmpty(url) || !(url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)))
+            throw new Exception("endereço inválido");
+        HttpWebRequest r = (HttpWebRequest)WebRequest.Create(url);
+        r.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ProponsIA/" + Program.Versao;
+        r.Timeout = 15000; r.ReadWriteTimeout = 15000; r.AllowAutoRedirect = true;
+        r.Headers.Add("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.6");
+        r.Accept = "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5";
+        r.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+        try { r.Proxy = WebRequest.GetSystemWebProxy(); r.Proxy.Credentials = CredentialCache.DefaultCredentials; } catch { }
+        using (HttpWebResponse resp = (HttpWebResponse)r.GetResponse())
+        using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+        {
+            char[] buf = new char[500000];
+            int n = 0, lido;
+            while (n < buf.Length && (lido = sr.Read(buf, n, buf.Length - n)) > 0) n += lido;
+            return new string(buf, 0, n);
+        }
     }
 
     static string BaixarTexto(string url)

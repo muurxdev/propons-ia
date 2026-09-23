@@ -43,7 +43,7 @@ let conversas = [], atual = null, SYSTEM = '', online = false, jaFicouOnline = f
    no texto de sistema atrasa a primeira resposta de toda conversa nova. */
 let SOBRE_APP = '';
 const MARCA_SOBRE = 'Sobre você (a Própons IA)';
-const RE_SOBRE_APP = new RegExp("voc[êe]|pr[óo]pons|aplicativo|esse app|este app|o app|onde fica|onde est[áa]|onde eu (?:acho|vejo|mudo|ligo)|como (?:eu )?(?:fa[çc]o|mudo|troco|ligo|desligo|abro|uso|acesso|apago|salvo|baixo|instalo)|ajustes|configura|esfor[çc]o|biblioteca|[áa]rea de c[óo]digo|menu lateral|permiss|c[âa]mera|microfone|offline|sem internet|atualiza[çr]|vers[ãa]o|quem (?:te|o|a) (?:criou|fez)|quem [ée] voc[êe]|o que voc[êe]", 'i');
+const RE_SOBRE_APP = new RegExp("voc[êe]|pr[óo]pons|aplicativo|esse app|este app|o app|onde fica|onde est[áa]|onde eu (?:acho|vejo|mudo|ligo)|como (?:eu )?(?:fa[çc]o|mudo|troco|ligo|desligo|abro|uso|acesso|apago|salvo|baixo|instalo)|ajustes|configura|esfor[çc]o|biblioteca|[áa]rea de c[óo]digo|menu lateral|permiss|c[âa]mera|microfone|offline|sem internet|atualiza[çr]|vers[ãa]o|quem (?:te|o|a) (?:criou|fez)|quem [ée] voc[êe]|o que voc[êe]|melhor(?:ia|ar|as|es) (?:no|do|desse|deste|para o|pro) (?:app|aplicativo|sistema|programa)|melhorar (?:esse|este|o) (?:app|aplicativo|sistema|programa)|sugest[õo]es (?:de|para|pro|no) (?:app|aplicativo|sistema|melhoria)|d[áa] pra melhorar|poderia (?:ter|ser|fazer)|c[óo]digo[- ]fonte|github|arquitetura (?:do|desse|deste)|como (?:isso|ele|ela|o app|o aplicativo|esse sistema) funciona", 'i');
 function separarSistema() {
   const i = SYSTEM.indexOf(MARCA_SOBRE);
   if (i > 0) { SOBRE_APP = String.fromCharCode(10) + String.fromCharCode(10) + SYSTEM.slice(i).trim(); SYSTEM = SYSTEM.slice(0, i).trim(); }
@@ -1742,11 +1742,8 @@ async function garantirPermissao(k) {
   const e = await estadoPermissao(k);
   if (e === 'ok' || e === 'indisponivel') return true;
   const p = PERMISSOES[k];
-  const texto = `<p>A Própons IA usa ${p.para}. Tudo continua no aparelho.</p>`
-    + (e === 'negado' ? '<p>Você já negou antes: se o aparelho não perguntar de novo, libere nas configurações do sistema.</p>' : '');
-  if (!await confirmar(`Permitir ${p.nome.toLowerCase()}?`, texto, 'Permitir')) return false;
-  const deu = await pedirPermissao(k);
-  if (!deu) toast(`Sem permissão de ${p.nome.toLowerCase()}.`, 3500);
+  const deu = await pedirPermissao(k);   // sem popup nosso: quem pergunta é o próprio aparelho
+  if (!deu) toast(e === 'negado' ? `${p.nome} bloqueada: libere nas configurações do sistema.` : `Sem permissão de ${p.nome.toLowerCase()}.`, 4000);
   return deu;
 }
 function abaPermissoes(c) {
@@ -1910,57 +1907,102 @@ function verItemBiblioteca(i, folha) {
   pausarDesenho(); document.body.appendChild(f);
 }
 /* ---------------- pesquisa na internet (opcional, desligada por padrão) ----------------
-   Tudo o mais é offline. Quando a pessoa liga, a pergunta vai para a busca pública (DuckDuckGo e Wikipédia),
-   os trechos entram na conversa como fonte e a resposta cita os números. Sem internet, a IA avisa e responde
-   com o que já sabe. Nada é enviado quando está desligada. */
+   Tudo o mais é offline. Ligada em "+", a pergunta vira uma busca de verdade: o app (não a página, que esbarra na
+   política de origem) baixa os resultados do DuckDuckGo, abre as primeiras páginas — sites, fóruns, o que aparecer —
+   e entrega o texto limpo à IA, que responde citando [1], [2]… com os links reais. Sem internet, ela avisa e
+   responde com o que já sabe. Desligada, nada sai do aparelho. */
 ICO.globo = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21C9.5 18.4 8.2 15.4 8.2 12S9.5 5.6 12 3z"/></svg>';
 const pesquisaLigada = () => pref('pesquisaWeb') === 'sim';
 function definirPesquisa(sim) {
   pref('pesquisaWeb', sim ? 'sim' : 'nao');
   atualizarBotaoPesquisa();
-  toast(sim ? 'Pesquisa na internet ligada. Suas perguntas vão para a busca pública.' : 'Pesquisa na internet desligada.', 3500);
+  toast(sim ? 'Pesquisa na internet ligada: as perguntas vão para a busca.' : 'Pesquisa na internet desligada (religue no "+").', 3000);
 }
 function atualizarBotaoPesquisa() {
   const b = $('#btPesquisa'); if (!b) return;
   const on = pesquisaLigada();
-  b.hidden = ESCOLHER;                        /* sempre à mão: aceso quando ligada, apagado quando não */
+  b.hidden = ESCOLHER || !on;                 // liga no "+"; aqui só aparece quando está ligada, e some ao tocar
   b.classList.toggle('on', on);
   b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  b.title = on ? 'Pesquisa na internet ligada — toque para desligar' : 'Pesquisar na internet (está desligada)';
+  b.title = 'Pesquisa na internet ligada — toque para desligar';
 }
 const semInternet = () => typeof navigator.onLine === 'boolean' && !navigator.onLine;
-const limparHtml = t => String(t || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/[ \t\n]+/g, " ").trim();
 const comPrazo = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('demorou')), ms))]);
-// busca pública, sem chave: resposta direta do DuckDuckGo + resumos da Wikipédia em português
-async function pesquisarNaWeb(consulta) {
-  const trechos = [], fontes = [];
-  const juntar = (texto, titulo, url) => { if (!texto || !url || fontes.some(f => f.url === url)) return; trechos.push(texto); fontes.push({ titulo: titulo || url, url }); };
-  try {
-    const r = await comPrazo(fetch('https://api.duckduckgo.com/?format=json&no_html=1&skip_disambig=1&q=' + encodeURIComponent(consulta)), 9000);
-    const d = await r.json();
-    if (d.AbstractText) juntar(limparHtml(d.AbstractText), d.Heading || 'DuckDuckGo', d.AbstractURL);
-    for (const t of (d.RelatedTopics || []).slice(0, 4)) if (t.Text && t.FirstURL) juntar(limparHtml(t.Text), limparHtml(t.Text).slice(0, 70), t.FirstURL);
-  } catch (e) {}
-  try {
-    const b = 'https://pt.wikipedia.org/w/api.php?origin=*&format=json&action=query';
-    const r = await comPrazo(fetch(b + '&list=search&srlimit=3&srsearch=' + encodeURIComponent(consulta)), 9000);
-    const d = await r.json();
-    const titulos = (((d.query || {}).search) || []).map(x => x.title);
-    if (titulos.length) {
-      const r2 = await comPrazo(fetch(b + '&prop=extracts&exintro=1&explaintext=1&titles=' + encodeURIComponent(titulos.join('|'))), 9000);
-      const d2 = await r2.json();
-      for (const p of Object.values(((d2.query || {}).pages) || {})) {
-        if (p.extract) juntar(p.title + ': ' + limparHtml(p.extract).slice(0, 900), p.title + ' — Wikipédia', 'https://pt.wikipedia.org/wiki/' + encodeURIComponent(String(p.title).replace(/ /g, '_')));
-      }
-    }
-  } catch (e) {}
-  return { trechos: trechos.slice(0, 6), fontes: fontes.slice(0, 6) };
+// HTML -> texto: fora script/style e as etiquetas; entidades comuns viram os caracteres
+const ENTIDADES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', mdash: '—', ndash: '–', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”', eacute: 'é', aacute: 'á', atilde: 'ã', ccedil: 'ç', oacute: 'ó', ecirc: 'ê', otilde: 'õ', uacute: 'ú', iacute: 'í', acirc: 'â', ocirc: 'ô', agrave: 'à' };
+function limparHtml(t) {
+  return String(t || '')
+    .replace(/<(script|style|noscript|svg|template)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#(\d+);/g, function (_, n) { try { return String.fromCharCode(+n); } catch (e) { return ' '; } })
+    .replace(/&([a-z]+);/gi, function (m, n) { const v = ENTIDADES[String(n).toLowerCase()]; return v === undefined ? ' ' : v; })
+    .replace(/[\t\r ]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 }
-// o que entra na conversa como contexto da pesquisa
+// o texto que interessa de uma página: o miolo, sem menu, rodapé nem comentários de HTML
+function textoDaPagina(html) {
+  let h = String(html || '').replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(header|footer|nav|aside|form|iframe)[\s\S]*?<\/\1>/gi, ' ');
+  const artigo = /<(article|main)[^>]*>([\s\S]*?)<\/\1>/i.exec(h);
+  if (artigo && artigo[2] && artigo[2].length > 500) h = artigo[2];
+  return limparHtml(h).replace(/\n\s*\n/g, '\n').slice(0, 4000);
+}
+const paginaDaWeb = url => PLATAFORMA.temBusca ? comPrazo(PLATAFORMA.buscarPagina(url), 22000) : comPrazo(fetch(url).then(r => r.text()), 15000);
+// o DuckDuckGo devolve os links por um redirecionador: o endereço de verdade vem no parâmetro uddg
+function enderecoDDG(href) {
+  const h = String(href || '').replace(/&amp;/g, '&');
+  const m = /[?&]uddg=([^&]+)/.exec(h);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) {} }
+  return /^https?:\/\//.test(h) ? h : '';
+}
+// resultados da página de busca: título, endereço e o trecho que o buscador mostra
+function lerResultados(html) {
+  const saida = [];
+  const re = /<a[^>]+class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html)) && saida.length < 8) {
+    const url = enderecoDDG(m[1]), titulo = limparHtml(m[2]);
+    if (url && titulo && !/duckduckgo\.com/.test(url) && !saida.some(x => x.url === url)) saida.push({ url: url, titulo: titulo.slice(0, 120), trecho: '' });
+  }
+  const rs = /<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+  let i = 0, t;
+  while ((t = rs.exec(html)) && i < saida.length) saida[i++].trecho = limparHtml(t[1]).slice(0, 400);
+  return saida;
+}
+/* busca de verdade: resultados do buscador + o conteúdo das primeiras páginas */
+async function pesquisarNaWeb(consulta) {
+  const q = String(consulta || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+  let achados = [];
+  try {
+    const html = await paginaDaWeb('https://html.duckduckgo.com/html/?kl=br-pt&q=' + encodeURIComponent(q));
+    achados = lerResultados(html);
+  } catch (e) {}
+  if (!achados.length) achados = await buscaSimples(q);          // sem o buscador (ou sem ponte): resposta direta
+  achados = achados.slice(0, 5);
+  // abre as três primeiras para ler o que elas realmente dizem
+  const lidas = await Promise.all(achados.slice(0, 3).map(async f => {
+    try { return textoDaPagina(await paginaDaWeb(f.url)); } catch (e) { return ''; }
+  }));
+  const trechos = achados.map((f, k) => {
+    const corpo = (lidas[k] || '').length > 200 ? lidas[k] : f.trecho;
+    return (corpo || f.trecho || '').slice(0, 2500);
+  });
+  return { fontes: achados.map(f => ({ titulo: f.titulo, url: f.url })), trechos: trechos };
+}
+// reserva: respostas diretas e resumos abertos (usados quando o buscador não responde, como no Linux sem ponte)
+async function buscaSimples(q) {
+  const saida = [];
+  try {
+    const r = await comPrazo(fetch('https://api.duckduckgo.com/?format=json&no_html=1&skip_disambig=1&q=' + encodeURIComponent(q)), 9000);
+    const d = await r.json();
+    if (d.AbstractText && d.AbstractURL) saida.push({ url: d.AbstractURL, titulo: d.Heading || q, trecho: limparHtml(d.AbstractText) });
+    for (const t of (d.RelatedTopics || []).slice(0, 4)) if (t.Text && t.FirstURL) saida.push({ url: t.FirstURL, titulo: limparHtml(t.Text).slice(0, 80), trecho: limparHtml(t.Text) });
+  } catch (e) {}
+  return saida;
+}
 const N = String.fromCharCode(10);
 const blocoPesquisa = r => 'RESULTADOS DA PESQUISA (' + new Date().toLocaleDateString('pt-BR') + '):' + N
   + r.fontes.map((f, k) => '[' + (k + 1) + '] ' + f.titulo + ' — ' + f.url + N + (r.trechos[k] || '')).join(N + N)
-  + N + N + 'Use estes resultados como fonte, cite os números entre colchetes e não invente nada além deles.';
+  + N + N + 'Responda com base nestes resultados, citando as fontes usadas como [1], [2]…, e diga quando eles não responderem à pergunta. Não invente nada que não esteja aí.';
 
 /* ---------------- "+": câmera, fotos, arquivos e modelo ---------------- */
 function abrirMais() {
@@ -2142,7 +2184,7 @@ function desenharListaModelos(folha) {
 }
 $('#seletorModelo').onclick = () => abrirSeletorModelo();
 $('#pillEsforco').onclick = e => { e.stopPropagation(); abrirEsforco(); };
-$('#btPesquisa').onclick = () => definirPesquisa(!pesquisaLigada());
+$('#btPesquisa').onclick = () => definirPesquisa(false);
 addEventListener('online', atualizarBotaoPesquisa); addEventListener('offline', atualizarBotaoPesquisa);
 $('#pillEsforco').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); abrirEsforco(); } };
 
@@ -2381,7 +2423,7 @@ async function responder(conv, continuacao) {
   if (alvo) {
     alvo.classList.add('digitando');
     if (comEsquema) alvo.innerHTML = `<p class="info">${esc(modo.espera)}</p>`;
-    else if (!msg.texto) { alvo.innerHTML = htmlTrabalhando(); pararPalavra = novaPalavra(alvo.firstChild, true); }   // msg.texto: "continuar" já tem texto
+    else if (!msg.texto && !pensar) { alvo.innerHTML = htmlTrabalhando(); pararPalavra = novaPalavra(alvo.firstChild, true); }   // pensando, a palavra fica só na linha do raciocínio
   }
   janelaEscondida = document.hidden;
   // raciocínio (Esforço Alto): bloco recolhível acima da resposta enquanto pensa; recolhe quando a resposta começa

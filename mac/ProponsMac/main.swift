@@ -467,6 +467,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         case "link":
             if let s = a["url"] as? String, let u = URL(string: s), ["http", "https"].contains(u.scheme ?? "") { NSWorkspace.shared.open(u) }
             return true
+        // pesquisa na internet: a janela web não lê sites de fora (política de origem), então o app busca
+        case "buscar": return try await paginaDaWeb(a["url"] as? String ?? "")
         case "ocupado": manterAcordado(a["sim"] as? Bool ?? false, resposta: true); return true
         case "modelo":
             let novo = try modeloDe(a)
@@ -545,6 +547,18 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         case "atualizar": return try await atualizar(a["versao"] as? String ?? "")
         default: throw erro("ação desconhecida: \(acao)")
         }
+    }
+
+    // baixa uma página da internet como texto (limite de tempo e de tamanho; só http/https)
+    func paginaDaWeb(_ endereco: String) async throws -> String {
+        guard let u = URL(string: endereco), ["http", "https"].contains(u.scheme ?? "") else { throw erro("endereço inválido") }
+        var req = URLRequest(url: u, timeoutInterval: 15)
+        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 13_0) ProponsIA/(VERSAO)", forHTTPHeaderField: "User-Agent")
+        req.setValue("pt-BR,pt;q=0.9,en;q=0.6", forHTTPHeaderField: "Accept-Language")
+        req.setValue("text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5", forHTTPHeaderField: "Accept")
+        let (d, _) = try await URLSession.shared.data(for: req)
+        let corte = d.count > 500_000 ? d.prefix(500_000) : d[...]
+        return String(decoding: corte, as: UTF8.self)
     }
 
     // MARK: conversas (com .bak)

@@ -522,6 +522,7 @@ class MainActivity : Activity() {
                             "lerArquivo" -> lerArquivoPasta(args.optString("caminho"))
                             "gravarArquivo" -> gravarArquivoPasta(args.optString("caminho"), args.optString("conteudo"))
                             "apagarArquivo" -> apagarArquivoPasta(args.optString("caminho"))
+                            "buscar" -> paginaDaWeb(args.optString("url"))
                             "cancelarDownload" -> { cancelarBaixar = true; true }
                             "apagarModelo" -> apagarModelo(modeloDe(args))
                             "escolherModelo" -> {
@@ -866,6 +867,26 @@ class MainActivity : Activity() {
         val ok = DocumentsContract.deleteDocument(contentResolver, d)
         mapaPasta.clear()
         return ok
+    }
+
+    // pesquisa na internet: a página do app não pode ler sites de fora (política de origem), então o app busca
+    private fun paginaDaWeb(url: String): String {
+        if (!url.startsWith("https://") && !url.startsWith("http://")) throw Exception("endereço inválido")
+        val c = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 15000; readTimeout = 15000; instanceFollowRedirects = true
+            setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) ProponsIA")
+            setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.6")
+            setRequestProperty("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5")
+        }
+        try {
+            val entrada = if (c.responseCode in 200..299) c.inputStream else c.errorStream ?: throw Exception("HTTP " + c.responseCode)
+            val buf = CharArray(500000)
+            entrada.bufferedReader(Charsets.UTF_8).use { r ->
+                var n = 0
+                while (n < buf.size) { val lido = r.read(buf, n, buf.size - n); if (lido <= 0) break; n += lido }
+                return String(buf, 0, n)
+            }
+        } finally { c.disconnect() }
     }
 
     private fun abrirLink(url: String) {

@@ -1,3 +1,10 @@
+## Novidades da 1.21.1
+
+- **A pesquisa na internet virou busca de verdade.** Ligada em "+", a pergunta vai para o buscador, o app abre as primeiras páginas — sites, blogs, fóruns — lê o conteúdo e a resposta sai citando [1], [2]… com os **links reais** logo abaixo. Nada de resumo enlatado de uma fonte só. Sem internet, ela avisa em uma linha e responde com o que já sabe.
+- **A IA entende o próprio aplicativo por dentro**, inclusive como ele é feito: peça melhorias e ela diz onde a mudança encostaria, o que ganharia e o que custaria.
+- Enquanto pensa aparece **uma coisa só**: a linha do raciocínio, sem a palavra repetida embaixo.
+- **Sem popup de confirmação para permissões:** quem pergunta é o próprio aparelho, como nos outros apps.
+- O botão da pesquisa aparece na caixa quando você liga no "+" e some quando você toca nele.
 ## Novidades da 1.21.0
 
 - **Pesquisa na internet, quando você quiser.** Ligue em "+" → Pesquisar na internet e aparece um botão ao lado do modelo, na caixa. Com a pesquisa ligada, a pergunta vai para a busca pública (DuckDuckGo e Wikipédia), os trechos entram como fonte e a resposta cita os números, com os links logo abaixo. **Sem internet, ela avisa em uma linha** e responde com o que já sabe. Desligada (o padrão), nada sai do aparelho.

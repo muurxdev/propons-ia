@@ -244,6 +244,12 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         case "link":
             if let s = args["url"] as? String, let u = URL(string: s), ["http", "https"].contains(u.scheme ?? "") { DispatchQueue.main.async { UIApplication.shared.open(u) } }
             responder(id, true)
+        // pesquisa na internet: a página do app não lê sites de fora (política de origem), então o app busca
+        case "buscar":
+            Task {
+                do { responder(id, try await paginaDaWeb(args["url"] as? String ?? "")) }
+                catch { erro(id, error.localizedDescription) }
+            }
         case "modelo":
             guard let novo = ModeloIA.todos.first(where: { $0.id == args["id"] as? String }), novo.id != "avancado" else { erro(id, "modelo indisponível no iPhone"); return }
             if baixandoId != nil || trocando { erro(id, "espere o download ou a troca atual terminar"); return }
@@ -430,6 +436,17 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             vc.popoverPresentationController?.sourceRect = CGRect(x: self.web.bounds.midX, y: self.web.bounds.midY, width: 1, height: 1)
             self.web.window?.rootViewController?.present(vc, animated: true)
         }
+    }
+
+    private func paginaDaWeb(_ endereco: String) async throws -> String {
+        guard let u = URL(string: endereco), ["http", "https"].contains(u.scheme ?? "") else { throw erro("endereço inválido") }
+        var req = URLRequest(url: u, timeoutInterval: 15)
+        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) ProponsIA", forHTTPHeaderField: "User-Agent")
+        req.setValue("pt-BR,pt;q=0.9,en;q=0.6", forHTTPHeaderField: "Accept-Language")
+        req.setValue("text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5", forHTTPHeaderField: "Accept")
+        let (d, _) = try await URLSession.shared.data(for: req)
+        let corte = d.count > 500_000 ? d.prefix(500_000) : d[...]
+        return String(decoding: corte, as: UTF8.self)
     }
 
     private func carregarConversas() -> String {

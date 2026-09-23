@@ -276,6 +276,9 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     lerArquivoPasta: caminho => pedir('lerArquivo', { caminho }, 30000),
     gravarArquivoPasta: (caminho, conteudo) => pedir('gravarArquivo', { caminho, conteudo }, 45000),
     apagarArquivoPasta: caminho => pedir('apagarArquivo', { caminho }, 20000),
+    // pesquisa na internet: o app baixa a página por nós (a janela web não lê sites de fora)
+    temBusca: tipo !== 'web',
+    buscarPagina: url => pedir('buscar', { url }, 25000),
     abrirLink(url) { if (tipo === 'web' || tipo === 'windows') window.open(url, '_blank', 'noopener'); else pedir('link', { url }, 3000).catch(() => {}); },   // android/ios/mac: o app abre no navegador
     // conteudo pode ser texto ou bytes (Uint8Array/ArrayBuffer) — para os hosts os bytes vão em base64
     async salvarArquivo(nome, conteudo, tipoMime) {
