@@ -30,6 +30,17 @@ XTC mais forte). **Pensar (Esforço Alto) é hoje o maior ganho contra alucinaç
 no Lume o orçamento de 1200 tokens é curto (48 %). Armadilhas continuam o foco dos dados de preferência (Etapa 1c);
 a meta 2.0 (acerto +15 pontos, armadilhas < 10 % de invenção) passa a ser medida contra o Aurora pensando.
 
+## Etapa 1 — dados (`dados/`)
+
+Formato: um `jsonl` por assunto; cada linha `{"licenca","tipo","messages":[…]}` (SFT) ou
+`{"licenca","tipo":"preferencia","prompt","escolhida","rejeitada"}` (DPO/ORPO). Tipos: `identidade`, `estilo`,
+`conhecimento`, `anti-alucinacao`, `anti-repeticao`, `preferencia`. `node treino/dados/validar.mjs` confere formato,
+duplicatas, vazamento de outras identidades e junta tudo em `dados/tudo.jsonl` (ignorado pelo git).
+
+Semente atual: `identidade.jsonl` (31 diálogos escritos à mão em pt-BR: quem é a Própons, estilo de resposta, casos
+"não sei", 3 respostas diferentes para a mesma pergunta). Meta da etapa: ~5 000 exemplos SFT + ~1 500 pares de
+preferência, gerados com um modelo grande a partir de material público (ENEM/INEP) e **revisados**.
+
 ## Próximas etapas
 
 1. **Dados** (`dados/`): identidade e estilo (300–500 diálogos), conhecimento de estudo (ENEM/vestibular, revisado),
