@@ -307,7 +307,12 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   await js(`abrirSeletorModelo(); 1`); await espera(1000);
   const lm = await js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b => ({ nome: b.querySelector('b').textContent, esf: (b.querySelector('b .pill')||{}).textContent || '', st: b.querySelector('.st').textContent.trim() }))`);
   ok('a lista de modelos não repete o nível de esforço (nem botão "Usar")', lm.every(x => !x.esf) && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));
-  await js(`fecharDialogo(); 1`); await espera(300);
+  // folha aberta de dentro de outra (a lista de modelos ainda está aberta): entra pela direita e volta com a seta
+  await js(`document.querySelector('.dlg.modelos [data-esforco]').click(); 1`); await espera(900);
+  ok('a tela de dentro entra pela direita e volta com a seta (não com X)', await js(`(()=>{
+    const f = document.querySelector('.dlg-fundo:not(.saindo)'); const b = f && f.querySelector('[data-x]');
+    return !!f && f.classList.contains('lado') && !!b && b.getAttribute('aria-label') === 'Voltar' })()`));
+  await js(`fecharDialogo(); 1`); await espera(500);
   ok('o nível aparece na caixa, ao lado do nome do modelo', await js(`(()=>{ const p = $('#pillEsforco'), n = $('#nomeModelo'); if (!p || p.hidden || !p.textContent) return false;
     const a = p.getBoundingClientRect(), b = n.getBoundingClientRect();
     return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) <= 1.5 && a.left >= b.right - 1 })()`), await js(`$('#nomeModelo').textContent + ' · ' + $('#pillEsforco').textContent`));

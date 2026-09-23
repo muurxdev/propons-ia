@@ -80,7 +80,7 @@ function animarSaida(fundo, folha, depois) {
   setTimeout(() => { fundo.remove(); if (depois) depois(); }, 200);
 }
 function folhaArrastavel(fundo, folha, fechar) {
-  let y0 = null, dy = 0, t0 = 0, id = null, moveu = false;
+  let y0 = null, dy = 0, t0 = 0, id = null, moveu = false, subindo = false;
   folha.addEventListener('pointerdown', e => {
     if (e.button > 0 || !estreita()) return;
     const zona = e.target.closest('.p-arrastar, .dlg-topo, .p-topo, .p-nav-topo, .folha');
@@ -90,7 +90,10 @@ function folhaArrastavel(fundo, folha, fechar) {
   });
   folha.addEventListener('pointermove', e => {
     if (y0 === null || e.pointerId !== id) return;
-    dy = Math.max(0, e.clientY - y0);
+    const bruto = e.clientY - y0;
+    // para cima só vale quando a folha ainda não está inteira: aí ela cresce em vez de arrastar
+    if (bruto < -8 && !folha.classList.contains('cheia')) { subindo = true; folha.classList.add('cheia'); y0 = e.clientY; return; }
+    dy = Math.max(0, bruto);
     if (moveu) pausarDesenho(200);
     if (!moveu && dy > 6) { moveu = true; try { folha.setPointerCapture(id); } catch (er) {} folha.style.transition = 'none'; fundo.style.transition = 'none'; }
     if (moveu) { folha.style.transform = `translateY(${dy}px)`; fundo.style.backgroundColor = `rgba(10,10,14,${(0.45 * Math.max(0, 1 - dy / folha.offsetHeight)).toFixed(3)})`; }
@@ -103,14 +106,22 @@ function folhaArrastavel(fundo, folha, fechar) {
       const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
       folha.addEventListener('click', engolir, { capture: true, once: true });
       setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
-      if (dy > Math.min(140, folha.offsetHeight * 0.3) || v > 0.7) fechar();
-      else { folha.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1)'; folha.style.transform = ''; fundo.style.transition = 'background-color .24s'; fundo.style.backgroundColor = ''; }
+      // da folha inteira, o primeiro arraste para baixo volta ao tamanho pequeno; o segundo fecha
+      if (folha.classList.contains('cheia') && dy > 60 && dy < 200 && v < 0.9) folha.classList.remove('cheia');
+      else if (dy > Math.min(140, folha.offsetHeight * 0.3) || v > 0.7) fechar();
+      folha.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1)'; folha.style.transform = '';
+      fundo.style.transition = 'background-color .24s'; fundo.style.backgroundColor = '';
     }
-    y0 = null;
+    y0 = null; subindo = false;
   };
   folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
 }
-const topoCentro = (titulo, voltar) => `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="${voltar ? 'Voltar' : 'Fechar'}">${voltar ? ICO.voltar : ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
+// folha aberta por cima de outra volta (seta) em vez de fechar (X); sozinha, fecha
+const sobreOutraFolha = () => !!document.querySelector('.dlg-fundo:not(.saindo)');
+const topoCentro = (titulo, voltar) => {
+  const v = voltar === undefined ? sobreOutraFolha() : voltar;
+  return `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="${v ? 'Voltar' : 'Fechar'}">${v ? ICO.voltar : ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
+};
 const topoFolha = topoCentro;
 
 /* diálogo próprio (folha que sobe de baixo). botoes: [[rótulo, valor, 'primario'|'perigo'|'']]; devolve o valor escolhido (null ao fechar) */
@@ -147,9 +158,13 @@ new MutationObserver(muts => {
     for (const n of m.addedNodes) {
       if (!(n instanceof Element) || !/\b(dlg-fundo|painel-fundo)\b/.test(n.className)) continue;
       const caixa = n.firstElementChild; if (!caixa) continue;
+      // abriu por cima de outra folha: entra pela direita, como uma tela de dentro
+      if ([...document.querySelectorAll('.dlg-fundo')].some(x => x !== n)) n.classList.add('lado');   // inclui a que está saindo: é a mesma navegação
       caixa.setAttribute('role', caixa.getAttribute('role') || 'dialog'); caixa.setAttribute('aria-modal', 'true');
       if (!caixa.hasAttribute('tabindex')) caixa.tabIndex = -1;
-      n._focoAntes = document.activeElement;
+      n._focoAntes = document.activeElement;   // guarda antes de tirar o foco, para devolver ao fechar
+      // o teclado sai da frente quando o menu sobe
+      try { if (n._focoAntes && n._focoAntes !== document.body && n._focoAntes.blur) n._focoAntes.blur(); } catch (e) {}
       setTimeout(() => { if (!n.isConnected || n.contains(document.activeElement)) return; const alvo = caixa.querySelector('input, textarea') || caixa; alvo.focus({ preventScroll: true }); }, 30);
     }
     for (const n of m.removedNodes) {

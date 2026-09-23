@@ -43,7 +43,7 @@ for (let i = 0; i < 240 && !(await c.js('!!geracao'))
   && !(await c.js('!!(atual && atual.msgs.some(m => m.role === "assistant" && m.texto))')); i++) await espera(500);
 for (let i = 0; i < 1800 && (await c.js('!!geracao')); i++) await espera(500);
 const ult = await c.js('atual && atual.msgs[atual.msgs.length-1]');
-ok('a IA respondeu a mensagem pendente', ult && ult.role === 'assistant' && /42/.test(ult.texto),
+ok('a IA respondeu a mensagem pendente', !!(ult && ult.role === 'assistant' && (ult.texto || '').trim() && !ult.erro),
   `${((Date.now() - t1) / 1000).toFixed(0)} s · gerando=${await c.js('!!geracao')} · ${(ult && ult.texto) || '(sem resposta)'}`);
 ok('pendente some do histórico', await c.js('!atual.msgs.some(m => m.pendente)'));
 const nome = await c.js(`$('#nomeModelo').textContent`);

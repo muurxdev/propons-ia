@@ -77,8 +77,11 @@ jobs:
           try { node src/teste_frio.mjs 9333 dist/teste-frio } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: teste-windows, path: "dist/teste-windows/
-dist/teste-frio/" }
+        with:
+          name: teste-windows
+          path: |
+            dist/teste-windows/
+            dist/teste-frio/
       - uses: actions/upload-artifact@v4
         with: { name: windows, path: dist/Propons-IA-Windows.exe }
 

@@ -4,6 +4,9 @@
 - **A IA entende o próprio aplicativo por dentro**, inclusive como ele é feito: peça melhorias e ela diz onde a mudança encostaria, o que ganharia e o que custaria.
 - Enquanto pensa aparece **uma coisa só**: a linha do raciocínio, sem a palavra repetida embaixo.
 - **Sem popup de confirmação para permissões:** quem pergunta é o próprio aparelho, como nos outros apps.
+- **A caixa de mensagem ficou como a das melhores IAs:** o modelo virou uma pílula com o nível de esforço ao lado (tocando nele você troca o nível), a pesquisa é um chip com o X para tirar, e o microfone e o enviar ficam redondos à direita, com mais respiro entre tudo.
+- **Menus e folhas funcionam como no celular de verdade:** abrem pela metade da tela e sobem até o fim quando você arrasta pela alça; arrastando para baixo voltam ao tamanho menor e depois fecham. O teclado sai da frente sozinho quando um menu sobe.
+- **Tela de dentro entra pela direita** (a de esforço, por exemplo) e volta com a seta, em vez do X — de baixo para cima só quando o menu abre ou fecha.
 - O botão da pesquisa aparece na caixa quando você liga no "+" e some quando você toca nele.
 ## Novidades da 1.21.0
 
