@@ -2,6 +2,10 @@
 
 - **Responde em segundo plano e avisa quando termina.** Minimize a janela, troque de app ou apague a tela: a IA continua escrevendo e, quando acabar, o sistema te avisa com o começo da resposta (toque para voltar). No celular, um aviso discreto "Respondendo…" mantém o app vivo enquanto pensa. Dá para desligar em Ajustes → Aparência → "Avisar quando ficar pronto" (não avisa se você já estiver com a Própons na frente).
 - **Enquanto pensa, uma palavra em inglês com brilho passando** (*Working*, *Thinking*, *Reasoning*…) no lugar do cursor roxo; e durante a escrita, uma bolinha discreta que respira no fim do texto.
+- **Área de código** no "+": seus arquivos ficam guardados no aparelho, em abas, com editor de código. Peça uma mudança em português ("comente as funções", "corrija o erro da linha 12") e a Própons devolve o arquivo alterado mostrando **o que mudou linha a linha** — você aplica ou descarta. Dá para salvar no aparelho, mandar para o chat e guardar qualquer bloco de código das respostas com um toque. Funciona também no celular.
+- **Caixa de digitação organizada:** o "+" foi para o canto e modelo, microfone e enviar ficaram juntos do outro lado.
+- **Cada modelo tem o seu nível de esforço** (o Lume rende no Baixo, o Ápice aproveita o Alto) e o nível aparece na lista. Tocar no modelo já liga — acabou o botão "Usar". Modelo que já está baixado mostra "Ativando…" em vez de "baixando 0%".
+- Escolher um modo de estudo não abre mais aviso na tela.
 
 ## Novidades da 1.19.1
 
