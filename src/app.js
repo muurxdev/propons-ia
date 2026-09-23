@@ -39,6 +39,16 @@ const ICO = {
 
 /* ---------------- estado ---------------- */
 let conversas = [], atual = null, SYSTEM = '', online = false, jaFicouOnline = false;
+/* o texto sobre o próprio aplicativo só entra quando a pergunta é sobre ele: no celular, cada palavra a mais
+   no texto de sistema atrasa a primeira resposta de toda conversa nova. */
+let SOBRE_APP = '';
+const MARCA_SOBRE = 'Sobre você (a Própons IA)';
+const RE_SOBRE_APP = new RegExp("voc[êe]|pr[óo]pons|aplicativo|esse app|este app|o app|onde fica|onde est[áa]|onde eu (?:acho|vejo|mudo|ligo)|como (?:eu )?(?:fa[çc]o|mudo|troco|ligo|desligo|abro|uso|acesso|apago|salvo|baixo|instalo)|ajustes|configura|esfor[çc]o|biblioteca|[áa]rea de c[óo]digo|menu lateral|permiss|c[âa]mera|microfone|offline|sem internet|atualiza[çr]|vers[ãa]o|quem (?:te|o|a) (?:criou|fez)|quem [ée] voc[êe]|o que voc[êe]", 'i');
+function separarSistema() {
+  const i = SYSTEM.indexOf(MARCA_SOBRE);
+  if (i > 0) { SOBRE_APP = String.fromCharCode(10) + String.fromCharCode(10) + SYSTEM.slice(i).trim(); SYSTEM = SYSTEM.slice(0, i).trim(); }
+}
+const falaDoApp = t => RE_SOBRE_APP.test(String(t || ''));
 let geracao = null;            // { conv, ctrl } enquanto uma resposta está sendo gerada
 let anexos = [];               // anexos da próxima mensagem
 let editando = false, salvarBloqueado = false, nCtx = 8192;
@@ -2334,7 +2344,7 @@ async function responder(conv, continuacao) {
 
   const nivel = esforco();
   const maxTokens = pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;   // pensar gasta tokens do raciocínio
-  let SISTEMA = SYSTEM + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
+  let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
     : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '');
   // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
   let fontes = null;
@@ -3223,7 +3233,7 @@ nova();
 if (!estreita()) abrirLateral();
 (async () => {
   // primeira abertura: a tela de escolher o modelo vem antes de tudo (o chat abre depois, já com a IA ligada)
-  if (!ESCOLHER) { try { SYSTEM = await PLATAFORMA.textoSistema(); } catch (e) {} }
+  if (!ESCOLHER) { try { SYSTEM = await PLATAFORMA.textoSistema(); separarSistema(); } catch (e) {} }
   if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
   await carregarHistorico();
   lerSistema().then(atualizarSeletorModelo);

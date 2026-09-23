@@ -6,7 +6,7 @@ const [porta, saida] = process.argv.slice(2);
 const { js, foto, fechar, cdp } = await conectar({ porta, saida, filtro: u => /127.0.0.1/.test(u) });
 const resultados = [];
 const ok = (nome, cond, det = '') => { resultados.push([cond ? 'OK ' : 'FALHOU', nome, det]); console.log(cond ? '  ✔' : '  ✘', nome, det ? '— ' + String(det).slice(0, 160) : ''); };
-const pergunta = async (t, max = 240) => {
+const pergunta = async (t, max = 900) => {   // o emulador do CI é lento: até 7,5 min por resposta
   await js(`(()=>{ const e=document.querySelector('#entrada'); e.value=${JSON.stringify(t)}; ajustar(); document.querySelector('#enviar').click(); return 1 })()`);
   await espera(500);
   for (let i = 0; i < max * 2; i++) { if (!(await js('!!geracao'))) break; await espera(500); }
