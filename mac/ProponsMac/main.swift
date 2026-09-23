@@ -314,7 +314,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         if motor == nil { porta = portaLivre() }
         let exe = pastaMotor.appendingPathComponent("llama-server")
         var args = ["-m", arq.path, "--host", "127.0.0.1", "--port", "\(porta)", "--path", recursos.appendingPathComponent("interface").path,
-                    "-c", "8192", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "1200", "--api-key-file", arquivoChave().path]
+                    "-c", "8192", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "600", "--api-key-file", arquivoChave().path]
         if visaoLigada(), let v = acharModelo(modelo.visao()) { args += ["--mmproj", v.path, "--image-max-tokens", "400"]; visaoAtiva = true } else { visaoAtiva = false }
         if ProcessInfo.processInfo.environment["PROPONS_SEM_GPU"] == "1" { args += ["-ngl", "0"] }   // testes em máquina virtual sem GPU
         let p = Process(); p.executableURL = exe; p.arguments = args; p.currentDirectoryURL = pastaMotor

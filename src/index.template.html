@@ -212,7 +212,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .cod-conta .mais{color:var(--ok)} .cod-conta .menos{color:var(--danger)}
 .cod-dif-pe{display:flex;gap:8px;padding:9px 10px;border-top:1px solid var(--line);flex-wrap:wrap}
 .cod-dif-pe .btn{min-height:34px;padding:6px 14px;font-size:13px}
-.cod-compor{display:flex;align-items:flex-end;gap:4px;margin:0 18px;padding:5px 6px 5px 6px;border:1px solid var(--line);border-radius:20px;background:var(--surface)}
+.cod-compor{display:flex;align-items:center;gap:4px;margin:0 18px;padding:5px 6px;border:1px solid var(--line);border-radius:20px;background:var(--surface)}
 .cod-compor:focus-within{border-color:var(--accent)}
 .cod-entrada{flex:1;min-width:0;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:var(--fs)/1.5 var(--sans);padding:8px 2px 6px;max-height:140px}
 .cod-compor .redondo{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);transition:background .15s,transform .1s}
@@ -226,7 +226,25 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .dif-l.mais{background:var(--ok-soft);color:var(--ok)} .dif-l.menos{background:var(--danger-soft);color:var(--danger)}
 .dif-corte{display:block;padding:1px 10px;color:var(--faint);font-style:normal}
 @media (min-width:761px){.dlg-fundo.pop .dlg.codigo{width:min(680px,calc(100vw - 16px));max-height:min(80vh,calc(100vh - 16px))}}
-/* raciocínio (Esforço Alto) */
+/* fontes da pesquisa na internet */
+.fontes{margin:10px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13px}
+.fontes b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;margin-bottom:6px}
+.fontes ol{margin:0;padding-left:20px;color:var(--muted)}
+.fontes li{margin:3px 0}
+.fontes a{color:var(--accent);text-decoration:none;overflow-wrap:anywhere}
+.fontes a:hover{text-decoration:underline}
+/* raciocínio (Esforço Alto): uma linha na conversa; o texto fica na folha */
+.msg.pensa{margin:6px 0 2px}
+.pensa-linha{display:inline-flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;border-radius:99px;border:1px solid var(--line);background:var(--surface);cursor:pointer;transition:background .15s,border-color .15s}
+.pensa-linha:hover{background:var(--hover);border-color:var(--faint)}
+.pensa-rotulo{font-size:13px;color:var(--muted)}
+.pensa-seta{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:transparent;transition:background .18s,color .18s,transform .22s cubic-bezier(.2,.8,.2,1)}
+.pensa-seta svg{width:15px;height:15px}
+.pensa-linha:hover .pensa-seta{background:var(--hover)}
+.pensa-seta[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent);transform:rotate(180deg)}
+.pensa-folha .pens-txt{margin:2px 6px 10px;max-height:52vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:13px/1.65 var(--mono);color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:12px;padding:12px}
+.pensa-pe{margin:0 8px 6px;font-size:11.5px}
+/* raciocínio antigo (recolhível) */
 .pensando{margin:4px 0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px;color:var(--muted)}
 .pensando summary{padding:6px 10px;cursor:pointer;color:var(--muted);font-weight:500;list-style:none;display:flex;align-items:center;gap:6px} .pensando summary::before{content:"▸";font-size:11px} .pensando[open] summary::before{content:"▾"}
 .pensando summary .trabalhando{font-size:13px}
@@ -289,6 +307,11 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .linha #anexar{margin-left:-4px}   /* "+" colado no canto, com o modelo ao lado */
 .linha #falar{margin-right:2px}
 #entrada{display:block;width:100%;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:var(--fs)/1.5 var(--sans);padding:6px 6px 2px;min-height:34px;max-height:240px}
+.bt-web{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:9px;font-size:12.5px;font-weight:500;color:var(--muted);border:1px solid var(--line);transition:background .15s,color .15s,border-color .15s}
+.bt-web svg{width:14px;height:14px;flex:none}
+.bt-web.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.bt-web:hover{background:var(--hover)}
+@media (max-width:760px){.bt-web span{display:none}.bt-web{padding:0 8px}}
 .seletor-modelo{display:flex;align-items:center;gap:4px;height:30px;padding:0 8px 0 10px;border-radius:9px;font-size:13px;font-weight:500;color:var(--muted);transition:background .15s,color .15s;max-width:55%}
 .seletor-modelo:hover{background:var(--hover);color:var(--ink)}
 .seletor-modelo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -719,7 +742,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" hidden></span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="bt-web" id="btPesquisa" title="Pesquisa na internet ligada — toque para desligar" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21C9.5 18.4 8.2 15.4 8.2 12S9.5 5.6 12 3z"/></svg><span>Pesquisa</span></button>
         <span class="espaco"></span>
         <button class="icone" id="falar" title="Falar e transcrever" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>

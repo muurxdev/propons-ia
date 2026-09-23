@@ -266,6 +266,15 @@ const PLATAFORMA = (() => {
     apagarVoz(id) { return pedir('apagarVoz', { id }, 15000); },
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },
+    // pasta de verdade do aparelho (Android: o sistema pede a permissão de armazenamento)
+    temPastaNativa: tipo === 'android',
+    abrirPasta: () => pedir('abrirPasta', {}, 180000),
+    pastaInfo: () => pedir('pastaInfo', {}, 8000),
+    esquecerPasta: () => pedir('esquecerPasta', {}, 8000),
+    listarPasta: () => pedir('listarPasta', {}, 45000),
+    lerArquivoPasta: caminho => pedir('lerArquivo', { caminho }, 30000),
+    gravarArquivoPasta: (caminho, conteudo) => pedir('gravarArquivo', { caminho, conteudo }, 45000),
+    apagarArquivoPasta: caminho => pedir('apagarArquivo', { caminho }, 20000),
     abrirLink(url) { if (tipo === 'web' || tipo === 'windows') window.open(url, '_blank', 'noopener'); else pedir('link', { url }, 3000).catch(() => {}); },   // android/ios/mac: o app abre no navegador
     // conteudo pode ser texto ou bytes (Uint8Array/ArrayBuffer) — para os hosts os bytes vão em base64
     async salvarArquivo(nome, conteudo, tipoMime) {

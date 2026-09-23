@@ -27,6 +27,7 @@ const ICO = {
   biblioteca: '<svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h3v18H6a2 2 0 0 1-2-2zM9 3h4v18H9zM14.5 4.2l3.9-1 3 16.5-3.9 1z"/></svg>',
   microfone: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
   foto: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>',
+  baixo: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
   baixar: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19h14"/></svg>',
   escudo: '<svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
   sino: '<svg viewBox="0 0 24 24"><path d="M18 15V10a6 6 0 0 0-12 0v5l-2 3h16z"/><path d="M10 21h4"/></svg>',
@@ -197,6 +198,7 @@ function validar(lista) {
       ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
       ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo) })) } : {}),
+      ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 8).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
       ...(m.passos && Array.isArray(m.passos.lista) ? { passos: { titulo: txt(m.passos.titulo), lista: m.passos.lista.map(txt) } } : {}),
       // modos de estudo: o modo da pergunta e o resultado estruturado da resposta (conferidos como se viessem do modelo)
@@ -266,7 +268,7 @@ function pressionarLongo(el, fn) {
 }
 $('#busca').addEventListener('input', desenharLista);
 
-function fecharMenus() { document.querySelectorAll('.menu').forEach(m => m.remove()); document.querySelectorAll('[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
+function fecharMenus() { document.querySelectorAll('.menu').forEach(m => m.remove()); document.querySelectorAll('[aria-expanded="true"]:not(.pensa-seta)').forEach(x => x.setAttribute('aria-expanded', 'false')); }   /* a flechinha do raciocínio não é menu */
 function menuFlutuante(ancora, itens, titulo) {
   fecharMenus();
   if (estreita()) {   // celular: folha que sobe de baixo, com botões grandes (arrastar para baixo ou X fecha)
@@ -470,8 +472,11 @@ function addIa(m, ultima) {
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
   d.innerHTML = `<div class="txt${widget ? ' widget' : ''}">${widget || md(m.texto || '')}</div>` +
-    (m.pensou ? `<details class="pensando"><summary>Raciocínio</summary><div class="pens-txt">${esc(m.pensou)}</div></details>` : '') +
+    (m.pensou ? htmlLinhaPensa('Raciocínio') : '') +
+    (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
+  if (m.pensou) ligarLinhaPensa(d, m.pensou);
+  d.querySelectorAll('.fontes a').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); });
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
@@ -479,7 +484,7 @@ function addIa(m, ultima) {
 /* ---------------- telas do menu lateral (Área de código e Biblioteca) ----------------
    São telas de verdade: ocupam o lugar do chat (com a caixa de digitação escondida) e ficam listadas no menu lateral,
    abaixo da busca. Continuam ligadas ao chat: mandar um arquivo ou usar um item volta para a conversa com o anexo. */
-const TELAS = { codigo: { nome: 'Área de código', ico: 'codigo', conta: () => projeto().arquivos.length, render: (el) => telaCodigo(el) },
+const TELAS = { codigo: { nome: 'Código', ico: 'codigo', conta: () => projeto().arquivos.length, render: (el) => telaCodigo(el) },
                 biblioteca: { nome: 'Biblioteca', ico: 'biblioteca', conta: () => biblioteca.length, render: (el) => telaBiblioteca(el) } };
 let telaAtual = '';
 function desenharNavLateral() {
@@ -519,7 +524,7 @@ const ligarVoltarConversa = el => { const b = el.querySelector('[data-conversa]'
    Um projeto de arquivos guardado no aparelho: criar/editar/apagar arquivos, pedir mudanças à IA (ela devolve o
    arquivo inteiro e a gente mostra o diff para aceitar ou recusar), salvar no disco e mandar um arquivo para o chat.
    Sem rodar código: o que a IA escreve você aceita, recusa ou exporta. */
-ICO.codigo = '<svg viewBox="0 0 24 24"><path d="M9 8l-4 4 4 4"/><path d="M15 8l4 4-4 4"/></svg>';
+ICO.codigo = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2.6l1.9 5.1 5-2.2-3.4 4.2 5 2.3-5.4.5 1.7 5.1-4.1-3.5-3.5 4 1-5.3-5.4.7 4.7-2.8-3.8-3.9 5.2 1.9z"/></svg>';
 ICO.mais = ICO.mais || '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
 ICO.salvar = '<svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M9 4v5h6V4"/><path d="M8 13h8v7H8z"/></svg>';
 const LIMITE_CODIGO = 120000;   // por arquivo
@@ -573,7 +578,8 @@ const ESQ_AGENTE = { type: 'object', properties: {
   acoes: { type: 'array', maxItems: 6, items: { type: 'object', properties: {
     tipo: { type: 'string', enum: ['ler', 'criar', 'escrever', 'apagar'] }, arquivo: { type: 'string' }, conteudo: { type: 'string' },
   }, required: ['tipo', 'arquivo'], additionalProperties: false } } }, required: ['resposta', 'acoes'], additionalProperties: false };
-const TEM_PASTA = typeof window.showDirectoryPicker === 'function';
+const TEM_PASTA = typeof window.showDirectoryPicker === 'function' || !!PLATAFORMA.temPastaNativa;
+let pastaNativa = false;   // no celular quem guarda a pasta é o próprio aparelho (SAF)
 const MAX_ARQS = 400, MAX_LER = 60000;
 let pastaRaiz = null;      // FileSystemDirectoryHandle da pasta aberta
 let pastaNome = '';
@@ -584,6 +590,11 @@ const idbPasta = {
   async por(k, v) { const db = await this.abrir(); try { return await new Promise((ok, falha) => { const t = db.transaction('kv', 'readwrite'); const s = t.objectStore('kv'); const p = v === undefined ? s.get(k) : s.put(v, k); p.onsuccess = () => ok(p.result); t.onerror = () => falha(t.error); }); } finally { db.close(); } },
 };
 async function restaurarPasta() {
+  if (PLATAFORMA.temPastaNativa) {
+    if (pastaNativa) return;
+    try { const r = await PLATAFORMA.pastaInfo(); if (r && r.nome) { pastaNativa = true; pastaNome = r.nome; cacheArqs = null; } } catch (e) {}
+    return;
+  }
   if (!TEM_PASTA || pastaRaiz) return;
   try {
     const h = await idbPasta.por('pasta'); if (!h) return;
@@ -592,6 +603,13 @@ async function restaurarPasta() {
   } catch (e) {}
 }
 async function escolherPasta() {
+  if (PLATAFORMA.temPastaNativa) {
+    try {
+      const r = await PLATAFORMA.abrirPasta();
+      if (!r || !r.nome) return false;
+      pastaNativa = true; pastaNome = r.nome; cacheArqs = null; return true;
+    } catch (e) { toast('Não consegui abrir a pasta: ' + e.message, 4000); return false; }
+  }
   try {
     const h = await window.showDirectoryPicker({ mode: 'readwrite', id: 'propons-codigo' });
     if ((await h.requestPermission({ mode: 'readwrite' })) !== 'granted') { toast('Sem permissão para essa pasta.'); return false; }
@@ -603,8 +621,12 @@ const IGNORAR = /^(node_modules|\.git|dist|build|out|__pycache__|venv|\.venv|tar
 const TEXTO_CODIGO = /\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|ya?ml|toml|ini|cfg|conf|sh|bash|ps1|bat|lua|r|dart|vue|svelte|env|gitignore|csv)$/i;
 // arquivos da pasta aberta (recursivo, só texto/código) ou da área interna
 const arqs = {
-  get origem() { return pastaRaiz ? 'pasta' : 'interno'; },
+  get origem() { return (pastaRaiz || pastaNativa) ? 'pasta' : 'interno'; },
   async listar(recarregar) {
+    if (pastaNativa) {
+      if (cacheArqs && !recarregar) return cacheArqs;
+      try { return cacheArqs = (await PLATAFORMA.listarPasta()) || []; } catch (e) { toast('Não consegui ler a pasta: ' + e.message, 4000); return cacheArqs = []; }
+    }
     if (!pastaRaiz) return projeto().arquivos.map(a => ({ nome: a.nome, tam: new Blob([a.conteudo]).size }));
     if (cacheArqs && !recarregar) return cacheArqs;
     const saida = [];
@@ -629,11 +651,13 @@ const arqs = {
     return { dir, nome: partes[partes.length - 1] };
   },
   async ler(caminho) {
+    if (pastaNativa) return PLATAFORMA.lerArquivoPasta(caminho);
     if (!pastaRaiz) { const a = arqDoProjeto(projeto(), caminho); if (!a) throw new Error('não existe'); return a.conteudo; }
     const { dir, nome } = await this.handle(caminho);
     return (await (await dir.getFileHandle(nome)).getFile()).text();
   },
   async gravar(caminho, conteudo) {
+    if (pastaNativa) { await PLATAFORMA.gravarArquivoPasta(caminho, String(conteudo)); cacheArqs = null; return; }
     if (!pastaRaiz) {   // área do app: sobrescreve o arquivo com esse nome (guardarNoProjeto renomeia para não colidir)
       const p = projeto(), a = arqDoProjeto(p, caminho);
       if (a) a.conteudo = String(conteudo).slice(0, LIMITE_CODIGO);
@@ -647,6 +671,7 @@ const arqs = {
     cacheArqs = null;
   },
   async apagar(caminho) {
+    if (pastaNativa) { await PLATAFORMA.apagarArquivoPasta(caminho); cacheArqs = null; return; }
     if (!pastaRaiz) { const p = projeto(); p.arquivos = p.arquivos.filter(a => a.nome !== caminho); salvarProjeto(p); return; }
     const { dir, nome } = await this.handle(caminho); await dir.removeEntry(nome); cacheArqs = null;
   },
@@ -744,7 +769,7 @@ function telaCodigo(alvoTela) {
   const desenharTopo = async () => {
     const barra = cod.querySelector('.cod-topo'), lista = await arqs.listar(), ch = codigoChat();
     const nSes = codigoSessoes().filter(s => s.msgs && s.msgs.length).length;
-    barra.innerHTML = `${TEM_PASTA ? `<button class="cod-chip" data-pasta title="Escolher a pasta do aparelho">${ICO.pasta}<b>${pastaRaiz ? esc(pastaNome) : pastaNome ? 'Reabrir ' + esc(pastaNome) : 'Abrir pasta'}</b></button>`
+    barra.innerHTML = `${TEM_PASTA ? `<button class="cod-chip" data-pasta title="Escolher a pasta do aparelho">${ICO.pasta}<b>${(pastaRaiz || pastaNativa) ? esc(pastaNome) : pastaNome ? 'Reabrir ' + esc(pastaNome) : 'Abrir pasta'}</b></button>`
         : `<span class="cod-chip fixo">${ICO.pasta}<b>Área do app</b></span>`}
       <button class="cod-tag" data-arquivos>${lista.length ? `${lista.length} ${lista.length === 1 ? 'arquivo' : 'arquivos'}` : 'nenhum arquivo'}</button>
       <span class="cod-espaco"></span>
@@ -950,6 +975,40 @@ async function rodarAgente(pedido, desenharChat, desenharPasta) {
   } catch (e) { const c2 = codigoChat(); c2.msgs.push({ role: 'assistant', texto: 'Não consegui completar: ' + e.message }); salvarCodigoChat(c2); }
   finally { if (pararP) pararP(); espera.remove(); agenteOcupado = false; desenharChat(); if (desenharPasta) await desenharPasta(); }
 }
+/* ---------------- raciocínio (Esforço Alto): só a palavra e a flechinha; o texto fica numa folha ----------------
+   Na conversa fica uma linha só. A flechinha gira e muda de fundo ao abrir; no celular a folha sobe de baixo. */
+const htmlFontes = fontes => `<div class="fontes"><b>Fontes da pesquisa</b><ol>${fontes.map(f => `<li><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.titulo)}</a></li>`).join('')}</ol></div>`;
+const htmlLinhaPensa = rotulo => `<div class="pensa-linha"><span class="pensa-rotulo">${rotulo ? esc(rotulo) : htmlTrabalhando()}</span><button class="pensa-seta" aria-label="Ver o raciocínio" aria-expanded="false">${ICO.baixo}</button></div>`;
+let folhaPensa = null;
+function ligarLinhaPensa(el, texto) {
+  const linha = el.querySelector('.pensa-linha'); if (!linha) return;
+  const abrir = () => abrirFolhaPensa(typeof texto === 'function' ? texto() : texto, linha);
+  linha.querySelector('.pensa-seta').onclick = abrir;
+  linha.onclick = e => { if (!e.target.closest('.pensa-seta')) abrir(); };
+}
+function abrirFolhaPensa(texto, linha) {
+  if (folhaPensa) { folhaPensa.fechar(); return; }
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha pensa-folha">${topoCentro('Raciocínio')}<div class="pens-txt">${esc(texto || '')}</div>
+    <p class="info pensa-pe">É o rascunho da IA antes de responder. Some quando você apaga a conversa.</p></div>`;
+  const dlg = f.firstChild;
+  const sair = () => { folhaPensa = null; if (linha) linha.querySelector('.pensa-seta').setAttribute('aria-expanded', 'false'); animarSaida(f, dlg); };
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; dlg.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, dlg, sair);
+  if (linha) linha.querySelector('.pensa-seta').setAttribute('aria-expanded', 'true');
+  folhaPensa = f;
+  pausarDesenho(); document.body.appendChild(f);
+  const t = dlg.querySelector('.pens-txt'); t.scrollTop = t.scrollHeight;
+}
+// enquanto a IA pensa com a folha aberta, o texto vai chegando nela
+function atualizarFolhaPensa(texto) {
+  if (!folhaPensa) return;
+  const t = folhaPensa.querySelector('.pens-txt'); if (!t) return;
+  const colado = t.scrollHeight - t.scrollTop - t.clientHeight < 40;
+  t.textContent = texto;
+  if (colado) t.scrollTop = t.scrollHeight;
+}
+
 /* ---------------- "Working": a palavra em inglês com brilho passando enquanto a IA não escreveu nada ----------------
    Uma palavra só, trocando de vez em quando (como no Claude). O brilho é CSS; aqui só trocamos a palavra. */
 const PALAVRAS_TRABALHANDO = ['Working', 'Thinking', 'Reasoning', 'Pondering', 'Analyzing', 'Reflecting', 'Considering', 'Figuring it out', 'Processing'];
@@ -1642,7 +1701,7 @@ async function estadoPermissao(k) {
       : Notification.permission === 'granted' ? 'ok' : Notification.permission === 'denied' ? 'negado' : 'pedir';
     return permLembrada(k) === 'ok' ? 'ok' : 'pedir';       // no aparelho quem pergunta é o sistema
   }
-  if (k === 'pasta') return !TEM_PASTA ? 'indisponivel' : pastaRaiz ? 'ok' : 'pedir';
+  if (k === 'pasta') return !TEM_PASTA ? 'indisponivel' : (pastaRaiz || pastaNativa) ? 'ok' : 'pedir';
   if (k === 'camera' && !PLATAFORMA.temVisao) return 'indisponivel';
   try {
     if (navigator.permissions && navigator.permissions.query) {
@@ -1840,6 +1899,58 @@ function verItemBiblioteca(i, folha) {
   });
   pausarDesenho(); document.body.appendChild(f);
 }
+/* ---------------- pesquisa na internet (opcional, desligada por padrão) ----------------
+   Tudo o mais é offline. Quando a pessoa liga, a pergunta vai para a busca pública (DuckDuckGo e Wikipédia),
+   os trechos entram na conversa como fonte e a resposta cita os números. Sem internet, a IA avisa e responde
+   com o que já sabe. Nada é enviado quando está desligada. */
+ICO.globo = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21C9.5 18.4 8.2 15.4 8.2 12S9.5 5.6 12 3z"/></svg>';
+const pesquisaLigada = () => pref('pesquisaWeb') === 'sim';
+function definirPesquisa(sim) {
+  pref('pesquisaWeb', sim ? 'sim' : 'nao');
+  atualizarBotaoPesquisa();
+  toast(sim ? 'Pesquisa na internet ligada. Suas perguntas vão para a busca pública.' : 'Pesquisa na internet desligada.', 3500);
+}
+function atualizarBotaoPesquisa() {
+  const b = $('#btPesquisa'); if (!b) return;
+  const on = pesquisaLigada();
+  b.hidden = !on || ESCOLHER;                 /* só aparece quando está ligada (liga-se pelo "+") */
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+const semInternet = () => typeof navigator.onLine === 'boolean' && !navigator.onLine;
+const limparHtml = t => String(t || '').replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/[ \t\n]+/g, " ").trim();
+const comPrazo = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('demorou')), ms))]);
+// busca pública, sem chave: resposta direta do DuckDuckGo + resumos da Wikipédia em português
+async function pesquisarNaWeb(consulta) {
+  const trechos = [], fontes = [];
+  const juntar = (texto, titulo, url) => { if (!texto || !url || fontes.some(f => f.url === url)) return; trechos.push(texto); fontes.push({ titulo: titulo || url, url }); };
+  try {
+    const r = await comPrazo(fetch('https://api.duckduckgo.com/?format=json&no_html=1&skip_disambig=1&q=' + encodeURIComponent(consulta)), 9000);
+    const d = await r.json();
+    if (d.AbstractText) juntar(limparHtml(d.AbstractText), d.Heading || 'DuckDuckGo', d.AbstractURL);
+    for (const t of (d.RelatedTopics || []).slice(0, 4)) if (t.Text && t.FirstURL) juntar(limparHtml(t.Text), limparHtml(t.Text).slice(0, 70), t.FirstURL);
+  } catch (e) {}
+  try {
+    const b = 'https://pt.wikipedia.org/w/api.php?origin=*&format=json&action=query';
+    const r = await comPrazo(fetch(b + '&list=search&srlimit=3&srsearch=' + encodeURIComponent(consulta)), 9000);
+    const d = await r.json();
+    const titulos = (((d.query || {}).search) || []).map(x => x.title);
+    if (titulos.length) {
+      const r2 = await comPrazo(fetch(b + '&prop=extracts&exintro=1&explaintext=1&titles=' + encodeURIComponent(titulos.join('|'))), 9000);
+      const d2 = await r2.json();
+      for (const p of Object.values(((d2.query || {}).pages) || {})) {
+        if (p.extract) juntar(p.title + ': ' + limparHtml(p.extract).slice(0, 900), p.title + ' — Wikipédia', 'https://pt.wikipedia.org/wiki/' + encodeURIComponent(String(p.title).replace(/ /g, '_')));
+      }
+    }
+  } catch (e) {}
+  return { trechos: trechos.slice(0, 6), fontes: fontes.slice(0, 6) };
+}
+// o que entra na conversa como contexto da pesquisa
+const N = String.fromCharCode(10);
+const blocoPesquisa = r => 'RESULTADOS DA PESQUISA (' + new Date().toLocaleDateString('pt-BR') + '):' + N
+  + r.fontes.map((f, k) => '[' + (k + 1) + '] ' + f.titulo + ' — ' + f.url + N + (r.trechos[k] || '')).join(N + N)
+  + N + N + 'Use estes resultados como fonte, cite os números entre colchetes e não invente nada além deles.';
+
 /* ---------------- "+": câmera, fotos, arquivos e modelo ---------------- */
 function abrirMais() {
   const temVisao = PLATAFORMA.temVisao;
@@ -1852,6 +1963,7 @@ function abrirMais() {
     </div>
     <div class="opcoes linhas">
       <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span><span class="pt"><b>Áudio</b><small>${PLATAFORMA.temTranscricao ? 'Transcrever uma gravação' : 'Indisponível neste aparelho'}</small></span>${ICO.seta}</button>
+      <button data-op="pesquisa"><span class="oi">${ICO.globo}</span><span class="pt"><b>Pesquisar na internet</b><small>${pesquisaLigada() ? 'Ligada · suas perguntas vão para a busca pública' : 'Desligada · tudo continua no aparelho'}</small></span><span class="chave${pesquisaLigada() ? ' on' : ''}"></span></button>
       <button data-modos><span class="oi">${ICO.estudo}</span><span class="pt"><b>Modos de estudo</b><small>${modoAtivo ? 'Ativo: ' + MODOS[modoAtivo].nome : 'Flashcards, quiz, redação, resumo e revisão'}</small></span>${ICO.seta}</button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:8px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
@@ -1868,6 +1980,7 @@ function abrirMais() {
     if (op === 'camera') { if (await garantirPermissao('camera')) (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam(); }
     else if (op === 'fotos') $('#fotos').click();
     else if (op === 'arquivos') $('#arquivo').click();
+    else if (op === 'pesquisa') definirPesquisa(!pesquisaLigada());
     else if (op === 'audio') garantirVoz().then(ok => ok && $('#audio').click());
     else abrirConfig('modelo');
   });
@@ -1980,7 +2093,7 @@ async function abrirSeletorModelo(motivo) {
   const ef = folha.querySelector('[data-esforco]'); if (ef) ef.onclick = () => { sair(); abrirEsforco(() => abrirSeletorModelo()); };
   folhaArrastavel(f, folha, sair);
   pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
-  await lerSistema(); atualizarSeletorModelo();
+  await lerSistema(); atualizarSeletorModelo(); atualizarBotaoPesquisa();
   desenharListaModelos(folha); posicionarPop(f, folha, $('#seletorModelo'));
 }
 // a folha/menu do seletor, se estiver aberta, acompanha downloads e trocas
@@ -2017,6 +2130,10 @@ function desenharListaModelos(folha) {
   });
 }
 $('#seletorModelo').onclick = () => abrirSeletorModelo();
+$('#pillEsforco').onclick = e => { e.stopPropagation(); abrirEsforco(); };
+$('#btPesquisa').onclick = () => definirPesquisa(false);
+addEventListener('online', atualizarBotaoPesquisa); addEventListener('offline', atualizarBotaoPesquisa);
+$('#pillEsforco').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); abrirEsforco(); } };
 
 // câmera do PC (webcam) numa folha: tira a foto e anexa
 async function abrirWebcam() {
@@ -2195,6 +2312,7 @@ async function responder(conv, continuacao) {
   const pedeCodigo = !modo && PEDE_CODIGO.test(texto);
   // Esforço Alto: o modelo raciocina antes de responder (thinking do Qwen3.5); o raciocínio aparece recolhível
   const pensar = esforco() === 'alto' && !comEsquema && !continuacao && PLATAFORMA.tipo !== 'ios';
+  // pensar não pode virar espera: o raciocínio é curto e a resposta vem logo
 
   // algoritmo com lista de números: passo a passo e resumo calculados por código (exatos e instantâneos)
   const tr = (continuacao || pedeCodigo || (pergunta && (pergunta.anexos || pergunta.imagens))) ? null : detectTrace(texto);
@@ -2215,7 +2333,21 @@ async function responder(conv, continuacao) {
 
   const nivel = esforco();
   const maxTokens = pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;   // pensar gasta tokens do raciocínio
-  const SISTEMA = SYSTEM + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.' : nivel === 'alto' ? '\n\nAntes de responder, pense com cuidado: entenda o que foi pedido, resolva passo a passo e confira o resultado. Depois responda de forma completa, organizada e correta.' : '');
+  let SISTEMA = SYSTEM + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
+    : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '');
+  // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
+  let fontes = null;
+  if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
+    if (semInternet()) SISTEMA += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';
+    else {
+      estado('pesquisando na internet');
+      let r = null;
+      try { r = await pesquisarNaWeb(texto.slice(0, 300)); } catch (e) {}
+      estado('', false, 'rede');
+      if (r && r.fontes.length) { SISTEMA += '\n\n' + blocoPesquisa(r); fontes = r.fontes; }
+      else SISTEMA += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
+    }
+  }
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
   const historico = montarHistorico(conv, maxTokens);
   // continuar só a partir do texto inteiro: se a resposta cortada não coube na memória da IA, continuar dela sairia errado
@@ -2230,6 +2362,7 @@ async function responder(conv, continuacao) {
     if (alvo) { const a = alvo.parentNode.querySelector('.acoes'); if (a) a.remove(); const n = alvo.parentNode.querySelector('.nota'); if (n) n.remove(); }
   } else {
     msg = { role: 'assistant', texto: '', llm: '' };
+    if (fontes) msg.fontes = fontes;
     alvo = atual === conv ? addIa({ texto: '', interno: true }, false) : null;
   }
   // enquanto nada foi escrito: "Working" com brilho (nos modos de estudo, o aviso do modo); pararPalavra() encerra a troca
@@ -2244,13 +2377,15 @@ async function responder(conv, continuacao) {
   let pensEl = null, pensTxt = '';
   let pararPalavraPens = null;
   if (alvo && pensar) {
-    pensEl = document.createElement('details'); pensEl.className = 'pensando';   // fechado: a linha de raciocínio só aparece se você clicar
-    pensEl.innerHTML = `<summary>${htmlTrabalhando()}</summary><div class="pens-txt"></div>`;
+    pensEl = document.createElement('div'); pensEl.className = 'msg ia pensa';
+    pensEl.innerHTML = htmlLinhaPensa(null);
     alvo.parentNode.insertBefore(pensEl, alvo);
     pensEl.dataset.pensando = 'sim';
+    ligarLinhaPensa(pensEl, () => pensTxt);
     pararPalavraPens = novaPalavra(pensEl.querySelector('.trabalhando'), true);
   }
-  const aoPensar = pensar ? p => { pensTxt += p; if (pensEl) pensEl.querySelector('.pens-txt').textContent = pensTxt.slice(-3000); rolar(); } : undefined;
+  // o raciocínio vai para a folha (aberta ou não): nunca ocupa a conversa
+  const aoPensar = pensar ? p => { pensTxt += p; atualizarFolhaPensa(pensTxt); } : undefined;
   const ctrl = new AbortController();
   geracao = { conv, ctrl, el: alvo };
   // leitura em voz alta enquanto a resposta chega (Aparência → Ler em voz alta: toda resposta)
@@ -2323,7 +2458,7 @@ async function responder(conv, continuacao) {
       { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
         if (pararPalavra) { pararPalavra(); pararPalavra = null; }
-        if (pensEl && pensEl.dataset.pensando !== 'nao') { if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; } pensEl.dataset.pensando = 'nao'; pensEl.querySelector('summary').textContent = 'Raciocínio'; }
+        if (pensEl && pensEl.dataset.pensando !== 'nao') { if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; } pensEl.dataset.pensando = 'nao'; const r = pensEl.querySelector('.pensa-rotulo'); if (r) r.textContent = 'Raciocínio'; }
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';

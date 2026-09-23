@@ -661,7 +661,7 @@ class Janela : Form
             ProcessStartInfo psi = new ProcessStartInfo(exe,
                 "-m \"" + arquivoModelo + "\" --host " + (ApiLigada() ? "0.0.0.0" : "127.0.0.1") + " --port " + porta +   // API na rede local: escuta em todas as interfaces (com a chave)
                 " --path \"" + Path.Combine(pasta, "interface") + "\"" +
-                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning-format auto --reasoning-budget 1200 --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao() + gpuArgs);   // pensar (Esforço Alto) é ligado por pedido; o orçamento limita o raciocínio
+                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning-format auto --reasoning-budget 600 --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao() + gpuArgs);   // pensar (Esforço Alto) é ligado por pedido; o orçamento limita o raciocínio
             psi.WorkingDirectory = pasta; psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
             psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
             Process p = new Process { StartInfo = psi, EnableRaisingEvents = true };

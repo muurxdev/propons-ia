@@ -26,7 +26,7 @@ await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(4
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
 ok('"+" abre menu flutuante (pop) no PC', await js(`!!document.querySelector('.dlg-fundo.pop .dlg')`));
-ok('"+" no estilo Claude: 3 cartões + 2 linhas (Áudio e Modos), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 2 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
+ok('"+" no estilo Claude: 3 cartões + 3 linhas (Áudio, Pesquisa e Modos), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 3 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
 const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, x: Math.abs(r.left-b.left) < 40}})()`);
 ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(rp));
 await foto('p1-mais');
@@ -239,14 +239,19 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   for (let i = 0; i < 200 && (await js('!!geracao')); i++) await espera(250);   // não envia por cima de uma geração em andamento
   await js(`definirEsforco(idModeloAtual(), 'alto'); atualizarSeletorModelo(); nova(); (()=>{ const e=$('#entrada'); e.value='Quanto é 17 vezes 23? Responda só o número.'; ajustar(); $('#enviar').click(); })(); 1`);
   for (let i = 0; i < 40 && !(await js('!!atual && atual.msgs.length')); i++) await espera(100);
-  let viuPensando = false, vazioAberto = null;
-  for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.ia details.pensando')`); }
-  if (viuPensando) vazioAberto = await js(`document.querySelector('.msg.ia details.pensando').open`);
+  let viuPensando = false, textoNaConversa = null;
+  for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.pensa .pensa-linha .trabalhando')`); }
+  if (viuPensando) textoNaConversa = await js(`document.querySelector('.msg.pensa').textContent.length`);
   for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
   for (let i = 0; i < 960 && (await js('!!geracao')); i++) await espera(250);
-  const pr = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1]; return { pensou: (m.pensou || '').length, texto: m.texto.slice(0, 40), detalhe: !!document.querySelector('.msg.ia:last-child details.pensando'), fechado: !document.querySelector('.msg.ia:last-child details.pensando').open } })()`);
-  ok('esforço Alto: só a palavra animada, com o raciocínio fechado', viuPensando && vazioAberto === false, 'aberto enquanto pensava: ' + vazioAberto);
-  ok('esforço Alto: raciocínio gravado e recolhido, resposta separada', pr.pensou > 50 && pr.detalhe && pr.fechado && !/Thinking|Process/.test(pr.texto), JSON.stringify(pr));
+  const pr = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1]; return { pensou: (m.pensou || '').length, texto: m.texto.slice(0, 40), detalhe: !!document.querySelector('.msg.ia .pensa-linha'), fechado: !document.querySelector('.pensa-folha') } })()`);
+  ok('esforço Alto: na conversa fica só a palavra animada e a flechinha', viuPensando && textoNaConversa !== null && textoNaConversa < 40, 'letras na linha: ' + textoNaConversa);
+  ok('esforço Alto: raciocínio gravado fora da conversa, resposta separada', pr.pensou > 50 && pr.detalhe && pr.fechado && !/Thinking|Process/.test(pr.texto), JSON.stringify(pr));
+  await js(`document.querySelector('.msg.ia .pensa-seta').click(); 1`); await espera(500);
+  const folhaP = await js(`(()=>{ const d = document.querySelector('.pensa-folha'); if (!d) return null; const st = getComputedStyle(document.querySelector('.msg.ia .pensa-seta'));
+    return { letras: d.querySelector('.pens-txt').textContent.length, girou: /matrix|rotate/.test(st.transform) && st.transform !== 'none' } })()`);
+  ok('a flechinha abre a folha com o raciocínio e gira', folhaP && folhaP.letras > 50 && folhaP.girou, JSON.stringify(folhaP));
+  await js(`fecharDialogo(); 1`); await espera(300);
   console.log('     resposta (17 × 23):', pr.texto);
   await js(`definirEsforco(idModeloAtual(), 'medio'); atualizarSeletorModelo(); nova(); 1`);
 }
@@ -296,7 +301,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 // 1.20: ajustes pedidos — "+" no canto, esforço por modelo, clicar liga (sem "Usar"), sem popup ao escolher modo
 {
   const ordem = await js(`[...document.querySelectorAll('.linha > *')].map(e => e.id || e.className)`);
-  ok('caixa organizada: "+" e o modelo à esquerda; microfone e enviar à direita', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[2] === 'espaco' && ordem[3] === 'falar' && ordem[4] === 'enviar', JSON.stringify(ordem));
+  ok('caixa organizada: "+" e o modelo à esquerda; microfone e enviar à direita', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[ordem.length-3] === 'espaco' && ordem[ordem.length-2] === 'falar' && ordem[ordem.length-1] === 'enviar', JSON.stringify(ordem));
   await js(`abrirSeletorModelo(); 1`); await espera(1000);
   const lm = await js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b => ({ nome: b.querySelector('b').textContent, esf: (b.querySelector('b .pill')||{}).textContent || '', st: b.querySelector('.st').textContent.trim() }))`);
   ok('a lista de modelos não repete o nível de esforço (nem botão "Usar")', lm.every(x => !x.esf) && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));
@@ -415,6 +420,28 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('cada permissão tem estado e botão de permitir quando falta', await js(`[...document.querySelectorAll('.perm')].every(p => !!p.querySelector('.st') && (/Permitido|Indisponível/.test(p.querySelector('.st').textContent) || !!p.querySelector('[data-p]')))`));
   ok('a câmera só é usada depois de pedir permissão', await js(`typeof garantirPermissao === 'function' && /garantirPermissao\\('camera'\\)/.test(abrirMais.toString())`));
   await js(`fecharModal(true); 1`); await espera(300);
+}
+// 1.21: pesquisa na internet — desligada por padrão, ligada no "+", botão na caixa e fontes na resposta
+{
+  await js(`pref('pesquisaWeb', ''); atualizarBotaoPesquisa(); nova(); 1`); await espera(300);
+  ok('pesquisa vem desligada e sem botão na caixa', !(await js('pesquisaLigada()')) && (await js(`$('#btPesquisa').hidden`)));
+  await js(`abrirMais(); 1`); await espera(500);
+  ok('o "+" tem a chave de ligar a pesquisa', !!(await js(`document.querySelector('.dlg.mais [data-op="pesquisa"] .chave')`)));
+  await js(`document.querySelector('.dlg.mais [data-op="pesquisa"]').click(); 1`); await espera(500);
+  ok('ligou: o botão aparece na caixa, ao lado do modelo', (await js('pesquisaLigada()')) && !(await js(`$('#btPesquisa').hidden`)) && (await js(`$('#btPesquisa').classList.contains('on')`)));
+  // sem internet, a IA avisa em vez de tentar pesquisar
+  await js(`window.__buscou = 0; window.__pesqReal = pesquisarNaWeb; pesquisarNaWeb = async q => { window.__buscou++; return { trechos: ['A fotossíntese ocorre nos cloroplastos.'], fontes: [{ titulo: 'Fotossíntese — Wikipédia', url: 'https://pt.wikipedia.org/wiki/Fotoss%C3%ADntese' }] }; }; 1`);
+  await js(`Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true }); (()=>{ const e=$('#entrada'); e.value='o que é fotossíntese?'; ajustar(); $('#enviar').click(); })(); 1`);
+  for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
+  for (let i = 0; i < 480 && (await js('!!geracao')); i++) await espera(250);
+  ok('sem internet: não pesquisa e a resposta não inventa fontes', (await js('window.__buscou')) === 0 && !(await js(`!!document.querySelector('.msg.ia .fontes')`)));
+  await js(`Object.defineProperty(navigator, 'onLine', { get: () => true, configurable: true }); nova(); (()=>{ const e=$('#entrada'); e.value='o que é fotossíntese?'; ajustar(); $('#enviar').click(); })(); 1`);
+  for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
+  for (let i = 0; i < 480 && (await js('!!geracao')); i++) await espera(250);
+  const comFonte = await js(`(()=>{ const m = atual.msgs[atual.msgs.length-1]; return { buscou: window.__buscou, fontes: (m.fontes||[]).length, link: !!document.querySelector('.msg.ia .fontes a') } })()`);
+  ok('com internet: pesquisa, guarda as fontes e mostra os links', comFonte.buscou === 1 && comFonte.fontes >= 1 && comFonte.link, JSON.stringify(comFonte));
+  await js(`pesquisarNaWeb = window.__pesqReal; delete navigator.onLine; definirPesquisa(false); nova(); 1`); await espera(300);
+  ok('desligar tira o botão da caixa', (await js(`$('#btPesquisa').hidden`)) && !(await js('pesquisaLigada()')));
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
