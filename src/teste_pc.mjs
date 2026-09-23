@@ -26,7 +26,7 @@ await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(4
 // "+" vira menu flutuante ancorado
 await js(`$('#anexar').click(); 1`); await espera(400);
 ok('"+" abre menu flutuante (pop) no PC', await js(`!!document.querySelector('.dlg-fundo.pop .dlg')`));
-ok('"+" no estilo Claude: 3 cartões + 4 linhas (Áudio, Biblioteca, Modos, Código), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 4 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
+ok('"+" no estilo Claude: 3 cartões + 2 linhas (Áudio e Modos), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 2 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
 const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, x: Math.abs(r.left-b.left) < 40}})()`);
 ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(rp));
 await foto('p1-mais');
@@ -239,11 +239,13 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   for (let i = 0; i < 200 && (await js('!!geracao')); i++) await espera(250);   // não envia por cima de uma geração em andamento
   await js(`definirEsforco(idModeloAtual(), 'alto'); atualizarSeletorModelo(); nova(); (()=>{ const e=$('#entrada'); e.value='Quanto é 17 vezes 23? Responda só o número.'; ajustar(); $('#enviar').click(); })(); 1`);
   for (let i = 0; i < 40 && !(await js('!!atual && atual.msgs.length')); i++) await espera(100);
-  let viuPensando = false; for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.ia details.pensando')`); }
+  let viuPensando = false, vazioAberto = null;
+  for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.ia details.pensando')`); }
+  if (viuPensando) vazioAberto = await js(`document.querySelector('.msg.ia details.pensando').open`);
   for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
   for (let i = 0; i < 960 && (await js('!!geracao')); i++) await espera(250);
   const pr = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1]; return { pensou: (m.pensou || '').length, texto: m.texto.slice(0, 40), detalhe: !!document.querySelector('.msg.ia:last-child details.pensando'), fechado: !document.querySelector('.msg.ia:last-child details.pensando').open } })()`);
-  ok('esforço Alto: bloco "Pensando…" aparece enquanto raciocina', viuPensando);
+  ok('esforço Alto: só a palavra animada, com o raciocínio fechado', viuPensando && vazioAberto === false, 'aberto enquanto pensava: ' + vazioAberto);
   ok('esforço Alto: raciocínio gravado e recolhido, resposta separada', pr.pensou > 50 && pr.detalhe && pr.fechado && !/Thinking|Process/.test(pr.texto), JSON.stringify(pr));
   console.log('     resposta (17 × 23):', pr.texto);
   await js(`definirEsforco(idModeloAtual(), 'medio'); atualizarSeletorModelo(); nova(); 1`);
@@ -297,16 +299,32 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('caixa organizada: "+" e o modelo à esquerda; microfone e enviar à direita', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[2] === 'espaco' && ordem[3] === 'falar' && ordem[4] === 'enviar', JSON.stringify(ordem));
   await js(`abrirSeletorModelo(); 1`); await espera(1000);
   const lm = await js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b => ({ nome: b.querySelector('b').textContent, esf: (b.querySelector('b .pill')||{}).textContent || '', st: b.querySelector('.st').textContent.trim() }))`);
-  ok('cada modelo mostra o nível de esforço', lm.filter(x => x.esf).length >= 1 && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));
+  ok('a lista de modelos não repete o nível de esforço (nem botão "Usar")', lm.every(x => !x.esf) && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));
   await js(`fecharDialogo(); 1`); await espera(300);
+  ok('o nível aparece na caixa, ao lado do nome do modelo', await js(`(()=>{ const p = $('#pillEsforco'), n = $('#nomeModelo'); if (!p || p.hidden || !p.textContent) return false;
+    const a = p.getBoundingClientRect(), b = n.getBoundingClientRect();
+    return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) <= 1.5 && a.left >= b.right - 1 })()`), await js(`$('#nomeModelo').textContent + ' · ' + $('#pillEsforco').textContent`));
+  await js(`pref('esforco:leve',''); pref('esforco:normal',''); pref('esforco:avancado',''); 1`);
+  ok('cada modelo já vem com um esforço padrão', (await js(`esforcoDe('leve') + '/' + esforcoDe('normal') + '/' + esforcoDe('avancado')`)) === 'baixo/medio/alto');
   await js(`definirEsforco('leve', 'baixo'); definirEsforco('normal', 'alto'); 1`);
-  ok('esforço é por modelo (Lume Baixo, Aurora Alto)', (await js(`esforcoDe('leve') + '/' + esforcoDe('normal')`)) === 'baixo/alto');
+  ok('dá para mudar o esforço de cada modelo', (await js(`esforcoDe('leve') + '/' + esforcoDe('normal')`)) === 'baixo/alto');
   await js(`definirEsforco('normal', 'medio'); atualizarSeletorModelo(); 1`);
   await js(`window.__avisos = []; abrirMais(); 1`); await espera(500);
   await js(`document.querySelector('.dlg [data-modos]').click(); 1`); await espera(700);
   await js(`document.querySelector('.dlg.modos [data-modo="flashcards"]').click(); 1`); await espera(500);
   ok('escolher um modo não abre popup: só o chip na caixa', (await js('window.__avisos.length')) === 0 && !!(await js(`document.querySelector('#chips .chip.modo')`)), JSON.stringify(await js('window.__avisos')));
   await js(`definirModo(null); 1`);
+  await js(`abrirMais(); 1`); await espera(500);
+  const opsMais = await js(`[...document.querySelectorAll('.dlg.mais button')].map(b => (b.querySelector('b') || b).textContent.trim()).filter(Boolean)`);
+  ok('o "+" não repete o que já está no menu lateral', !opsMais.some(t => /Biblioteca|Área de código/.test(t)) && opsMais.some(t => /Modos de estudo/.test(t)), JSON.stringify(opsMais));
+  await js(`fecharDialogo(); 1`); await espera(300);
+  // anexos: clicar abre para ver, com baixar (foto e arquivo)
+  await js(`anexos = []; adicionarArquivos([new File(['linha 1' + String.fromCharCode(10) + 'linha 2'], 'nota.txt', { type: 'text/plain' })]); 1`); await espera(600);
+  await js(`document.querySelector('#chips .chip.ver').click(); 1`); await espera(600);
+  const vis = await js(`(()=>{ const d = document.querySelector('.dlg.bib-item'); if (!d) return null;
+    return { previa: !!d.querySelector('.bib-previa pre'), texto: (d.querySelector('.bib-previa pre')||{}).textContent || '', acoes: [...d.querySelectorAll('.bib-acoes .btn')].map(b => b.textContent.trim()) } })()`);
+  ok('clicar no arquivo da caixa abre a visualização', vis && vis.previa && /linha 1/.test(vis.texto) && vis.acoes.some(t => /Baixar/.test(t)) && vis.acoes.some(t => /Tirar da mensagem/.test(t)), JSON.stringify(vis));
+  await js(`fecharDialogo(); anexos = []; desenharChips(); 1`); await espera(300);
 }
 // 1.20: Área de código com a lógica do chat (histórico próprio, moldes, compactação, áudio) e telas sem "voltar"
 {

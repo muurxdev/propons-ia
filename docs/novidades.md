@@ -7,6 +7,10 @@
 - **Biblioteca refinada:** virou tela no menu lateral (com a contagem de itens), os áudios mostram a **duração**, as fotos o tamanho da imagem e os documentos as páginas; **cada item tem botão de baixar** e a folha do item abre proporcional, com ficha e botões do mesmo tamanho (nada de popup esticado).
 - **Permissões, uma a uma:** Ajustes → Permissões mostra câmera, microfone, avisos e pasta de arquivos com o estado de cada uma e o botão **Permitir**. A câmera e o microfone só são ligados depois de pedir, com o motivo escrito.
 - **As telas não têm mais botão de voltar** (o menu lateral e o atalho "Conversa" fazem isso) e os espaços no celular foram acertados.
+- **Clicar num anexo abre ele.** Foto vai em tamanho grande, arquivo mostra o texto, os dois com tamanho, páginas e linhas — e com **Baixar**, **Copiar** e **Tirar da mensagem**. Vale para o que está na caixa e para o que você já mandou.
+- **O nível de esforço ficou só na caixa**, ao lado do nome do modelo. A lista de modelos não repete mais, e **cada modelo já vem com o esforço que rende melhor nele** (Lume no Baixo, Aurora no Médio, Ápice no Alto).
+- **O raciocínio nasce fechado:** enquanto pensa aparece só a palavra animada; a linha de raciocínio só abre se você clicar.
+- **O "+" não repete o menu lateral:** Área de código e Biblioteca saíram de lá (continuam no menu, ao lado de Buscar).
 - **Caixa de digitação organizada:** o "+" foi para o canto e modelo, microfone e enviar ficaram juntos do outro lado.
 - **Cada modelo tem o seu nível de esforço** (o Lume rende no Baixo, o Ápice aproveita o Alto) e o nível aparece na lista. Tocar no modelo já liga — acabou o botão "Usar". Modelo que já está baixado mostra "Ativando…" em vez de "baixando 0%".
 - Escolher um modo de estudo não abre mais aviso na tela.

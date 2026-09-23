@@ -275,6 +275,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .caixa.soltar{border-color:var(--accent);background:var(--accent-soft)}
 #chips{display:flex;flex-wrap:wrap;gap:6px;padding:4px 4px 2px}
 .chip{display:flex;align-items:center;gap:6px;max-width:240px;padding:5px 6px 5px 9px;border-radius:9px;background:var(--hover);font-size:12.5px}
+.chip.ver{cursor:pointer;transition:background .15s}
+.chip.ver:hover{background:var(--line)}
+.chip.ver:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chip b{font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .chip small{color:var(--muted);white-space:nowrap}
 .chip button{width:20px;height:20px;display:grid;place-items:center;border-radius:5px;color:var(--muted)}
@@ -292,7 +295,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .seletor-modelo svg{width:15px;height:15px;flex:none}
 #entrada::placeholder{color:var(--faint)}
 #anexar{width:32px;height:32px;border-radius:50%;transition:transform .2s,background .15s}
-.pill{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-left:2px;flex:none}
+.pill{display:inline-flex;align-items:center;height:17px;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);flex:none}
+.seletor-modelo .pill{margin:0}
 #anexar[aria-expanded="true"]{transform:rotate(45deg)}
 #falar{width:32px;height:32px;border-radius:50%}
 .caixa{position:relative}
@@ -476,6 +480,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .chip.foto{padding:3px 5px 3px 3px}
 .fotos-msg{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-bottom:6px;max-width:85%}
 .fotos-msg img{width:120px;height:120px;object-fit:cover;border-radius:14px;border:1px solid var(--line);display:block}
+.fotos-msg img[data-ver]{cursor:pointer;transition:filter .15s,transform .15s}
+.fotos-msg img[data-ver]:hover{filter:brightness(1.06);transform:scale(1.02)}
 /* digitação: bolinha discreta que respira no fim do texto (em vez do cursor roxo piscando) */
 .digitando .cauda>:last-child::after,.digitando .cauda:empty::after{content:'';display:inline-block;width:.46em;height:.46em;margin-left:.28em;vertical-align:.08em;border-radius:50%;background:var(--ink);animation:respira 1.3s ease-in-out infinite}
 .digitando .cauda pre:last-child::after,.digitando .cauda table:last-child::after{display:none}
@@ -489,8 +495,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 @keyframes girar{to{transform:rotate(360deg)}}
 .btn-mini{display:inline-block;padding:6px 12px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font-size:12.5px;font-weight:600}
 .lm .selo{font-size:10.5px;padding:1px 6px;margin-left:4px}
-.lm b .pill{vertical-align:2px}   /* nível de esforço de cada modelo, ao lado do nome */
-.lm.on b .pill{border-color:var(--accent);color:var(--accent)}
 .lm:disabled{opacity:.5}
 /* biblioteca: fotos em cartões com legenda e botão de baixar; arquivos e áudios em linhas com duração */
 .bib-corpo{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 20px calc(18px + var(--sb))}

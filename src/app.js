@@ -395,12 +395,54 @@ $('#conversa').addEventListener('scroll', () => { const c = $('#conversa'); grud
 function rolar(forcar) { const c = $('#conversa'); if (forcar || grudado) { c.scrollTop = c.scrollHeight; grudado = true; $('#descer').hidden = true; } }
 $('#descer').onclick = () => { const c = $('#conversa'); c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' }); grudado = true; $('#descer').hidden = true; };
 function chipHTML(a, remover) {
-  if (a.tipo === 'imagem') return `<div class="chip foto" title="${esc(a.nome)}"><img src="${esc(a.miniatura)}" alt=""><b>${esc(a.nome)}</b>${remover ? `<button data-rm="${esc(a.nome)}" aria-label="Remover foto">${ICO.fechar}</button>` : ''}</div>`;
-  return `<div class="chip" title="${esc(a.nome)}">${ICO.arquivo}<b>${esc(a.nome)}</b><small>${tamanhoBonito(a.tam)}</small>${remover ? `<button data-rm="${esc(a.nome)}" aria-label="Remover anexo">${ICO.fechar}</button>` : ''}</div>`;
+  const comum = `class="chip${a.tipo === 'imagem' ? ' foto' : ''} ver" title="Ver ${esc(a.nome)}" data-ver="${esc(a.nome)}" role="button" tabindex="0"`;
+  const x = remover ? `<button data-rm="${esc(a.nome)}" aria-label="Remover ${a.tipo === 'imagem' ? 'foto' : 'anexo'}">${ICO.fechar}</button>` : '';
+  if (a.tipo === 'imagem') return `<div ${comum}><img src="${esc(a.miniatura)}" alt=""><b>${esc(a.nome)}</b>${x}</div>`;
+  return `<div ${comum}>${ICO.arquivo}<b>${esc(a.nome)}</b><small>${tamanhoBonito(a.tam)}</small>${x}</div>`;
+}
+/* clicar num anexo (na caixa ou já enviado) abre ele: foto grande, arquivo com o texto, e dá para baixar */
+function ligarVerAnexos(el, lista, podeRemover) {
+  el.querySelectorAll('[data-ver]').forEach(c => {
+    const abrir = e => { if (e.target.closest('[data-rm]')) return; const a = (lista || []).find(x => x.nome === c.dataset.ver); if (a) verAnexo(a, podeRemover); };
+    c.onclick = abrir;
+    c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(e); } };
+  });
+  el.querySelectorAll('.fotos-msg img[data-ver]').forEach(im => im.onclick = () => {
+    const a = (lista || []).find(x => x.nome === im.dataset.ver); if (a) verAnexo(a, false);
+  });
+}
+function verAnexo(a, podeRemover) {
+  // a foto guardada na conversa é a miniatura; se ainda estiver na biblioteca desta sessão, usa a grande
+  const daBiblioteca = biblioteca.find(i => i.tipo === 'imagem' && i.nome === a.nome) || {};
+  const cheio = a.dataUrl || daBiblioteca.dataUrl || a.miniatura || '';
+  const eFoto = a.tipo === 'imagem' || (!a.conteudo && !!cheio);
+  const texto = String(a.conteudo || '');
+  const previa = eFoto ? `<img src="${esc(cheio)}" alt="${esc(a.nome)}">` : `<pre>${esc(texto.slice(0, 20000))}</pre>`;
+  const ficha = [['Tipo', eFoto ? 'Foto' : tipoBib(a)], a.tam ? ['Tamanho', tamanhoBonito(a.tam)] : null,
+    a.paginas ? ['Páginas', String(a.paginas)] : null,
+    !eFoto && texto ? ['Linhas', String(texto.split(String.fromCharCode(10)).length)] : null,
+    !eFoto && texto ? ['Palavras', String(texto.split(/s+/).filter(Boolean).length)] : null].filter(Boolean);
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha bib-item">${topoCentro(a.nome, true)}
+    <div class="bib-previa">${previa}</div>
+    ${ficha.length ? `<dl class="bib-ficha">${ficha.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+    <div class="bib-acoes">
+      <button class="btn" data-a="baixar">${ICO.baixar}Baixar</button>
+      ${eFoto ? '' : `<button class="btn" data-a="copiar">${ICO.copiar}Copiar</button>`}
+      ${podeRemover ? `<button class="btn perigo" data-a="remover">${ICO.fechar}Tirar da mensagem</button>` : ''}</div></div>`;
+  const dlg = f.firstChild, sair = () => animarSaida(f, dlg);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; dlg.querySelector('[data-x]').onclick = sair;
+  folhaArrastavel(f, dlg, sair);
+  dlg.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+    if (b.dataset.a === 'baixar') return baixarItemBib(eFoto ? Object.assign({}, a, { tipo: 'imagem', dataUrl: cheio }) : a);
+    if (b.dataset.a === 'copiar') return copiarTexto(texto).then(() => toast('Copiado.'));
+    anexos = anexos.filter(x => x.nome !== a.nome); sair(); desenharChips(); ajustar(); toast('Tirado da mensagem.');
+  });
+  pausarDesenho(); document.body.appendChild(f);
 }
 function addEu(m, ultima) {
   const d = document.createElement('div'); d.className = 'msg eu';
-  d.innerHTML = (m.imagens && m.imagens.length ? `<div class="fotos-msg">${m.imagens.map(x => `<img src="${esc(x.miniatura)}" alt="${esc(x.nome)}">`).join('')}</div>` : '') +
+  d.innerHTML = (m.imagens && m.imagens.length ? `<div class="fotos-msg">${m.imagens.map(x => `<img src="${esc(x.miniatura)}" alt="${esc(x.nome)}" title="Ver ${esc(x.nome)}" data-ver="${esc(x.nome)}">`).join('')}</div>` : '') +
     (m.anexos && m.anexos.length ? `<div class="anexos-msg">${m.anexos.map(a => chipHTML(a)).join('')}</div>` : '') +
     (m.texto ? `<div class="txt">${esc(m.texto)}</div>` : '');
   {   // qualquer pergunta pode ser copiada ou editada e reenviada (o que vem depois dela é refeito)
@@ -410,6 +452,7 @@ function addEu(m, ultima) {
     a.children[1].onclick = () => editarMensagem(m);
     d.appendChild(a);
   }
+  ligarVerAnexos(d, [...(m.imagens || []).map(x => Object.assign({ tipo: 'imagem' }, x)), ...(m.anexos || [])], false);
   coluna().appendChild(d); rolar(true);
 }
 function addIa(m, ultima) {
@@ -1243,7 +1286,8 @@ function desenharChips() {
   const c = $('#chips'); c.hidden = !anexos.length && !modoAtivo;
   c.innerHTML = (modoAtivo ? `<div class="chip modo">${ICO[MODOS[modoAtivo].ico]}<b>Modo: ${esc(MODOS[modoAtivo].nome)}</b><button data-rm-modo aria-label="Sair do modo">${ICO.fechar}</button></div>` : '') + anexos.map(a => chipHTML(a, true)).join('');
   const rm = c.querySelector('[data-rm-modo]'); if (rm) rm.onclick = () => definirModo(null);
-  c.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { anexos = anexos.filter(a => a.nome !== b.dataset.rm); desenharChips(); ajustar(); });
+  c.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => { e.stopPropagation(); anexos = anexos.filter(a => a.nome !== b.dataset.rm); desenharChips(); ajustar(); });
+  ligarVerAnexos(c, anexos, true);
   ajustar();
 }
 // foto → JPEG reduzido (lado maior até 1024 px) para a IA + miniatura para o histórico
@@ -1775,7 +1819,6 @@ function verItemBiblioteca(i, folha) {
 function abrirMais() {
   const temVisao = PLATAFORMA.temVisao;
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  const nBib = biblioteca.length;
   f.innerHTML = `<div class="dlg folha mais">${topoCentro('Adicionar')}
     <div class="opcoes cartoes">
       <button data-op="camera"${temVisao ? '' : ' disabled'}><span class="oi">${ICO.camera}</span>Câmera</button>
@@ -1784,9 +1827,7 @@ function abrirMais() {
     </div>
     <div class="opcoes linhas">
       <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span><span class="pt"><b>Áudio</b><small>${PLATAFORMA.temTranscricao ? 'Transcrever uma gravação' : 'Indisponível neste aparelho'}</small></span>${ICO.seta}</button>
-      <button data-op="biblioteca"><span class="oi">${ICO.biblioteca}</span><span class="pt"><b>Biblioteca</b><small>${nBib ? nBib + (nBib === 1 ? ' item' : ' itens') + ' nesta sessão' : 'Fotos, arquivos e áudios desta sessão'}</small></span>${ICO.seta}</button>
       <button data-modos><span class="oi">${ICO.estudo}</span><span class="pt"><b>Modos de estudo</b><small>${modoAtivo ? 'Ativo: ' + MODOS[modoAtivo].nome : 'Flashcards, quiz, redação, resumo e revisão'}</small></span>${ICO.seta}</button>
-      <button data-codigo><span class="oi">${ICO.codigo}</span><span class="pt"><b>Área de código</b><small>${(() => { const n = projeto().arquivos.length; return n ? `${n} ${n === 1 ? 'arquivo' : 'arquivos'} · editar e pedir mudanças` : 'Escrever, editar e pedir mudanças à IA'; })()}</small></span>${ICO.seta}</button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:8px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
   const folha = f.firstChild;
@@ -1797,14 +1838,12 @@ function abrirMais() {
   folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
   folha.querySelector('[data-modos]').onclick = () => { sair(); setTimeout(abrirModos, 160); };
-  folha.querySelector('[data-codigo]').onclick = () => { sair(); setTimeout(() => abrirCodigo(), 160); };
   folha.querySelectorAll('[data-op]').forEach(b => b.onclick = async () => {
     const op = b.dataset.op; sair();
     if (op === 'camera') { if (await garantirPermissao('camera')) (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam(); }
     else if (op === 'fotos') $('#fotos').click();
     else if (op === 'arquivos') $('#arquivo').click();
     else if (op === 'audio') garantirVoz().then(ok => ok && $('#audio').click());
-    else if (op === 'biblioteca') abrirBiblioteca();
     else abrirConfig('modelo');
   });
   pausarDesenho();
@@ -1832,7 +1871,8 @@ const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', 
 const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
 /* o esforço é por modelo (cada um tem o seu; o Lume costuma pedir Baixo, o Ápice aguenta Alto) */
 const idModeloAtual = () => (ESCOLHER ? MODELO_INICIAL : ((sistemaCache && (sistemaCache.modelos || []).find(m => m.atual) || {}).id)) || 'normal';
-const esforcoDe = id => { const v = pref('esforco:' + id) || (id === pref('esforcoModelo') ? pref('esforco') : null); return ESFORCO[v] ? v : 'medio'; };
+const PADRAO_ESFORCO = { leve: 'baixo', normal: 'medio', avancado: 'alto' };
+const esforcoDe = id => { const v = pref('esforco:' + id); return ESFORCO[v] ? v : (PADRAO_ESFORCO[id] || 'medio'); };
 const esforco = () => esforcoDe(idModeloAtual());
 const definirEsforco = (id, v) => { pref('esforco:' + id, v); pref('esforco', v); pref('esforcoModelo', id); };
 ICO.esforco = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
@@ -1932,9 +1972,8 @@ function desenharListaModelos(folha) {
     const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b></b></span>' : m.bloqueado ? '' : emUso ? `<span class="check">${ICO.check}</span>`
       : !m.baixado ? `<span class="btn-mini">Baixar</span>` : '';   // clicar já liga: nada de botão "Usar"
     const desc = m.bloqueado ? m.bloqueado : ligando ? 'Ativando…' : b ? textoDownload(b) : (DESC_MODELO[m.id] || PESO_MODELO[m.id] || '') + (m.baixado ? '' : ' · ' + gbBonito(m.tamanho) + (ESCOLHER ? '' : ' para baixar'));
-    const esf = m.baixado && !m.bloqueado ? `<span class="pill">${ESFORCO[esforcoDe(m.id)][0]}</span>` : '';
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
-      <span class="pt"><b>${esc(nomeModelo(m))}${esf}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
+      <span class="pt"><b>${esc(nomeModelo(m))}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
       <small>${esc(desc)}</small></span><span class="st">${st}</span></button>`;
   }).join('');
   lm.querySelectorAll('[data-m]').forEach(bt => bt.onclick = async () => {
@@ -2180,9 +2219,10 @@ async function responder(conv, continuacao) {
   let pensEl = null, pensTxt = '';
   let pararPalavraPens = null;
   if (alvo && pensar) {
-    pensEl = document.createElement('details'); pensEl.className = 'pensando'; pensEl.open = true;
+    pensEl = document.createElement('details'); pensEl.className = 'pensando';   // fechado: a linha de raciocínio só aparece se você clicar
     pensEl.innerHTML = `<summary>${htmlTrabalhando()}</summary><div class="pens-txt"></div>`;
     alvo.parentNode.insertBefore(pensEl, alvo);
+    pensEl.dataset.pensando = 'sim';
     pararPalavraPens = novaPalavra(pensEl.querySelector('.trabalhando'), true);
   }
   const aoPensar = pensar ? p => { pensTxt += p; if (pensEl) pensEl.querySelector('.pens-txt').textContent = pensTxt.slice(-3000); rolar(); } : undefined;
@@ -2258,7 +2298,7 @@ async function responder(conv, continuacao) {
       { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
         if (pararPalavra) { pararPalavra(); pararPalavra = null; }
-        if (pensEl && pensEl.open) { if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; } pensEl.open = false; pensEl.querySelector('summary').textContent = 'Raciocínio'; }
+        if (pensEl && pensEl.dataset.pensando !== 'nao') { if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; } pensEl.dataset.pensando = 'nao'; pensEl.querySelector('summary').textContent = 'Raciocínio'; }
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';
