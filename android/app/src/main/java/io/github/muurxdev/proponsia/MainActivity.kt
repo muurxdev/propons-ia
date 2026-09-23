@@ -849,7 +849,11 @@ class MainActivity : Activity() {
                         ?: throw Exception("não consegui criar a pasta $p"))
             }
             val pai = DocumentsContract.buildDocumentUriUsingTree(u, paiId)
-            alvo = DocumentsContract.createDocument(contentResolver, pai, "text/plain", partes.last())
+            // o tipo tem que combinar com a extensão, senão o Android renomeia (forca.py viraria forca.py.txt)
+            val ext = partes.last().substringAfterLast('.', "").lowercase()
+            val mime = when (ext) { "txt" -> "text/plain"; "md", "markdown" -> "text/markdown"; "json" -> "application/json"
+                "html", "htm" -> "text/html"; "css" -> "text/css"; "csv" -> "text/csv"; "xml" -> "text/xml"; else -> "application/octet-stream" }
+            alvo = DocumentsContract.createDocument(contentResolver, pai, mime, partes.last())
                 ?: throw Exception("não consegui criar o arquivo")
             mapaPasta.clear()
         }
