@@ -72,7 +72,8 @@ a{color:inherit}
 .topo nav a{text-decoration:none;color:var(--grafite);padding:6px 10px;border-radius:8px;transition:background .15s,color .15s}
 .topo nav a:hover{color:var(--tinta);background:var(--lavanda)}
 .topo nav .versao{color:var(--lavanda-tinta);background:var(--lavanda);font-weight:500}
-@media (max-width:520px){.topo nav .gh{display:none}}
+@media (max-width:560px){.topo nav .gh{display:none}}
+@media (max-width:420px){.topo nav a[href="#recursos"]{display:none}}
 
 /* Grade principal */
 .grade{
@@ -568,7 +569,7 @@ footer .dir{margin-left:auto}
   function mostrar(r) {
     if (!r || !r.tag) return;
     var v = String(r.tag).replace(/^v/, '');
-    document.getElementById('versao').textContent = 'Novidades da ' + v;
+    document.getElementById('versao').textContent = (innerWidth < 560 ? 'Novidades ' : 'Novidades da ') + v;
     var pe = document.getElementById('versao-rodape');
     pe.textContent = 'Versão ' + v + (r.data ? ' · ' + new Date(r.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : '');
     Object.keys(r.tam || {}).forEach(function (nome) {
