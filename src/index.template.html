@@ -313,8 +313,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .chip button:hover{background:var(--line);color:var(--ink)}
 .chip svg{width:13px;height:13px}
 /* linha de baixo da caixa: "+" no canto esquerdo, e do outro lado modelo · microfone · enviar (como no Claude) */
-.linha{display:flex;align-items:center;gap:8px;margin-top:6px}
-.linha .espaco{flex:1}
+.linha{display:flex;align-items:center;gap:8px;margin-top:6px;min-width:0;flex-wrap:nowrap}
+.linha .espaco{flex:1 1 0;min-width:0}
+#anexar,#falar,#enviar,.bt-web{flex:none}   /* só o nome do modelo encolhe; os botões nunca saem da caixa */
 .linha #anexar{margin-left:-4px}   /* "+" colado no canto, com o modelo ao lado */
 .linha #falar{margin-right:2px}
 #entrada{display:block;width:100%;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:var(--fs)/1.5 var(--sans);padding:8px 6px 4px;min-height:36px;max-height:240px}
@@ -324,17 +325,22 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .bt-web .x svg{width:12px;height:12px}
 .bt-web:hover{background:var(--accent);color:var(--accent-ink)}
 .bt-web span.rot{display:none}
-.seletor-modelo{display:flex;align-items:center;gap:6px;height:34px;padding:0 10px 0 14px;border-radius:99px;background:var(--hover);font-size:13.5px;font-weight:500;color:var(--ink);transition:background .15s,color .15s;max-width:58%}
+.seletor-modelo{display:flex;align-items:center;gap:6px;height:34px;padding:0 6px 0 14px;border-radius:99px;background:var(--hover);font-size:13.5px;font-weight:500;color:var(--ink);transition:background .15s,color .15s;min-width:64px;flex:0 1 auto;overflow:hidden;max-width:52%}
 .seletor-modelo:hover{background:var(--line)}
-.seletor-modelo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.seletor-modelo svg{width:15px;height:15px;flex:none;color:var(--muted)}
+.seletor-modelo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.seletor-modelo .roda{overflow:visible}
+#nomeModelo{flex:0 1 auto}
+#pillEsforco{flex:none}
+.seletor-modelo svg{width:14px;height:14px;flex:none;color:var(--muted)}
+.seletor-modelo .roda{width:22px;height:22px;border-radius:50%;background:var(--surface);display:grid;place-items:center;flex:none;transition:background .15s}
+.seletor-modelo:hover .roda{background:var(--bg)}
 #entrada::placeholder{color:var(--faint)}
-#anexar{width:34px;height:34px;border-radius:50%;transition:transform .2s,background .15s}
+#anexar{width:34px;height:34px;border-radius:50%;background:var(--hover);transition:transform .2s,background .15s}
 .pill{display:inline-flex;align-items:center;height:17px;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:0 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);flex:none}
 .seletor-modelo .pill{margin:0;padding:0;height:auto;border:0;background:none;color:var(--muted);font:400 13.5px var(--sans);letter-spacing:0;text-transform:none;border-radius:0}
 .seletor-modelo .pill:hover{color:var(--ink)}
 #anexar[aria-expanded="true"]{transform:rotate(45deg)}
-#falar{width:34px;height:34px;border-radius:50%}
+#falar{width:34px;height:34px;border-radius:50%;background:var(--hover)}
 .caixa{position:relative}
 .gravando{position:absolute;inset:0;z-index:2;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:inherit;background:var(--surface);animation:aparece .15s ease}
 .gravando b{font-variant-numeric:tabular-nums;font-weight:500;font-size:13px;color:var(--muted)}
@@ -625,7 +631,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .compor{padding-left:10px;padding-right:10px}
   .caixa{border-radius:24px}
   #entrada{font-size:16px}
-  #anexar,#enviar,#falar{width:40px;height:40px}
+  #anexar,#enviar,#falar{width:38px;height:38px}
+  .linha{gap:6px}
+  .seletor-modelo{padding-left:12px;font-size:13px}
   .opcoes{gap:8px} .opcoes button{padding:12px 4px 10px;font-size:12.5px}
   .acao{height:36px;min-width:36px}
   .item{padding:11px 6px 11px 12px;font-size:15px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -764,7 +772,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span><span class="roda"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
         <button class="bt-web" id="btPesquisa" title="Pesquisa na internet ligada — toque para desligar" aria-label="Desligar a pesquisa na internet" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="x"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
         <span class="espaco"></span>
         <button class="icone" id="falar" title="Falar e transcrever" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>

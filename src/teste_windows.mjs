@@ -6,7 +6,7 @@ import { execSync } from 'node:child_process';
 const saida = process.argv[2]; const semTroca = process.argv.includes('--sem-troca');
 fs.mkdirSync(saida, { recursive: true });
 let alvos = [];
-for (let i = 0; i < 60; i++) { try { alvos = await (await fetch('http://127.0.0.1:9333/json')).json(); if (alvos.some(a => /127\.0\.0\.1:\d+\/#k=/.test(a.url))) break; } catch (e) {} await new Promise(r => setTimeout(r, 1000)); }
+for (let i = 0; i < 300; i++) { try { alvos = await (await fetch('http://127.0.0.1:9333/json')).json(); if (alvos.some(a => /127\.0\.0\.1:\d+\/#k=/.test(a.url))) break; } catch (e) {} await new Promise(r => setTimeout(r, 1000)); }
 const pag = alvos.find(a => /127\.0\.0\.1:\d+\//.test(a.url));
 if (!pag) { console.log('app não abriu a interface', alvos.map(a => a.url)); process.exit(1); }
 const ws = new WebSocket(pag.webSocketDebuggerUrl); await new Promise(r => ws.onopen = r);

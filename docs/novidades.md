@@ -2,6 +2,8 @@
 
 - **Fontes com a cara do site.** Acima da resposta aparecem cartões com a **logo**, o domínio e o título de cada fonte; dentro do texto, os números [1] viram selos clicáveis que abrem a página. Enquanto pesquisa, a conversa mostra o passo: “Pesquisando na internet”, “Lendo 3 de 5 fontes”.
 - **Sem o retângulo branco no meio da tela:** os avisos viraram uma linha discreta, do mesmo tom do app.
+- **Nada escapa da caixa:** o enviar fica sempre dentro dela, e o nome do modelo encolhe sozinho quando a tela é estreita.
+- **O que é clicável parece clicável:** o "+", o microfone e a seta do modelo ganharam a bolinha em volta, como nos botões redondos da direita.
 - **Todo menu abre do mesmo tamanho**, usando o menu principal como medida, e sobe até o fim no arrasto.
 
 ## Novidades da 1.21.1
