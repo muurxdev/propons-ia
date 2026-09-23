@@ -75,7 +75,11 @@ function animarSaida(fundo, folha, depois) {
     setTimeout(() => { fundo.remove(); if (depois) depois(); }, 140);
     return;
   }
-  folha.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)'; folha.style.transform = 'translateY(105%)';
+  // folha que entrou pela direita sai pela direita; as outras descem
+  const paraLado = fundo.classList.contains('lado');
+  folha.style.animation = 'none';
+  folha.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)';
+  folha.style.transform = paraLado ? 'translateX(100%)' : 'translateY(105%)';
   fundo.style.transition = 'background-color .2s'; fundo.style.backgroundColor = 'rgba(0,0,0,0)';
   setTimeout(() => { fundo.remove(); if (depois) depois(); }, 200);
 }

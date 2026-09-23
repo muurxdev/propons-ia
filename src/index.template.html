@@ -493,8 +493,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* folha que abre por cima de outra: entra da direita, como uma tela de dentro */
 .dlg-fundo.lado .dlg{animation:vemDireita .26s cubic-bezier(.2,.8,.2,1)}
 @keyframes vemDireita{from{transform:translateX(100%)}to{transform:none}}
-.dlg-fundo.saindo.lado .dlg{animation:vaiDireita .2s ease forwards}
-@keyframes vaiDireita{to{transform:translateX(100%)}}
 .dlg-topo.centro .icone{margin:0}
 .folha .dlg-topo.centro{padding:26px 4px 14px}
 .opcoes.cartoes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 4px 10px}
@@ -672,9 +670,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .macoes .btn{flex:1}
 
   .dlg-fundo{place-items:end stretch}
-  /* todo menu abre do mesmo tamanho (o do menu principal) e sobe até o fim quando você arrasta pela alça */
-  .dlg{width:100%;border-left:0;border-right:0;padding:0 16px calc(var(--sb) + 14px);max-height:var(--folha);min-height:var(--folha)}
-  .dlg>*:last-child{margin-bottom:auto}
+  /* o menu abre do tamanho do conteúdo, no máximo até a marca do menu principal; o arrasto pela alça faz crescer */
+  .dlg{width:100%;border-left:0;border-right:0;padding:0 16px calc(var(--sb) + 14px);max-height:var(--folha);min-height:0}
   .dlg.cheia{max-height:calc(100vh - var(--st) - 14px)}
   .dlg .alca{cursor:grab}
   .folha{padding:0 8px calc(var(--sb) + 10px)}

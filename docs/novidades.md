@@ -1,3 +1,7 @@
+## Novidades da 1.21.3
+
+- **Menu volta a abrir pequeno**, do tamanho do que tem dentro: quem decide crescer é você, arrastando pela alça até onde quiser.
+- **Fechar ficou limpo:** a folha que entrou pela direita sai pela direita e as outras descem, sem as duas animações brigando.
 ## Novidades da 1.21.2
 
 - **Fontes com a cara do site.** Acima da resposta aparecem cartões com a **logo**, o domínio e o título de cada fonte; dentro do texto, os números [1] viram selos clicáveis que abrem a página. Enquanto pesquisa, a conversa mostra o passo: “Pesquisando na internet”, “Lendo 3 de 5 fontes”.
