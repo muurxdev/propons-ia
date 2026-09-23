@@ -423,7 +423,7 @@ function verAnexo(a, podeRemover) {
   const ficha = [['Tipo', tipoBib(a)], a.tam ? ['Tamanho', tamanhoBonito(a.tam)] : null,
     a.paginas ? ['Páginas', String(a.paginas)] : null,
     !eFoto && texto ? ['Linhas', String(texto.split(String.fromCharCode(10)).length)] : null,
-    !eFoto && texto ? ['Palavras', String(texto.split(/s+/).filter(Boolean).length)] : null].filter(Boolean);
+    !eFoto && texto ? ['Palavras', String(texto.split(/[ \t\n]+/).filter(Boolean).length)] : null].filter(Boolean);
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha bib-item">${topoCentro(a.nome)}
     <div class="bib-previa">${previa}</div>
@@ -471,8 +471,8 @@ function addIa(m, ultima) {
   const d = document.createElement('div'); d.className = 'msg ia';
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
-  d.innerHTML = `<div class="txt${widget ? ' widget' : ''}">${widget || md(m.texto || '')}</div>` +
-    (m.pensou ? htmlLinhaPensa('Raciocínio') : '') +
+  d.innerHTML = (m.pensou ? htmlLinhaPensa('Raciocínio') : '') +
+    `<div class="txt${widget ? ' widget' : ''}">${widget || md(m.texto || '')}</div>` +
     (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
   if (m.pensou) ligarLinhaPensa(d, m.pensou);

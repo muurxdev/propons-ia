@@ -8,7 +8,6 @@ import android.content.pm.PackageInstaller
 import android.provider.Settings
 import android.view.WindowManager
 import android.content.ClipData
-import android.content.Context
 import android.content.Intent
 import android.provider.DocumentsContract
 import android.provider.MediaStore
@@ -518,7 +517,7 @@ class MainActivity : Activity() {
                             }
                             "pastaInfo" -> { val u = pastaSalva(); if (u == null) JSONObject().put("nome", "") else JSONObject().put("nome", nomeDaPasta(u)) }
                             "esquecerPasta" -> { pastaSalva()?.let { try { contentResolver.releasePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (_: Exception) {} }
-                                prefsPasta.edit().remove("pasta").apply(); mapaPasta.clear(); true }
+                                prefs.edit().remove("pasta").apply(); mapaPasta.clear(); true }
                             "listarPasta" -> listarPasta()
                             "lerArquivo" -> lerArquivoPasta(args.optString("caminho"))
                             "gravarArquivo" -> gravarArquivoPasta(args.optString("caminho"), args.optString("conteudo"))
@@ -772,9 +771,8 @@ class MainActivity : Activity() {
 
     // ---------------- pasta do aparelho para a Área de código (SAF: a pessoa escolhe, o sistema dá a permissão) ----------------
     private var idPastaPendente: Any? = null
-    private val prefsPasta get() = getSharedPreferences("propons", Context.MODE_PRIVATE)
     private fun pastaSalva(): Uri? {
-        val s = prefsPasta.getString("pasta", null) ?: return null
+        val s = prefs.getString("pasta", null) ?: return null
         val u = Uri.parse(s)
         val temPermissao = contentResolver.persistedUriPermissions.any { it.uri == u && it.isReadPermission && it.isWritePermission }
         return if (temPermissao) u else null
@@ -855,7 +853,8 @@ class MainActivity : Activity() {
                 ?: throw Exception("não consegui criar o arquivo")
             mapaPasta.clear()
         }
-        contentResolver.openOutputStream(alvo, "wt")?.use { it.write(conteudo.toByteArray(Charsets.UTF_8)) } ?: throw Exception("não consegui gravar")
+        val destino = alvo ?: throw Exception("não consegui abrir o arquivo")
+        contentResolver.openOutputStream(destino, "wt")?.use { it.write(conteudo.toByteArray(Charsets.UTF_8)) } ?: throw Exception("não consegui gravar")
         return true
     }
     private fun apagarArquivoPasta(caminho: String): Boolean {
@@ -892,7 +891,7 @@ class MainActivity : Activity() {
                 if (resultCode != RESULT_OK || uri == null) { responder(id, false); return }
                 try {
                     contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                    prefsPasta.edit().putString("pasta", uri.toString()).apply(); mapaPasta.clear()
+                    prefs.edit().putString("pasta", uri.toString()).apply(); mapaPasta.clear()
                     responder(id, JSONObject().put("nome", nomeDaPasta(uri)))
                 } catch (e: Exception) { responderErro(id, e.message ?: "não consegui guardar a permissão da pasta") }
             }

@@ -1,3 +1,13 @@
+## Novidades da 1.21.0
+
+- **Pesquisa na internet, quando você quiser.** Ligue em "+" → Pesquisar na internet e aparece um botão ao lado do modelo, na caixa. Com a pesquisa ligada, a pergunta vai para a busca pública (DuckDuckGo e Wikipédia), os trechos entram como fonte e a resposta cita os números, com os links logo abaixo. **Sem internet, ela avisa em uma linha** e responde com o que já sabe. Desligada (o padrão), nada sai do aparelho.
+- **A IA conhece o próprio aplicativo:** pergunte "o que você faz?", "como troco de modelo?" ou "onde fica a biblioteca?" e ela responde com o que existe hoje, sem inventar.
+- **Raciocínio fora do caminho.** No Esforço Alto a conversa mostra só a palavra animada e uma flechinha; tocando nela, o raciocínio sobe numa folha (no celular, de baixo para cima) e a flechinha gira. O raciocínio também ficou mais curto, para a resposta não demorar.
+- **Anexo abre ao tocar:** foto em tamanho grande (e em tela cheia), arquivo com o texto, ficha com o **tipo de verdade** (PNG, JPEG, PDF…), tamanho e páginas, mais Baixar, Copiar e Tirar da mensagem.
+- **Nível de esforço só na caixa**, ao lado do nome do modelo e clicável; cada modelo já vem com o esforço que rende melhor nele (Lume no Baixo, Aurora no Médio, Ápice no Alto).
+- **Área de código virou "Código"**, com o ícone de faísca, e **no celular ela abre uma pasta de verdade**: o próprio Android pede a permissão de armazenamento e a IA lê, grava e apaga os arquivos de lá.
+- O "+" não repete mais o que já está no menu lateral.
+
 ## Novidades da 1.20.0
 
 - **Responde em segundo plano e avisa quando termina.** Minimize a janela, troque de app ou apague a tela: a IA continua escrevendo e, quando acabar, o sistema te avisa com o começo da resposta (toque para voltar). No celular, um aviso discreto "Respondendo…" mantém o app vivo enquanto pensa. Dá para desligar em Ajustes → Aparência → "Avisar quando ficar pronto" (não avisa se você já estiver com a Própons na frente).
@@ -7,10 +17,6 @@
 - **Biblioteca refinada:** virou tela no menu lateral (com a contagem de itens), os áudios mostram a **duração**, as fotos o tamanho da imagem e os documentos as páginas; **cada item tem botão de baixar** e a folha do item abre proporcional, com ficha e botões do mesmo tamanho (nada de popup esticado).
 - **Permissões, uma a uma:** Ajustes → Permissões mostra câmera, microfone, avisos e pasta de arquivos com o estado de cada uma e o botão **Permitir**. A câmera e o microfone só são ligados depois de pedir, com o motivo escrito.
 - **As telas não têm mais botão de voltar** (o menu lateral e o atalho "Conversa" fazem isso) e os espaços no celular foram acertados.
-- **Clicar num anexo abre ele.** Foto vai em tamanho grande, arquivo mostra o texto, os dois com tamanho, páginas e linhas — e com **Baixar**, **Copiar** e **Tirar da mensagem**. Vale para o que está na caixa e para o que você já mandou.
-- **O nível de esforço ficou só na caixa**, ao lado do nome do modelo. A lista de modelos não repete mais, e **cada modelo já vem com o esforço que rende melhor nele** (Lume no Baixo, Aurora no Médio, Ápice no Alto).
-- **O raciocínio nasce fechado:** enquanto pensa aparece só a palavra animada; a linha de raciocínio só abre se você clicar.
-- **O "+" não repete o menu lateral:** Área de código e Biblioteca saíram de lá (continuam no menu, ao lado de Buscar).
 - **Caixa de digitação organizada:** o "+" foi para o canto e modelo, microfone e enviar ficaram juntos do outro lado.
 - **Cada modelo tem o seu nível de esforço** (o Lume rende no Baixo, o Ápice aproveita o Alto) e o nível aparece na lista. Tocar no modelo já liga — acabou o botão "Usar". Modelo que já está baixado mostra "Ativando…" em vez de "baixando 0%".
 - Escolher um modo de estudo não abre mais aviso na tela.
