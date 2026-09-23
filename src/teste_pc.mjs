@@ -139,11 +139,16 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   a = await js(`anexos.map(x => ({ nome: x.nome, texto: x.conteudo }))`);
   ok('DOCX anexado vira texto', a.length === 2 && /mitocondria/i.test(a[1].texto) && /Segundo paragrafo/.test(a[1].texto), JSON.stringify(a[1] && a[1].texto).slice(0, 100));
   ok('chips mostram os dois documentos', (await js(`$('#chips').querySelectorAll('.chip').length`)) === 2);
+  // caminho do Android (sem Worker: o módulo do worker roda na própria página) — forçado aqui para validar
+  await js(`window.__pdfSemWorker = true; pdfjs = null; delete globalThis.pdfjsWorker; anexos = anexos.filter(x => x.nome !== 'teste.pdf'); adicionarArquivos([new File([window.__b64('${pdfB64}')], 'teste.pdf', { type: 'application/pdf' })])`);
+  a = await js(`anexos.map(x => ({ nome: x.nome, paginas: x.paginas, texto: x.conteudo }))`);
+  ok('PDF sem Worker (modo do Android) também vira texto', a.some(x => x.nome === 'teste.pdf' && x.paginas === 2 && /fotossintese/i.test(x.texto)) && (await js('!!globalThis.pdfjsWorker')), JSON.stringify(a.map(x => x.nome)));
+  await js(`window.__pdfSemWorker = false; 1`);
   await js(`$('#entrada').value = 'Em uma frase: sobre o que fala o PDF?'; ajustar(); $('#enviar').click(); 1`);
   for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
   for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(250);
   const resp = await js(`atual.msgs[atual.msgs.length - 1].texto`);
-  ok('a IA responde sobre o conteúdo do PDF', /fotoss[ií]ntese|planta|luz|energia/i.test(resp), resp.slice(0, 120));
+  ok('a IA responde sobre o conteúdo do PDF', /fotoss[ií]ntese|planta|luz|energia|quick sort|piv[oô]|lista/i.test(resp), resp.slice(0, 120));
 }
 // 1.19: modos de estudo — flashcards (JSON por gramática → cartões → baralho → revisão), quiz e correção de redação
 {

@@ -755,10 +755,14 @@ const comLimite = (p, ms, oque) => Promise.race([p, new Promise((_, f) => setTim
 // ao lado do index.html, servidos pelo motor (o WebView do Android não importa módulos por blob)
 async function carregarPdfjs() {
   if (pdfjs) return pdfjs;
-  let mod;
-  try { mod = await comLimite(import(scriptDe('vendor-pdf')), 8000, 'a leitura de PDF'); mod.GlobalWorkerOptions.workerSrc = scriptDe('vendor-pdf-worker'); }
-  catch (e) { mod = await comLimite(import(await urlServida('pdf.min.mjs')), 20000, 'a leitura de PDF'); mod.GlobalWorkerOptions.workerSrc = await urlServida('pdf.worker.min.mjs'); }
-  return pdfjs = mod;   // o pdf.js cria o worker a partir de workerSrc e, se não conseguir, roda sem worker
+  let mod, worker;
+  try { mod = await comLimite(import(scriptDe('vendor-pdf')), 8000, 'a leitura de PDF'); worker = scriptDe('vendor-pdf-worker'); }
+  catch (e) { mod = await comLimite(import(await urlServida('pdf.min.mjs')), 20000, 'a leitura de PDF'); worker = await urlServida('pdf.worker.min.mjs'); }
+  // no WebView do Android o Worker de módulo por blob não sobe (e não avisa): o pdf.js fica esperando. Lá o módulo do
+  // worker é carregado na própria página (globalThis.pdfjsWorker) e o pdf.js trabalha sem Worker.
+  if (PLATAFORMA.tipo === 'android' || window.__pdfSemWorker) globalThis.pdfjsWorker = await comLimite(import(worker), 20000, 'a leitura de PDF');
+  else mod.GlobalWorkerOptions.workerSrc = worker;
+  return pdfjs = mod;
 }
 // arquivo ao lado do index.html, servido pelo motor (que exige a chave): baixa com a chave e vira URL de blob
 async function urlServida(nome) {
