@@ -418,12 +418,12 @@ function verAnexo(a, podeRemover) {
   const eFoto = a.tipo === 'imagem' || (!a.conteudo && !!cheio);
   const texto = String(a.conteudo || '');
   const previa = eFoto ? `<img src="${esc(cheio)}" alt="${esc(a.nome)}" data-cheia title="Ver em tela cheia">` : `<pre>${esc(texto.slice(0, 20000))}</pre>`;
-  const ficha = [['Tipo', eFoto ? 'Foto' : tipoBib(a)], a.tam ? ['Tamanho', tamanhoBonito(a.tam)] : null,
+  const ficha = [['Tipo', tipoBib(a)], a.tam ? ['Tamanho', tamanhoBonito(a.tam)] : null,
     a.paginas ? ['Páginas', String(a.paginas)] : null,
     !eFoto && texto ? ['Linhas', String(texto.split(String.fromCharCode(10)).length)] : null,
     !eFoto && texto ? ['Palavras', String(texto.split(/s+/).filter(Boolean).length)] : null].filter(Boolean);
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha bib-item">${topoCentro(a.nome, true)}
+  f.innerHTML = `<div class="dlg folha bib-item">${topoCentro(a.nome)}
     <div class="bib-previa">${previa}</div>
     ${ficha.length ? `<dl class="bib-ficha">${ficha.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
     <div class="bib-acoes">
@@ -1715,7 +1715,22 @@ function guardarNaBiblioteca(item) {
   atualizarTela('biblioteca');
 }
 const iconeBib = i => i.tipo === 'imagem' ? ICO.foto : i.tipo === 'audio' ? ICO.microfone : ICO.arquivo;
-const tipoBib = i => i.tipo === 'imagem' ? 'Foto' : i.tipo === 'audio' ? 'Áudio' : /\.pdf$/i.test(i.nome) ? 'PDF' : /\.docx?$/i.test(i.nome) ? 'Documento' : 'Arquivo';
+const FORMATOS = { jpg: 'JPEG', jpeg: 'JPEG', jfif: 'JPEG', png: 'PNG', webp: 'WEBP', gif: 'GIF', avif: 'AVIF', bmp: 'BMP', svg: 'SVG', 'svg+xml': 'SVG', heic: 'HEIC', heif: 'HEIF',
+  pdf: 'PDF', doc: 'DOC', docx: 'DOCX', txt: 'Texto', plain: 'Texto', md: 'Markdown', markdown: 'Markdown', csv: 'CSV', json: 'JSON', xml: 'XML',
+  wav: 'WAV', 'x-wav': 'WAV', wave: 'WAV', mp3: 'MP3', mpeg: 'MP3', m4a: 'M4A', mp4: 'M4A', 'x-m4a': 'M4A', webm: 'WebM', ogg: 'OGG', aac: 'AAC', opus: 'Opus' };
+// o formato vem do próprio arquivo (data:image/png…, tipo do blob) e só no fim das contas do nome
+function formatoDe(i) {
+  const url = i.dataUrl || i.miniatura || '';
+  const mime = (/^data:[a-z]+\/([a-z0-9.+-]+)/i.exec(url) || [])[1]
+    || (/^[a-z]+\/([a-z0-9.+-]+)/i.exec((i.audio && i.audio.type) || i.mime || '') || [])[1];
+  if (mime) return FORMATOS[mime.toLowerCase()] || mime.toUpperCase();
+  const ext = (String(i.nome || '').match(/\.([a-z0-9]+)$/i) || [])[1];
+  if (ext) return FORMATOS[ext.toLowerCase()] || ext.toUpperCase();
+  return '';
+}
+const tipoBib = i => { const f = formatoDe(i);
+  if (i.tipo === 'audio') return f ? 'Áudio ' + f : 'Áudio';
+  return f || (i.tipo === 'imagem' ? 'Imagem' : 'Arquivo'); };
 const duracaoBonita = s => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s % 60).padStart(2, '0'); };
 // o "detalhe" de cada tipo: duração do áudio, tamanho da imagem, páginas/linhas do arquivo
 const detalheBib = i => i.tipo === 'audio' ? (i.segundos ? duracaoBonita(i.segundos) : '')
@@ -1795,11 +1810,11 @@ function verItemBiblioteca(i, folha) {
     : `<pre>${esc(String(i.tipo === 'audio' ? i.texto : i.conteudo || '').slice(0, 20000))}</pre>`;
   const ficha = [['Tipo', tipoBib(i)], ['Tamanho', tamanhoBonito(i.tam || 0)],
     i.tipo === 'audio' ? ['Duração', i.segundos ? duracaoBonita(i.segundos) : 'não medida'] : null,
-    i.tipo === 'imagem' && i.w > 0 ? ['Tamanho da imagem', i.w + ' × ' + i.h] : null,
+    i.tipo === 'imagem' && i.w > 0 ? ['Medidas', i.w + ' × ' + i.h + ' px'] : null,
     i.paginas ? ['Páginas', String(i.paginas)] : null,
     i.tipo === 'audio' ? ['Palavras', String(String(i.texto || '').split(/\s+/).filter(Boolean).length)] : null,
     ['Recebido', new Date(i.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })]].filter(Boolean);
-  f.innerHTML = `<div class="dlg folha bib-item">${topoCentro(i.nome, true)}
+  f.innerHTML = `<div class="dlg folha bib-item">${topoCentro(i.nome)}
     <div class="bib-previa">${previa}</div>
     <dl class="bib-ficha">${ficha.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
     <div class="bib-acoes">

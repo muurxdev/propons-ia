@@ -330,7 +330,11 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   await js(`document.querySelector('#chips .chip.ver').click(); 1`); await espera(600);
   await js(`document.querySelector('.bib-previa img[data-cheia]').click(); 1`); await espera(400);
   ok('clicar na foto abre em tela cheia', await js(`!!document.querySelector('.foto-cheia img')`));
-  await js(`document.querySelector('.foto-cheia').click(); fecharDialogo(); anexos = []; desenharChips(); 1`); await espera(300);
+  await js(`document.querySelector('.foto-cheia').click(); 1`); await espera(300);
+  const fichaFoto = await js(`[...document.querySelectorAll('.dlg.bib-item .bib-ficha div')].map(d => d.querySelector('dt').textContent + ': ' + d.querySelector('dd').textContent)`);
+  ok('a ficha mostra o tipo de verdade do arquivo (JPEG), não "Foto"', fichaFoto.some(t => /^Tipo: JPEG/.test(t)), JSON.stringify(fichaFoto));
+  ok('a folha do anexo fecha com X (não é um passo atrás)', await js(`!!document.querySelector('.dlg.bib-item [data-x]') && document.querySelector('.dlg.bib-item [data-x]').getAttribute('aria-label') === 'Fechar'`));
+  await js(`fecharDialogo(); anexos = []; desenharChips(); 1`); await espera(300);
 }
 // 1.20: Área de código com a lógica do chat (histórico próprio, moldes, compactação, áudio) e telas sem "voltar"
 {
@@ -348,7 +352,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('o molde cola o pedido na caixa de código', await js(`/\\{/.test(document.querySelector('.cod-entrada').value)`), await js(`document.querySelector('.cod-entrada').value.slice(0,60)`));
   ok('gravar áudio na área de código manda a transcrição para a caixa de lá', await js(`(()=>{ const e = document.querySelector('.cod-entrada'); e.value=''; alvoTranscricao = e; porTranscricao('teste de voz'); const v = e.value; alvoTranscricao = null; return v === 'teste de voz' && !!document.querySelector('.cod-compor [data-gravar]') })()`));
   await js(`(()=>{ const e = document.querySelector('.cod-entrada'); e.value = 'Adicione uma docstring curta em português na função do arquivo soma.py.'; document.querySelector('[data-enviar]').click(); })(); 1`);
-  let pend = false; for (let i = 0; i < 480 && !pend; i++) { await espera(250); pend = await js(`!!document.querySelector('#codChat .cod-dif .dif-l.mais') && !!document.querySelector('#codChat [data-ap]')`); }
+  let pend = false; for (let i = 0; i < 1200 && !pend; i++) { await espera(250); pend = await js(`!!document.querySelector('#codChat .cod-dif .dif-l.mais') && !!document.querySelector('#codChat [data-ap]')`); }
   ok('a IA propõe a mudança com diff e botões de aplicar/recusar', pend, (await js(`(document.querySelector('#codChat .cod-dif-topo')||{}).textContent || document.querySelector('#codChat').textContent.slice(0,120)`)).slice(0, 110));
   if (pend) {
     await js(`document.querySelector('#codChat [data-ap]').click(); 1`); await espera(600);
