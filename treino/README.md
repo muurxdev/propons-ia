@@ -24,6 +24,13 @@ Resultado em `avaliacao/resultado-<nome>-<data>.md`.
 | Lume pensando | 48 % | 33 % | 1 % | 4 |
 | Aurora (2B) | 66 % | 44 % | 13 % | 0 |
 | Aurora pensando | **84 %** | **83 %** | 16 % | 0 |
+| propons-lume-v0 (teste de fumaça: 56 ex., 1 época) | 43 % | 17 % | 1 % | 0 |
+
+**v0 (23/09/2026)** validou o pipeline inteiro na RTX 3050 pelo WSL: `treinar.py` (2 min, loss 2,36) → merge pelo peft
+→ GGUF F16 → Q4_K_M → placar no llama.cpp. Com 56 exemplos e 1 época o resultado é ruído (identidade já era 100 %
+pelo texto de sistema; armadilhas pioraram) — **não é candidato a publicar**. Lições: o conversor do Qwen3.5 exige a
+camada MTP (`exportar.sh` copia os tensores `mtp.*` do base); o merge do unsloth falha com o cache só-leitura (peft
+resolve); Triton precisa de headers C (sem sudo: sysroot do usuário com `apt-get download libc6-dev`).
 
 Leitura: a amostragem da 1.16 zerou a repetição no Lume; o Aurora ainda repete 13–16 % em texto livre (candidato a
 XTC mais forte). **Pensar (Esforço Alto) é hoje o maior ganho contra alucinação no Aurora** (armadilhas 44 → 83 %);
