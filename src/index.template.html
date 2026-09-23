@@ -535,6 +535,10 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .bib-item{touch-action:auto}
 .bib-previa{margin:2px 6px 10px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--code)}
 .bib-previa img{display:block;width:100%;max-height:44vh;object-fit:contain;background:var(--code)}
+.bib-previa img[data-cheia]{cursor:zoom-in}
+.foto-cheia{position:fixed;inset:0;z-index:120;background:rgba(8,8,12,.92);display:grid;place-items:center;padding:16px;cursor:zoom-out;animation:aparece .18s ease}
+.foto-cheia img{max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;display:block}
+.foto-cheia .icone{position:absolute;top:calc(12px + var(--st));right:12px;color:#fff;background:rgba(255,255,255,.12)}
 .bib-previa pre{margin:0;max-height:34vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:12.5px/1.6 var(--mono);color:var(--ink);padding:12px}
 .bib-ficha{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 6px 12px}
 .bib-ficha>div{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--surface);min-width:0}

@@ -417,7 +417,7 @@ function verAnexo(a, podeRemover) {
   const cheio = a.dataUrl || daBiblioteca.dataUrl || a.miniatura || '';
   const eFoto = a.tipo === 'imagem' || (!a.conteudo && !!cheio);
   const texto = String(a.conteudo || '');
-  const previa = eFoto ? `<img src="${esc(cheio)}" alt="${esc(a.nome)}">` : `<pre>${esc(texto.slice(0, 20000))}</pre>`;
+  const previa = eFoto ? `<img src="${esc(cheio)}" alt="${esc(a.nome)}" data-cheia title="Ver em tela cheia">` : `<pre>${esc(texto.slice(0, 20000))}</pre>`;
   const ficha = [['Tipo', eFoto ? 'Foto' : tipoBib(a)], a.tam ? ['Tamanho', tamanhoBonito(a.tam)] : null,
     a.paginas ? ['Páginas', String(a.paginas)] : null,
     !eFoto && texto ? ['Linhas', String(texto.split(String.fromCharCode(10)).length)] : null,
@@ -438,7 +438,17 @@ function verAnexo(a, podeRemover) {
     if (b.dataset.a === 'copiar') return copiarTexto(texto).then(() => toast('Copiado.'));
     anexos = anexos.filter(x => x.nome !== a.nome); sair(); desenharChips(); ajustar(); toast('Tirado da mensagem.');
   });
+  const im = dlg.querySelector('[data-cheia]'); if (im) im.onclick = () => fotoEmTelaCheia(cheio, a.nome);
   pausarDesenho(); document.body.appendChild(f);
+}
+// foto ocupando a tela toda: toque (ou Esc) fecha
+function fotoEmTelaCheia(src, nome) {
+  const v = document.createElement('div'); v.className = 'foto-cheia';
+  v.innerHTML = `<img src="${esc(src)}" alt="${esc(nome || '')}"><button class="icone" aria-label="Fechar">${ICO.fechar}</button>`;
+  const sair = () => { v.remove(); document.removeEventListener('keydown', esc2); };
+  const esc2 = e => { if (e.key === 'Escape') { e.stopPropagation(); sair(); } };
+  v.onclick = sair; document.addEventListener('keydown', esc2, true);
+  document.body.appendChild(v);
 }
 function addEu(m, ultima) {
   const d = document.createElement('div'); d.className = 'msg eu';

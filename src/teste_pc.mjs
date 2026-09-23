@@ -324,7 +324,13 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   const vis = await js(`(()=>{ const d = document.querySelector('.dlg.bib-item'); if (!d) return null;
     return { previa: !!d.querySelector('.bib-previa pre'), texto: (d.querySelector('.bib-previa pre')||{}).textContent || '', acoes: [...d.querySelectorAll('.bib-acoes .btn')].map(b => b.textContent.trim()) } })()`);
   ok('clicar no arquivo da caixa abre a visualização', vis && vis.previa && /linha 1/.test(vis.texto) && vis.acoes.some(t => /Baixar/.test(t)) && vis.acoes.some(t => /Tirar da mensagem/.test(t)), JSON.stringify(vis));
-  await js(`fecharDialogo(); anexos = []; desenharChips(); 1`); await espera(300);
+  await js(`fecharDialogo(); 1`); await espera(300);
+  // foto: abre em tela cheia ao tocar na prévia
+  await js(`anexos = []; (async()=>{ const c = document.createElement('canvas'); c.width = c.height = 40; const g = c.getContext('2d'); g.fillStyle = '#c33'; g.fillRect(0,0,40,40); const b = await new Promise(r => c.toBlob(r, 'image/jpeg')); await adicionarArquivos([new File([b], 'desenho.jpg', { type: 'image/jpeg' })]); })(); 1`); await espera(1200);
+  await js(`document.querySelector('#chips .chip.ver').click(); 1`); await espera(600);
+  await js(`document.querySelector('.bib-previa img[data-cheia]').click(); 1`); await espera(400);
+  ok('clicar na foto abre em tela cheia', await js(`!!document.querySelector('.foto-cheia img')`));
+  await js(`document.querySelector('.foto-cheia').click(); fecharDialogo(); anexos = []; desenharChips(); 1`); await espera(300);
 }
 // 1.20: Área de código com a lógica do chat (histórico próprio, moldes, compactação, áudio) e telas sem "voltar"
 {
