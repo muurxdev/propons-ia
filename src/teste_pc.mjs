@@ -233,6 +233,24 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   console.log('     resposta (17 × 23):', pr.texto);
   await js(`pref('esforco', 'medio'); atualizarSeletorModelo(); nova(); 1`);
 }
+// 1.19: API na rede local (Windows): liga → motor escuta na rede com a chave; desliga → só 127.0.0.1
+{
+  const s0 = await js(`lerSistema()`);
+  ok('sistema informa a API e os endereços da rede', s0.api && s0.api.suporte === true && Array.isArray(s0.api.enderecos), JSON.stringify(s0.api));
+  const ip = (s0.api.enderecos || [])[0];
+  if (ip) {
+    const r = await js(`PLATAFORMA.ligarApi(true)`); for (let i = 0; i < 120 && !(await js('online')); i++) await espera(500);
+    const lan = await fetch(`http://${ip}:${r.porta}/health`).then(x => x.ok).catch(() => false);
+    const auth = await fetch(`http://${ip}:${r.porta}/v1/models`).then(x => x.status).catch(() => 0);
+    ok('API ligada: responde pelo IP da rede e exige a chave', r.ligada && lan && auth === 401, `${ip}:${r.porta} health=${lan} sem chave=${auth}`);
+    await js(`abrirConfig('modelo'); 1`); await espera(900);
+    ok('ajustes mostram o endereço e a chave', await js(`/http:\\/\\/${ip.replace(/\\./g, '\\\\.')}:\\d+\\/v1/.test($('#corpoConfig').textContent) && !!$('#apiChave')`));
+    await js(`fecharModal(true); 1`);
+    await js(`PLATAFORMA.ligarApi(false)`); for (let i = 0; i < 120 && !(await js('online')); i++) await espera(500);
+    const fechada = await fetch(`http://${ip}:${r.porta}/health`).then(x => x.ok).catch(() => false);
+    ok('API desligada: o IP da rede não responde mais', !fechada);
+  } else console.log('     (sem IP de rede neste PC; teste da API pulado)');
+}
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
 ok('estado: prioridade e limpeza por origem', est[0] === 'baixando 10%' && est[1] === 'reconectando' && est[2] === true, JSON.stringify(est));

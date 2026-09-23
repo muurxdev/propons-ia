@@ -203,6 +203,8 @@ const PLATAFORMA = (() => {
     baixarGpu() { return pedir('baixarGpu', {}, 10000); },
     ligarGpu(ligar) { return pedir('ligarGpu', { ligar: !!ligar }, 240000); },
     apagarGpu() { return pedir('apagarGpu', {}, 240000); },
+    // API na rede local (Windows): o motor passa a escutar em todas as interfaces (religa) — com a mesma chave
+    ligarApi(ligar) { return pedir('ligarApi', { ligar: !!ligar }, 240000); },
     // gerenciar modelos (Windows, Android, iOS; no Linux é pelo comando propons-ia)
     baixarModelo(id) { return pedir('baixarModelo', { id }, 10000); },
     cancelarDownload(id) { return pedir('cancelarDownload', { id }, 5000); },

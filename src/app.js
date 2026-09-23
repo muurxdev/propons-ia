@@ -1803,6 +1803,8 @@ async function abaModelo(c) {
     ${modelos.map(m => cartaoModelo(m, ram, rec)).join('')}
     ${PLATAFORMA.temVisao && !web ? `<div class="secao" style="margin-top:18px"><h4>Fotos</h4><div class="cartao"><button class="interruptor" id="swVisao" role="switch" aria-checked="${!!s.visaoLigada}"><span class="pt"><b>Ler fotos (visão)</b><small>${s.visaoAtiva ? 'Ligada: a IA entende fotos e prints' : 'Desligada: liga sozinha quando você manda uma foto'}</small></span><span class="chave"></span></button></div></div>` : ''}
     ${s.gpu && !web ? `<div class="secao" style="margin-top:18px"><h4>Aceleração por GPU</h4><div class="cartao"><button class="interruptor" id="swGpu" role="switch" aria-checked="${!!s.gpu.ligada}"><span class="pt"><b>Usar a placa de vídeo (Vulkan)</b><small>${descricaoGpu(s.gpu)}</small></span><span class="chave"></span></button>${s.gpu.baixada && !s.gpu.ligada && !baixando['gpu-vulkan'] ? `<button class="btn link" data-gpu="apagar" style="margin:8px 12px 10px">Apagar o módulo (${gbBonito(43658240)})</button>` : ''}</div></div>` : ''}
+    ${s.api && s.api.suporte ? `<div class="secao" style="margin-top:18px"><h4>API na rede local</h4><div class="cartao"><button class="interruptor" id="swApi" role="switch" aria-checked="${!!s.api.ligada}"><span class="pt"><b>Deixar outros aparelhos usarem esta IA</b><small>${s.api.ligada ? 'Ligada: compatível com a API da OpenAI, na sua rede Wi-Fi' : 'Desligada (só este computador)'}</small></span><span class="chave"></span></button>
+      ${s.api.ligada ? `<div class="api-info"><p class="info">Endereço: ${(s.api.enderecos || []).map(ip => `<code>http://${esc(ip)}:${s.api.porta}/v1</code>`).join(' · ') || '(sem rede)'}</p><p class="info">Chave (Bearer): <code id="apiChave">${esc(PLATAFORMA.chave)}</code> <button class="icone" data-copiar="apiChave" aria-label="Copiar chave">${ICO.copiar}</button></p><p class="info">Quem tiver o endereço e a chave usa a IA deste computador. O Windows pode pedir para liberar o "llama-server" no firewall.</p></div>` : ''}</div></div>` : ''}
     ${s.vozes ? `<div class="secao" style="margin-top:18px"><h4>Transcrição de áudio</h4><div class="lista-modelos" style="margin:0">${s.vozes.map(v => {
       const b = baixando[v.id];
       const st = b ? Math.floor(b.pct * 100) + '%' : v.atual ? (v.baixado ? 'Em uso' : 'Escolhida') : v.baixado ? 'Baixada' : gbBonito(v.tamanho);
@@ -1855,6 +1857,15 @@ async function abaModelo(c) {
     }
     await testarGpu();
   };
+  const sa = c.querySelector('#swApi');
+  if (sa) sa.onclick = async () => {
+    if (geracao || transcrevendo) { toast('Espere a resposta terminar.'); return; }
+    const ligar = sa.getAttribute('aria-checked') !== 'true';
+    if (ligar && !await confirmar('Ligar a API na rede local?', '<p>O motor da IA passa a aceitar pedidos de outros aparelhos da sua rede (Wi-Fi), sempre com a chave desta sessão. Use só em redes que você confia.</p>', 'Ligar')) return;
+    try { await PLATAFORMA.ligarApi(ligar); toast(ligar ? 'API ligada. O endereço e a chave estão logo abaixo.' : 'API desligada.', 3500); } catch (e) { toast(e.message, 4000); }
+    await lerSistema(); if (abaAtual === 'modelo') desenharAba();
+  };
+  ligarCopiar(c);
   const ag = c.querySelector('[data-gpu="apagar"]');
   if (ag) ag.onclick = async () => { try { await PLATAFORMA.apagarGpu(); pref('gpuMedida', ''); toast('Módulo da GPU apagado.'); } catch (e) { toast(e.message, 4000); } await lerSistema(); if (abaAtual === 'modelo') desenharAba(); };
 }

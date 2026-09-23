@@ -659,7 +659,7 @@ class Janela : Form
             try { if (logMotor != null) logMotor.Dispose(); } catch { }
             logMotor = new StreamWriter(Path.Combine(Raiz(), "motor.log"), false, new UTF8Encoding(false)) { AutoFlush = true };
             ProcessStartInfo psi = new ProcessStartInfo(exe,
-                "-m \"" + arquivoModelo + "\" --host 127.0.0.1 --port " + porta +
+                "-m \"" + arquivoModelo + "\" --host " + (ApiLigada() ? "0.0.0.0" : "127.0.0.1") + " --port " + porta +   // API na rede local: escuta em todas as interfaces (com a chave)
                 " --path \"" + Path.Combine(pasta, "interface") + "\"" +
                 " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning-format auto --reasoning-budget 1200 --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao() + gpuArgs);   // pensar (Esforço Alto) é ligado por pedido; o orçamento limita o raciocínio
             psi.WorkingDirectory = pasta; psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
@@ -745,6 +745,29 @@ class Janela : Form
     static string DllGpu() { return Path.Combine(PastaGpu(), Gpu.Dll); }
     static bool GpuBaixada() { try { FileInfo f = new FileInfo(DllGpu()); return f.Exists && f.Length == Gpu.DllTamanho; } catch { return false; } }
     bool GpuLigada() { object v; return LerConfig().TryGetValue("gpu", out v) && v is bool && (bool)v; }
+    // ---------- API na rede local (opcional): o motor escuta em 0.0.0.0 e outros aparelhos usam a mesma chave ----------
+    bool ApiLigada() { object v; return LerConfig().TryGetValue("api", out v) && v is bool && (bool)v; }
+    static List<object> EnderecosLan()
+    {
+        List<object> r = new List<object>();
+        try { foreach (IPAddress ip in Dns.GetHostAddresses(Dns.GetHostName())) if (ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip)) r.Add(ip.ToString()); } catch { }
+        return r;
+    }
+    async Task<object> LigarApi(bool ligar)
+    {
+        Dictionary<string, object> c = LerConfig(); c["api"] = ligar; SalvarConfig(c);
+        trocando = true;
+        try
+        {
+            Evento("motor", Dic("estado", "trocando"));
+            PararMotor();
+            string erro = await LigarMotor();
+            Evento("motor", erro == null ? Dic("estado", "pronto", "nome", modelo.Nome, "visao", visaoAtiva) : Dic("estado", "erro", "mensagem", erro));
+            if (erro != null) throw new Exception(erro);
+        }
+        finally { trocando = false; }
+        return Dic("ligada", ligar, "porta", porta, "enderecos", EnderecosLan());
+    }
     static string Sha256De(string p) { using (FileStream f = File.OpenRead(p)) using (SHA256 s = SHA256.Create()) return BitConverter.ToString(s.ComputeHash(f)).Replace("-", "").ToLowerInvariant(); }
     // tira só o ggml-vulkan.dll do zip da release (o resto é igual ao motor de CPU), confere o SHA-256 e descarta o zip
     void ExtrairGpu()
@@ -993,6 +1016,9 @@ class Janela : Form
                     if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
                     dados = await LigarGpu(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); break;
                 case "apagarGpu": dados = await ApagarGpu(); break;
+                case "ligarApi":
+                    if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
+                    dados = await LigarApi(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); break;
                 case "apagarVisao":
                     Modelo mv = Modelo.PorId(Arg(args, "id"));
                     if (mv == null) throw new Exception("modelo desconhecido");
@@ -1048,7 +1074,8 @@ class Janela : Form
         return Dic("ramTotal", (long)ms.total, "ramLivre", (long)ms.avail, "cpu", cpu, "nucleos", Environment.ProcessorCount, "discoLivre", disco,
             "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"), "visaoLigada", VisaoLigada(), "visaoAtiva", visaoAtiva, "temVisao", true,
             "temTranscricao", File.Exists(Path.Combine(pasta, @"voz\whisper-cli.exe")), "vozes", ListaVozes(),
-            "gpu", Dic("baixada", GpuBaixada(), "ligada", GpuLigada(), "ativa", gpuAtiva, "dispositivo", gpuNome ?? "", "tamanho", Gpu.Zip.Tamanho, "falhou", gpuFalhou));
+            "gpu", Dic("baixada", GpuBaixada(), "ligada", GpuLigada(), "ativa", gpuAtiva, "dispositivo", gpuNome ?? "", "tamanho", Gpu.Zip.Tamanho, "falhou", gpuFalhou),
+            "api", Dic("suporte", true, "ligada", ApiLigada(), "porta", porta, "enderecos", EnderecosLan()));
     }
 
     // ---------- transcrição de áudio (whisper.cpp) ----------

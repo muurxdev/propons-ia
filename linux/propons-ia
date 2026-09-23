@@ -30,7 +30,7 @@ url_modelo() { local a="$1"; local repo="${a%-Q4_K_M.gguf}-GGUF"; echo "$URL_BAS
 
 mkdir -p "$MODELOS" "$INTERFACE"
 tem() { command -v "$1" >/dev/null 2>&1; }
-ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"; APAGAR_ID=""; VISAO_ARG=""; VOZ_ARG=""; GPU_ARG=""
+ARGS=("$@"); SO_TERMINAL=0; MODELO_ARG=""; ACAO="abrir"; APAGAR_ID=""; VISAO_ARG=""; VOZ_ARG=""; GPU_ARG=""; API_ARG=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --leve) MODELO_ARG=leve ;;
@@ -47,6 +47,8 @@ while [ $# -gt 0 ]; do
     --voz) VOZ_ARG=base; case "${2:-}" in base|small) VOZ_ARG="$2"; shift ;; esac ;;
     --gpu) GPU_ARG=1 ;;
     --sem-gpu) GPU_ARG=0 ;;
+    --api) API_ARG=1 ;;
+    --sem-api) API_ARG=0 ;;
     --apagar-modelo) shift; ACAO=apagar; APAGAR_ID="${1:-}" ;;
     -h|--ajuda|--help)
       cat <<EOF
@@ -65,6 +67,8 @@ Própons IA $VERSAO — assistente de estudos que roda no seu computador.
   propons-ia --voz [base|small]    liga a transcrição de áudio (baixa a voz uma vez: base 57 MB, small 190 MB) e abre
   propons-ia --gpu                 usa a placa de vídeo (Vulkan: NVIDIA, AMD ou Intel; baixa o módulo de 30 MB uma vez) e abre
   propons-ia --sem-gpu             volta a usar só o processador
+  propons-ia --api                 deixa outros aparelhos da rede usarem esta IA (API compatível com a OpenAI, com chave)
+  propons-ia --sem-api             volta a atender só este computador
 EOF
       exit 0 ;;
   esac
@@ -86,7 +90,7 @@ campo() { local id="$1" n="$2" l; for l in "${MODELOS_LISTA[@]}"; do [ "${l%%|*}
 ram_bytes() { awk '/MemTotal/ {printf "%d", $2*1024}' /proc/meminfo 2>/dev/null || echo 0; }
 # config: MODELO=id e VISAO=0|1
 ler_config() { [ -f "$CONFIG" ] && sed -n "s/^$1=//p" "$CONFIG" | head -1; }
-gravar_config() { local m v z g; m="$(ler_config MODELO)"; v="$(ler_config VISAO)"; z="$(ler_config VOZ)"; g="$(ler_config GPU)"; [ "$1" = MODELO ] && m="$2"; [ "$1" = VISAO ] && v="$2"; [ "$1" = VOZ ] && z="$2"; [ "$1" = GPU ] && g="$2"; printf 'MODELO=%s\nVISAO=%s\nVOZ=%s\nGPU=%s\n' "$m" "${v:-0}" "$z" "${g:-0}" >"$CONFIG"; }
+gravar_config() { local m v z g a; m="$(ler_config MODELO)"; v="$(ler_config VISAO)"; z="$(ler_config VOZ)"; g="$(ler_config GPU)"; a="$(ler_config API)"; [ "$1" = MODELO ] && m="$2"; [ "$1" = VISAO ] && v="$2"; [ "$1" = VOZ ] && z="$2"; [ "$1" = GPU ] && g="$2"; [ "$1" = API ] && a="$2"; printf 'MODELO=%s\nVISAO=%s\nVOZ=%s\nGPU=%s\nAPI=%s\n' "$m" "${v:-0}" "$z" "${g:-0}" "${a:-0}" >"$CONFIG"; }
 if [ -n "$MODELO_ARG" ]; then
   [ -n "$(campo "$MODELO_ARG" 1)" ] || { echo "Modelo desconhecido: $MODELO_ARG (use: leve, normal ou avancado)"; exit 2; }
   gravar_config MODELO "$MODELO_ARG"
@@ -94,6 +98,8 @@ fi
 [ -n "$VISAO_ARG" ] && gravar_config VISAO "$VISAO_ARG"
 [ -n "$VOZ_ARG" ] && gravar_config VOZ "$VOZ_ARG"
 [ -n "$GPU_ARG" ] && gravar_config GPU "$GPU_ARG"
+[ -n "$API_ARG" ] && gravar_config API "$API_ARG"
+API="$(ler_config API)"
 MODELO_ID="$(ler_config MODELO)"
 if [ -z "$MODELO_ID" ] || [ -z "$(campo "$MODELO_ID" 1)" ]; then
   [ "$(ram_bytes)" -lt $((6*1024*1024*1024)) ] && MODELO_ID=leve || MODELO_ID=normal
@@ -270,7 +276,9 @@ escrever_sistema() {
     >"$INTERFACE/sistema.json"
   # estado da GPU (a interface mostra no Diagnóstico; no Linux liga-se pelo comando propons-ia --gpu)
   local gj; gj="{\"ativa\":$([ "$GPU_ATIVA" = 1 ] && echo true || echo false),\"ligada\":$([ "$GPU" = 1 ] && echo true || echo false),\"baixada\":$(gpu_baixada && echo true || echo false),\"dispositivo\":\"$(echo "$GPU_NOME" | esc_json)\",\"tamanho\":${GPU_TAM:-0},\"comando\":true}"
-  sed -i "s|^{|{\"gpu\":$gj,|" "$INTERFACE/sistema.json"
+  local ips aj; ips="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+\.' | grep -v '^127\.' | sed 's/.*/"&"/' | paste -sd, -)"
+  aj="{\"suporte\":false,\"comando\":true,\"ligada\":$([ "${API:-0}" = 1 ] && echo true || echo false),\"porta\":${PORTA:-0},\"enderecos\":[${ips}]}"
+  sed -i "s|^{|{\"gpu\":$gj,\"api\":$aj,|" "$INTERFACE/sistema.json"
 }
 preparar_interface() {
   cp -f "$APP_DIR/interface/index.html" "$INTERFACE/index.html"
@@ -337,7 +345,8 @@ ligar_motor() {  # usa PORTA e CHAVE já definidas
   local visao=(); visao_ativa && visao=(--mmproj "$VISAO_ARQ" --image-max-tokens 400)
   # GPU: o llama.cpp carrega o backend Vulkan da pasta GGML_BACKEND_PATH; sem GPU a variável fica vazia (só CPU)
   local gpu=(); if [ "$GPU_ATIVA" = 1 ]; then gpu=(-ngl 999 -dev "$GPU_DISP"); export GGML_BACKEND_PATH="$GPU_SO"; else unset GGML_BACKEND_PATH; fi
-  nice -n 5 "$MOTOR" -m "$ARQ" "${visao[@]}" "${gpu[@]}" --host 127.0.0.1 --port "$PORTA" --path "$INTERFACE" \
+  local host=127.0.0.1; [ "${API:-0}" = 1 ] && host=0.0.0.0   # --api: outros aparelhos da rede (sempre com a chave)
+  nice -n 5 "$MOTOR" -m "$ARQ" "${visao[@]}" "${gpu[@]}" --host "$host" --port "$PORTA" --path "$INTERFACE" \
     -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning-format auto --reasoning-budget 1200 --api-key-file "$CHAVEFILE" >>"$LOG" 2>&1 &
   MOTOR_PID=$!
   echo "$MOTOR_PID" >"$PIDFILE"; echo "$PORTA" >"$PORTAFILE"
