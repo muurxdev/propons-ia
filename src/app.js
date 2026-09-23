@@ -348,6 +348,7 @@ function boasVindas() {
 // se a hora virar com a tela inicial aberta, a saudação acompanha
 setInterval(() => { const h = document.querySelector('#boasvindas .sd'); if (h && h.textContent !== saudacao() + ',') h.textContent = saudacao() + ','; }, 60000);
 function nova() {
+  fecharTela();
   if (atual) atual.rascunho = '';   // o que estava na caixa vai junto para a conversa nova
   atual = null; cancelarEdicao();
   $('#tituloAtual').textContent = 'Própons IA';
@@ -356,6 +357,7 @@ function nova() {
 }
 function abrir(id) {
   const c = conversas.find(x => x.id === id); if (!c) return nova();
+  fecharTela();
   if (atual && atual !== c) { atual.msgs.forEach(m => { if (m._envio) m._envio = null; }); atual.rascunho = $('#entrada').value; }   // fotos cheias só da conversa aberta; o rascunho fica guardado
   const trocou = atual !== c;
   atual = c; cancelarEdicao();
@@ -415,6 +417,42 @@ function addIa(m, ultima) {
   if (!m.interno || m.erro) acoes(d, m, ultima);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
 }
+/* ---------------- telas do menu lateral (Área de código e Biblioteca) ----------------
+   São telas de verdade: ocupam o lugar do chat (com a caixa de digitação escondida) e ficam listadas no menu lateral,
+   abaixo da busca. Continuam ligadas ao chat: mandar um arquivo ou usar um item volta para a conversa com o anexo. */
+const TELAS = { codigo: { nome: 'Área de código', ico: 'codigo', conta: () => projeto().arquivos.length, render: (el) => telaCodigo(el) },
+                biblioteca: { nome: 'Biblioteca', ico: 'biblioteca', conta: () => biblioteca.length, render: (el) => telaBiblioteca(el) } };
+let telaAtual = '';
+function desenharNavLateral() {
+  const n = $('#latNav'); if (!n) return;
+  n.innerHTML = Object.entries(TELAS).map(([k, t]) => { const q = t.conta();
+    return `<button class="lat-link${telaAtual === k ? ' on' : ''}" data-tela="${k}" aria-current="${telaAtual === k}">${ICO[t.ico]}<span>${t.nome}</span>${q ? `<i>${q}</i>` : ''}</button>`; }).join('');
+  n.querySelectorAll('[data-tela]').forEach(b => b.onclick = () => abrirTela(b.dataset.tela));
+}
+function abrirTela(nome) {
+  if (!TELAS[nome]) return fecharTela();
+  telaAtual = nome;
+  $('#conversa').hidden = true; document.querySelector('.compor').hidden = true; $('#faixa').hidden = true;
+  const el = $('#tela'); el.hidden = false;
+  el.innerHTML = `<div class="tela-topo"><button class="icone" data-voltar title="Voltar para a conversa" aria-label="Voltar para a conversa">${ICO.voltar}</button><h2>${TELAS[nome].nome}</h2></div><div class="tela-corpo"></div>`;
+  el.querySelector('[data-voltar]').onclick = () => fecharTela();
+  $('#tituloAtual').textContent = TELAS[nome].nome;
+  TELAS[nome].render(el.querySelector('.tela-corpo'));
+  el.scrollTop = 0;
+  desenharNavLateral(); desenharLista();
+  if (estreita()) fecharLateral();
+}
+function fecharTela() {
+  if (!telaAtual) return false;
+  telaAtual = ''; $('#tela').hidden = true; $('#tela').innerHTML = '';
+  $('#conversa').hidden = false; document.querySelector('.compor').hidden = false; $('#faixa').hidden = !$('#faixa').innerHTML;
+  $('#tituloAtual').textContent = atual ? atual.titulo : 'Própons IA';
+  desenharNavLateral(); desenharLista(); rolar(true);
+  return true;
+}
+// mexeu no que a tela mostra (arquivo novo, item na biblioteca): redesenha se ela estiver aberta
+function atualizarTela(nome) { if (telaAtual && (!nome || telaAtual === nome)) TELAS[telaAtual].render($('#tela .tela-corpo')); desenharNavLateral(); }
+
 /* ---------------- Área de código (estilo Claude Code, em qualquer aparelho) ----------------
    Um projeto de arquivos guardado no aparelho: criar/editar/apagar arquivos, pedir mudanças à IA (ela devolve o
    arquivo inteiro e a gente mostra o diff para aceitar ou recusar), salvar no disco e mandar um arquivo para o chat.
@@ -433,6 +471,7 @@ function guardarNoProjeto(nome, conteudo, avisar) {
   if (a) a.conteudo = String(conteudo).slice(0, LIMITE_CODIGO);
   else p.arquivos.push({ nome: n, conteudo: String(conteudo).slice(0, LIMITE_CODIGO), lang: langDoArquivo(n) || 'texto', criado: Date.now() });
   p.aberto = n; salvarProjeto(p);
+  atualizarTela('codigo');
   if (avisar) toast(`"${n}" está na área de código.`, 2600);
   return n;
 }
@@ -465,13 +504,10 @@ function htmlDiff(d) {
 }
 const ESQ_CODIGO = { type: 'object', properties: { explicacao: { type: 'string' }, conteudo: { type: 'string' } }, required: ['explicacao', 'conteudo'], additionalProperties: false };
 let editorPendente = null;   // { nome, novo, explicacao }
-function abrirCodigo(nomeAbrir) {
-  const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha codigo">${topoCentro('Área de código')}<div class="cod"></div></div>`;
-  const folha = f.firstChild, sair = () => animarSaida(f, folha);
-  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
-  folhaArrastavel(f, folha, sair);
-  const p0 = projeto(); if (nomeAbrir) { p0.aberto = nomeAbrir; salvarProjeto(p0); }
+const abrirCodigo = nome => { if (nome) { const p = projeto(); p.aberto = nome; salvarProjeto(p); } abrirTela('codigo'); };
+function telaCodigo(alvoTela) {
+  alvoTela.innerHTML = '<div class="cod"></div>';
+  const folha = alvoTela, sair = () => fecharTela();
   const desenhar = () => {
     const p = projeto(), cod = folha.querySelector('.cod');
     const a = arqDoProjeto(p, p.aberto) || p.arquivos[0];
@@ -509,7 +545,6 @@ function abrirCodigo(nomeAbrir) {
     });
   };
   desenhar();
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
 }
 async function pedirCodigo(cod, arq, desenhar) {
   const campo = cod.querySelector('.cod-instrucao'), instrucao = (campo.value || '').trim();
@@ -1196,22 +1231,12 @@ function guardarNaBiblioteca(item) {
   if (biblioteca.some(x => x.tipo === item.tipo && x.nome === item.nome && x.tam === item.tam)) return;
   biblioteca.unshift(Object.assign({ id: novoId(), quando: Date.now() }, item));
   if (biblioteca.length > 60) biblioteca.length = 60;       // limite para não pesar na memória
-  const fb = document.querySelector('.dlg.biblioteca'); if (fb) desenharBiblioteca(fb);
+  atualizarTela('biblioteca');
 }
 const iconeBib = i => i.tipo === 'imagem' ? ICO.foto : i.tipo === 'audio' ? ICO.microfone : ICO.arquivo;
 const descBib = i => (i.tipo === 'imagem' ? 'Foto' : i.tipo === 'audio' ? 'Áudio transcrito' : 'Arquivo') + ' · ' + tamanhoBonito(i.tam || 0) + ' · ' + new Date(i.quando).toTimeString().slice(0, 5);
-function abrirBiblioteca() {
-  const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg biblioteca">${topoFolha('Biblioteca desta sessão')}<div class="bib-corpo"></div></div>`;
-  const folha = f.firstChild, sair = () => animarSaida(f, folha);
-  f.fechar = sair;
-  f.onclick = e => { if (e.target === f) sair(); };
-  folha.querySelector('[data-x]').onclick = sair;
-  folhaArrastavel(f, folha, sair);
-  pausarDesenho();
-  document.body.appendChild(f);
-  desenharBiblioteca(folha);
-}
+const abrirBiblioteca = () => abrirTela('biblioteca');
+function telaBiblioteca(alvoTela) { alvoTela.innerHTML = '<div class="bib-corpo"></div>'; desenharBiblioteca(alvoTela); }
 function desenharBiblioteca(folha) {
   const c = folha.querySelector('.bib-corpo'); if (!c) return;
   const n = t => biblioteca.filter(i => t === 'todos' || i.tipo === t).length;
@@ -1242,7 +1267,7 @@ async function verItemBiblioteca(i, folha) {
     else if (i.tipo === 'imagem' && anexos.filter(a => a.tipo === 'imagem').length >= MAX_FOTOS) { toast(`Até ${MAX_FOTOS} fotos por mensagem.`); return; }
     else if (i.tipo === 'arquivo' && anexos.filter(a => a.tipo !== 'imagem').length >= MAX_ANEXOS) { toast(`Até ${MAX_ANEXOS} arquivos por mensagem.`); return; }
     else anexos.push(i.tipo === 'imagem' ? { tipo: 'imagem', nome: i.nome, tam: i.tam, dataUrl: i.dataUrl, miniatura: i.miniatura } : { nome: i.nome, tam: i.tam, lang: i.lang, conteudo: i.conteudo });
-    desenharChips(); fecharDialogo(); $('#entrada').focus();
+    desenharChips(); fecharDialogo(); fecharTela(); ajustar(); $('#entrada').focus();   // volta para a conversa com o anexo
   }
 }
 
@@ -1320,7 +1345,7 @@ function abrirEsforco(depois) {
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
   folha.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { definirEsforco(idModeloAtual(), b.dataset.e); atualizarSeletorModelo(); sair(); if (depois) depois(); });
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'), 'fim');
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
 }
 const DESC_MODELO = { leve: 'Leve e rápido', normal: 'Equilibrado, para o dia a dia', avancado: 'Para as tarefas mais difíceis' };
 ICO.check = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -1388,9 +1413,9 @@ async function abrirSeletorModelo(motivo) {
   const g = folha.querySelector('[data-gerenciar]'); if (g) g.onclick = () => { sair(); abrirConfig('modelo'); };
   const ef = folha.querySelector('[data-esforco]'); if (ef) ef.onclick = () => { sair(); abrirEsforco(() => abrirSeletorModelo()); };
   folhaArrastavel(f, folha, sair);
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'), 'fim');
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
   await lerSistema(); atualizarSeletorModelo();
-  desenharListaModelos(folha); posicionarPop(f, folha, $('#seletorModelo'), 'fim');
+  desenharListaModelos(folha); posicionarPop(f, folha, $('#seletorModelo'));
 }
 // a folha/menu do seletor, se estiver aberta, acompanha downloads e trocas
 function redesenharSeletor() { const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f); }
@@ -1796,11 +1821,12 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.shiftKey && k === 'o') { e.preventDefault(); nova(); }
   if (e.ctrlKey && k === 'k') { e.preventDefault(); abrirLateral(); $('#busca').focus(); }
   if (e.ctrlKey && k === ',') { e.preventDefault(); abrirConfig(); }
-  if (e.key === 'Escape') { if (!fecharDialogo()) { if (document.querySelector('.painel-fundo:not(.saindo)')) voltarPainel(); else if (estreita()) fecharLateral(); } fecharMenus(); }
+  if (e.key === 'Escape') { if (!fecharDialogo()) { if (document.querySelector('.painel-fundo:not(.saindo)')) voltarPainel(); else if (!fecharTela() && estreita()) fecharLateral(); } fecharMenus(); }
 });
 // celular: botão voltar fecha, nesta ordem, o diálogo, a subpágina dos ajustes, os ajustes e a gaveta
 window.__proponsVoltar = () => {
   if (fecharDialogo()) return true;
+  if (fecharTela()) return true;
   if (gravacao || cancelarTranscricao) { $('#cancelarGrav').click(); return true; }
   if (document.querySelector('.painel-fundo:not(.saindo)')) { voltarPainel(); return true; }
   if (!$('#lateral').classList.contains('fechada') && estreita()) { fecharLateral(); return true; }
@@ -2488,7 +2514,7 @@ async function aquecer() {
 }
 
 /* ---------------- início ---------------- */
-aplicarTema(); aplicarFonte();
+aplicarTema(); aplicarFonte(); desenharNavLateral();
 if (CELULAR) $('#entrada').enterKeyHint = 'enter';   // no celular Enter quebra linha (o botão de enviar é a seta); no PC, envia
 nova();
 if (!estreita()) abrirLateral();

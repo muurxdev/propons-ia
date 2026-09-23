@@ -294,7 +294,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 // 1.20: ajustes pedidos — "+" no canto, esforço por modelo, clicar liga (sem "Usar"), sem popup ao escolher modo
 {
   const ordem = await js(`[...document.querySelectorAll('.linha > *')].map(e => e.id || e.className)`);
-  ok('caixa organizada: "+" no canto e modelo/microfone/enviar do outro lado', ordem[0] === 'anexar' && ordem[1] === 'espaco' && ordem[2] === 'seletorModelo' && ordem[3] === 'falar' && ordem[4] === 'enviar', JSON.stringify(ordem));
+  ok('caixa organizada: "+" e o modelo à esquerda; microfone e enviar à direita', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[2] === 'espaco' && ordem[3] === 'falar' && ordem[4] === 'enviar', JSON.stringify(ordem));
   await js(`abrirSeletorModelo(); 1`); await espera(1000);
   const lm = await js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b => ({ nome: b.querySelector('b').textContent, esf: (b.querySelector('b .pill')||{}).textContent || '', st: b.querySelector('.st').textContent.trim() }))`);
   ok('cada modelo mostra o nível de esforço', lm.filter(x => x.esf).length >= 1 && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));
@@ -310,9 +310,10 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 }
 // 1.20: área de código (estilo Claude Code) — criar, editar, pedir mudança com diff, aplicar
 {
-  await js(`pref('projeto', ''); guardarNoProjeto('soma.py', 'def soma(a, b):\\n    return a+b\\n', false); abrirCodigo('soma.py'); 1`); await espera(700);
-  ok('área de código abre com abas, editor e campo de pedido', await js(`!!document.querySelector('.dlg.codigo .cod-aba.on') && !!document.querySelector('.dlg.codigo .cod-editor') && !!document.querySelector('.dlg.codigo .cod-instrucao')`));
-  await js(`(()=>{ const e = document.querySelector('.cod-editor'); e.value = 'def soma(a, b):\\n    return a + b\\n'; e.dispatchEvent(new Event('input')); })(); 1`); await espera(600);
+  await js(`pref('projeto', ''); guardarNoProjeto('soma.py', ['def soma(a, b):', '    return a+b', ''].join(String.fromCharCode(10)), false); abrirCodigo('soma.py'); 1`); await espera(700);
+  ok('área de código é uma tela (chat e caixa escondidos), com abas, editor e pedido', await js(`telaAtual === 'codigo' && $('#conversa').hidden && document.querySelector('.compor').hidden && !!document.querySelector('#tela .cod-aba.on') && !!document.querySelector('#tela .cod-editor') && !!document.querySelector('#tela .cod-instrucao')`));
+  ok('as telas aparecem no menu lateral, abaixo da busca', await js(`(()=>{ const n = $('#latNav'); const b = $('#busca').closest('.busca'); return !!n && n.compareDocumentPosition(b) === Node.DOCUMENT_POSITION_PRECEDING && n.querySelectorAll('[data-tela]').length === 2 && !!n.querySelector('[data-tela="codigo"].on') })()`));
+  await js(`(()=>{ const e = document.querySelector('.cod-editor'); e.value = ['def soma(a, b):', '    return a + b', ''].join(String.fromCharCode(10)); e.dispatchEvent(new Event('input')); })(); 1`); await espera(600);
   ok('editar guarda no aparelho', /return a \+ b/.test(await js(`(projeto().arquivos.find(a => a.nome === 'soma.py')||{}).conteudo`)));
   await js(`(()=>{ document.querySelector('.cod-instrucao').value = 'Adicione uma docstring curta em português explicando a função.'; document.querySelector('[data-acao="pedir"]').click(); })(); 1`);
   let dif = false; for (let i = 0; i < 400 && !dif; i++) { await espera(250); dif = await js(`!!document.querySelector('.cod-dif .dif-l.mais')`); }
@@ -322,7 +323,10 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
     const dep = await js(`(projeto().arquivos.find(a => a.nome === 'soma.py')||{}).conteudo || ''`);
     ok('aplicar grava o arquivo novo e fecha o diff', dep.length > 40 && !(await js(`!!document.querySelector('.cod-dif')`)), JSON.stringify(dep).slice(0, 110));
   }
-  await js(`fecharDialogo(); pref('projeto', ''); 1`);
+  ok('voltar sai da tela e traz a conversa de volta', await js(`(()=>{ fecharTela(); return telaAtual === '' && !$('#conversa').hidden && !document.querySelector('.compor').hidden && $('#tela').hidden })()`));
+  await js(`abrirTela('biblioteca'); 1`); await espera(400);
+  ok('Biblioteca também é tela', await js(`telaAtual === 'biblioteca' && !!document.querySelector('#tela .bib-corpo') && /Biblioteca/.test($('#tituloAtual').textContent)`));
+  await js(`fecharTela(); pref('projeto', ''); 1`);
 }
 // 1.16: estado com prioridade (download por cima de rede; limpar só o download)
 const est = await js(`(()=>{ estado('reconectando'); estado('baixando 10%'); const a=$('#estado').textContent; estado('', false, 'download'); const b=$('#estado').textContent; estado(''); return [a, b, $('#estado').hidden] })()`);
