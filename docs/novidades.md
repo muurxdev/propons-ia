@@ -1,3 +1,7 @@
+## Novidades da 1.19.1
+
+- **Celular (Android):** a leitura de PDF/DOCX não funcionava (a biblioteca usa recursos que o WebView do Android ainda não tem — `Promise.try`, `Uint8Array.toHex`); adicionamos esses recursos e o PDF passa a virar texto normalmente.
+
 ## Novidades da 1.19.0
 
 - **Organização:** fixar conversas no topo e mover para pastas (menu ⋯ da conversa); apagou sem querer? "Desfazer" no aviso.

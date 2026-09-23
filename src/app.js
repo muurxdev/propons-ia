@@ -748,6 +748,13 @@ async function prepararFoto(f) {
 /* ---------------- documentos: PDF e DOCX viram texto na própria página ----------------
    pdf.js e mammoth vêm dentro do index.html como texto (src/vendor) e só são carregados na primeira vez. */
 const LIMITE_DOC = 40 * 1048576, MAX_PAGINAS = 300, MAX_TEXTO_DOC = 200000;
+// o pdf.js 6 usa Promise.try, que o WebView do Android (Chrome < 128) não tem: sem isto o getDocument ficava pendurado
+if (typeof Promise.try !== 'function') Promise.try = function (f, ...a) { return new Promise(r => r(f(...a))); };
+// idem para os métodos novos de Uint8Array (Chrome 134+)
+if (!Uint8Array.prototype.toHex) Uint8Array.prototype.toHex = function () { let s = ''; for (const b of this) s += b.toString(16).padStart(2, '0'); return s; };
+if (!Uint8Array.fromHex) Uint8Array.fromHex = function (h) { const a = new Uint8Array(h.length >> 1); for (let i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16); return a; };
+if (!Uint8Array.prototype.toBase64) Uint8Array.prototype.toBase64 = function () { let s = ''; for (let i = 0; i < this.length; i += 0x8000) s += String.fromCharCode.apply(null, this.subarray(i, i + 0x8000)); return btoa(s); };
+if (!Uint8Array.fromBase64) Uint8Array.fromBase64 = function (b) { return Uint8Array.from(atob(b), c => c.charCodeAt(0)); };
 const scriptDe = id => { const el = document.getElementById(id); if (!el || !el.textContent) throw new Error('biblioteca não embutida'); return URL.createObjectURL(new Blob([el.textContent], { type: 'text/javascript' })); };
 let pdfjs = null, mammothLib = null;
 const comLimite = (p, ms, oque) => Promise.race([p, new Promise((_, f) => setTimeout(() => f(new Error(oque + ' demorou demais')), ms))]);   // nunca fica esperando para sempre
