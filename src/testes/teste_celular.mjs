@@ -1,7 +1,7 @@
 // Testes da interface dentro do app de celular (WebView do Android via CDP).
-// Uso: node src/teste_celular.mjs <porta-cdp> <pasta-saida>
+// Uso: node src/testes/teste_celular.mjs <porta-cdp> <pasta-saida>
 import fs from 'node:fs';
-import { conectar, espera, relatorio } from './testes/cdp.mjs';
+import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida] = process.argv.slice(2);
 const { js, foto, fechar, cdp } = await conectar({ porta, saida, filtro: u => /127.0.0.1/.test(u) });
 const resultados = [];

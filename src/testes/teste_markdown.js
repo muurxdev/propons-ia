@@ -1,8 +1,8 @@
-// Testes do renderizador (markdown.js) e do destaque de código (destaque.js).  node src/teste_markdown.js
+// Testes do renderizador (markdown.js) e do destaque de código (destaque.js).  node src/testes/teste_markdown.js
 const fs = require('fs'), vm = require('vm');
 const ctx = { esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) };
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(__dirname + '/destaque.js', 'utf8') + '\n' + fs.readFileSync(__dirname + '/markdown.js', 'utf8') + ';this.md=md;this.D=DESTAQUE;this.analisarResposta=analisarResposta;this.textoParaFala=textoParaFala;', ctx);
+vm.runInContext(fs.readFileSync(__dirname + '/../destaque.js', 'utf8') + '\n' + fs.readFileSync(__dirname + '/../markdown.js', 'utf8') + ';this.md=md;this.D=DESTAQUE;this.analisarResposta=analisarResposta;this.textoParaFala=textoParaFala;', ctx);
 const { md, D, analisarResposta, textoParaFala } = ctx;
 let falhas = 0, total = 0;
 const ok = (nome, cond, extra) => { total++; if (!cond) { falhas++; console.log('FALHOU:', nome, extra !== undefined ? '\n   ' + extra : ''); } };

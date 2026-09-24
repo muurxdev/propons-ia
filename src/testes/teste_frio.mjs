@@ -1,7 +1,7 @@
 // Abertura fria (modelo já baixado, IA desligada): o chat abre na hora com o nome do modelo; a primeira mensagem liga a IA
-// e é respondida. Uso: node src/teste_frio.mjs <porta-cdp> <pasta-saida>
+// e é respondida. Uso: node src/testes/teste_frio.mjs <porta-cdp> <pasta-saida>
 import fs from 'node:fs';
-import { conectar, espera, relatorio } from './testes/cdp.mjs';
+import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const { ok, resumo } = relatorio();

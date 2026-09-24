@@ -1,5 +1,5 @@
 // Testa semLatex() (a fórmula vira texto legível) direto da página montada, com casos esperados.
-const h = require('fs').readFileSync(__dirname + '/../payload/interface/index.html', 'utf8');
+const h = require('fs').readFileSync(__dirname + '/../../payload/interface/index.html', 'utf8');
 const m = h.match(/function semLatex\(src\)\s*\{[\s\S]*?\n\}\n/);
 if (!m) { console.error('semLatex() não encontrada em payload/interface/index.html (rode node src/montar.js)'); process.exit(1); }
 const semLatex = new Function(m[0] + '; return semLatex;')();

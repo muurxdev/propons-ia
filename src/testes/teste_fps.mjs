@@ -1,7 +1,7 @@
 // Mede a fluidez (quadros por segundo) da interface enquanto a IA responde, abrindo e fechando folhas.
-// Uso: node src/teste_fps.mjs <porta-cdp> <pasta-saida>   (app aberto com depuraÃ§Ã£o)
+// Uso: node src/testes/teste_fps.mjs <porta-cdp> <pasta-saida>   (app aberto com depuraÃ§Ã£o)
 import fs from 'node:fs';
-import { conectar, espera, relatorio } from './testes/cdp.mjs';
+import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const { js, foto, fechar, cdp } = await conectar({ porta, saida, filtro: a => { const u = a; return /127\.0\.0\.1:\d+/.test(u); } });

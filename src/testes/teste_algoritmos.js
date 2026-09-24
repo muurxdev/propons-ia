@@ -1,7 +1,7 @@
 // Confere os algoritmos do passo a passo contra implementações de referência (as clássicas, como em aula)
-// e o resumo exato. Uso: node src/teste_algoritmos.js   (depois de node src/montar.js)
+// e o resumo exato. Uso: node src/testes/teste_algoritmos.js   (depois de node src/montar.js)
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '..', 'payload', 'interface', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', '..', 'payload', 'interface', 'index.html'), 'utf8');
 const bloco = (ini, fim) => html.split(ini)[1].split(fim)[0];
 const fmt = a => '[' + a.join(', ') + ']';
 const ctx = { fmt }; vm.createContext(ctx);

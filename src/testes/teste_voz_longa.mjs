@@ -1,6 +1,6 @@
 // Transcreve um áudio longo no app real (sem limite de tempo: o app corta em trechos nos silêncios) e mede o tempo.
 // Usa o áudio de teste com a frase "Olá, este é um teste de transcrição longa." repetida N vezes.
-// Uso: node src/teste_voz_longa.mjs <porta-cdp> <arquivo-wav> <vezes-que-a-frase-aparece>
+// Uso: node src/testes/teste_voz_longa.mjs <porta-cdp> <arquivo-wav> <vezes-que-a-frase-aparece>
 import fs from 'node:fs';
 const [porta, wavArq, vezesArg] = process.argv.slice(2);
 const vezes = +vezesArg || 50;

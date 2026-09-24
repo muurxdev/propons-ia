@@ -35,7 +35,7 @@ jobs:
         with: { node-version: 22 }
       - run: node src/montar.js
       - name: Testes de lógica (algoritmos, markdown, latex…)
-        run: for f in src/teste_*.js; do echo "== $f"; node "$f" || exit 1; done
+        run: for f in src/testes/teste_*.js; do echo "== $f"; node "$f" || exit 1; done
       - name: Sintaxe do script da página
         run: node -e "const h=require('fs').readFileSync('payload/interface/index.html','utf8');require('fs').writeFileSync('/tmp/p.js',[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n'))" && node --check /tmp/p.js
       - name: Hash da interface (sem \r, para bater com o checkout CRLF do Windows)
@@ -66,7 +66,7 @@ jobs:
         run: |
           $env:PROPONS_DEPURAR = '1'
           $p = Start-Process -FilePath "dist\Propons-IA-Windows.exe" -ArgumentList '--leve' -PassThru
-          try { node src/teste_windows.mjs dist/teste-windows --sem-troca } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
+          try { node src/testes/teste_windows.mjs dist/teste-windows --sem-troca } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
       - name: Abertura fria como na casa da pessoa (a interface vem do site local, não por NavigateToString)
         shell: powershell
         run: |
@@ -74,7 +74,7 @@ jobs:
           $env:PROPONS_FRIO = '1'
           # sem --leve: forçar o modelo pula justamente a abertura fria que queremos testar
           $p = Start-Process -FilePath "dist\Propons-IA-Windows.exe" -PassThru
-          try { node src/teste_frio.mjs 9333 dist/teste-frio } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
+          try { node src/testes/teste_frio.mjs 9333 dist/teste-frio } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

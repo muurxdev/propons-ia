@@ -43,7 +43,7 @@ if ! adb shell "run-as $PKG sh -c 'ls files/modelos 2>/dev/null'" 2>/dev/null | 
   echo "== primeira vez: escolher e baixar o modelo Leve"
   adb shell am start -n $PKG/.MainActivity >/dev/null; sleep 4
   PID=$(adb shell pidof $PKG | tr -d '\r'); adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
-  node "$RAIZ/src/teste_escolher.mjs" 9444 "$SAIDA/escolher" leve || { adb logcat -d | grep -iE "proponsia|AndroidRuntime|FATAL" | tail -30; exit 1; }
+  node "$RAIZ/src/testes/teste_escolher.mjs" 9444 "$SAIDA/escolher" leve || { adb logcat -d | grep -iE "proponsia|AndroidRuntime|FATAL" | tail -30; exit 1; }
   adb shell am force-stop $PKG; sleep 3
 fi
 adb shell am start -n $PKG/.MainActivity --ez ligar true >/dev/null
@@ -68,7 +68,7 @@ echo "== testes na interface (CDP da WebView)"
 PID=$(adb shell pidof $PKG | tr -d '\r')
 adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
 sleep 2
-node "$RAIZ/src/teste_celular.mjs" 9444 "$SAIDA"; R=$?
+node "$RAIZ/src/testes/teste_celular.mjs" 9444 "$SAIDA"; R=$?
 echo "   motor na porta $PORTA · pedidos recusados por chave: $(adb shell "run-as $PKG grep -c unauthorized files/motor.log" 2>/dev/null | tr -d '\r')"
 if [ $R -ne 0 ]; then   # diagnóstico: página x chave do motor x processos
   echo "   páginas: $(curl -s http://127.0.0.1:9444/json | grep -o '"url": "[^"]*"' | tr '\n' ' ')"
@@ -77,7 +77,7 @@ if [ $R -ne 0 ]; then   # diagnóstico: página x chave do motor x processos
   echo "   activities: $(adb shell dumpsys activity activities 2>/dev/null | grep -c 'proponsia/.MainActivity')"
   adb logcat -d 2>/dev/null | grep -i "proponsia" | grep -iv "ApkAssets\|AppsFilter" | tail -12
 fi
-if [ -n "${FOTO:-}" ]; then echo "== fotos"; node "$RAIZ/src/teste_fotos.mjs" 9444 "$SAIDA" "$FOTO" || R=1; fi
-if [ -n "${VOZ:-}" ]; then echo "== voz"; SEM_MIC=1 node "$RAIZ/src/teste_voz.mjs" 9444 "$SAIDA" "$VOZ" "${VOZ_CURTO:-}" || R=1; fi
+if [ -n "${FOTO:-}" ]; then echo "== fotos"; node "$RAIZ/src/testes/teste_fotos.mjs" 9444 "$SAIDA" "$FOTO" || R=1; fi
+if [ -n "${VOZ:-}" ]; then echo "== voz"; SEM_MIC=1 node "$RAIZ/src/testes/teste_voz.mjs" 9444 "$SAIDA" "$VOZ" "${VOZ_CURTO:-}" || R=1; fi
 adb exec-out screencap -p >"$SAIDA/9-final.png"
 exit $R

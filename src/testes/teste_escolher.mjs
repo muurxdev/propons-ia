@@ -1,8 +1,8 @@
 // Teste da primeira abertura (sem modelo): o app abre no chat normal; a primeira mensagem sobe a lista de modelos,
 // Baixar vira a bolinha com a %, e quando termina a IA responde a mensagem que ficou esperando.
-// Uso: node src/teste_escolher.mjs <porta-cdp> <pasta-saida> <id-do-modelo>
+// Uso: node src/testes/teste_escolher.mjs <porta-cdp> <pasta-saida> <id-do-modelo>
 import fs from 'node:fs';
-import { conectar, espera, relatorio } from './testes/cdp.mjs';
+import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida, idModelo] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const { ok, resumo } = relatorio();

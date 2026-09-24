@@ -1,5 +1,5 @@
 // Teste da Biblioteca da sessão no app real (CDP).
-// Uso: node src/teste_biblioteca.mjs <porta-cdp> <pasta-saida> <foto.jpg> <fala.wav> [--depois-de-reabrir]
+// Uso: node src/testes/teste_biblioteca.mjs <porta-cdp> <pasta-saida> <foto.jpg> <fala.wav> [--depois-de-reabrir]
 import fs from 'node:fs';
 const [porta, saida, jpg, wav] = process.argv.slice(2);
 const reaberto = process.argv.includes('--depois-de-reabrir');

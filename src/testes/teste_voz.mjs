@@ -1,8 +1,8 @@
 // Teste da transcrição no app real (CDP): baixa a voz (se preciso), grava pelo microfone (falso, tocando um WAV)
 // e transcreve um arquivo de áudio pelo "+" → Áudio.
-// Uso: node src/teste_voz.mjs <porta-cdp> <pasta-saida> <arquivo-wav> [wav-curtinho-dizendo-oi]
+// Uso: node src/testes/teste_voz.mjs <porta-cdp> <pasta-saida> <arquivo-wav> [wav-curtinho-dizendo-oi]
 import fs from 'node:fs';
-import { conectar, espera, relatorio } from './testes/cdp.mjs';
+import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida, wavArq, wavCurto] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const { js, foto, fechar } = await conectar({ porta, saida, filtro: a => { const u = a; return /127\.0\.0\.1:\d+/.test(u); } });

@@ -1,6 +1,6 @@
 // Teste de ponta a ponta do app real do Windows (WebView2 via CDP; app aberto com PROPONS_DEPURAR=1).
 // Inclui: conversa, código, anexo, continuar, diagnóstico, troca de modelo (4B e volta) e o vigia do motor.
-// Uso: node src/teste_windows.mjs <pasta-saida> [--sem-troca]
+// Uso: node src/testes/teste_windows.mjs <pasta-saida> [--sem-troca]
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 const saida = process.argv[2]; const semTroca = process.argv.includes('--sem-troca');

@@ -4,6 +4,8 @@ const fs = require('fs'), path = require('path');
 const S = __dirname, OUT = path.join(S, '..', 'payload', 'interface');
 const ler = f => fs.readFileSync(path.join(S, f), 'utf8');
 const VERSAO = ler('../VERSAO').trim();
+// o aplicativo fica em src/app/, um arquivo por assunto; entram em ordem de nome (01-, 02-…), como um arquivo só
+const app = fs.readdirSync(path.join(S, 'app')).filter(f => /^\d\d-.+\.js$/.test(f)).sort().map(f => ler('app/' + f)).join('');
 
 let algo = ler('algoritmos.js').replace('(idênticos ao código do professor)', '(versões clássicas, calculadas por código)');
 const nomes = "const NOMES={bubble:'Bubble sort',selection:'Selection sort',quick:'Quick sort',binaria:'Busca binária'};";
@@ -11,12 +13,12 @@ algo = algo.replace(/const NOMES=\{[^\n]*\};/, nomes);
 if (!algo.includes(nomes)) throw new Error('NOMES não substituído');
 
 // bibliotecas de terceiros (src/vendor): entram como texto (type="text/plain", o navegador não interpreta) e só viram
-// código quando um PDF/DOCX é anexado (app.js carrega por blob). Assim os hosts continuam copiando um index.html só.
+// código quando um PDF/DOCX é anexado (src/app/08-anexos.js carrega por blob). Assim os hosts continuam copiando um index.html só.
 const vendor = [['vendor-pdf', 'vendor/pdf.min.mjs'], ['vendor-pdf-worker', 'vendor/pdf.worker.min.mjs'], ['vendor-mammoth', 'vendor/mammoth.browser.min.js']]
   .map(([id, f]) => { const c = ler(f); if (/<\/script/i.test(c)) throw new Error(f + ' contém </script'); return `<script type="text/plain" id="${id}">${c}</script>`; }).join('\n');
 const partes = {
   VERSAO, PLATAFORMA: ler('plataforma.js'), ALGO: algo, DESTAQUE: ler('destaque.js'), MD: ler('markdown.js'),
-  LATEX: ler('latex.js'), DETECT: ler('detecta.js'), APP: ler('resumo.js') + '\n' + ler('app.js'), VENDOR: vendor,
+  LATEX: ler('latex.js'), DETECT: ler('detecta.js'), APP: ler('resumo.js') + '\n' + app, VENDOR: vendor,
 };
 let html = ler('index.template.html');
 for (const [k, v] of Object.entries(partes)) html = html.split('{{' + k + '}}').join(v);

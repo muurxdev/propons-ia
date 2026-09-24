@@ -1,6 +1,6 @@
 // Teste só do fluxo de atualização no Android (CDP da WebView): baixa o APK de uma versão publicada,
 // confere o SHA-256, entrega ao instalador do Android e verifica que o instalador apareceu e que cancelar volta com aviso.
-// Uso: node src/teste_instalador_android.mjs <porta-cdp> <versao> <pasta-saida>
+// Uso: node src/testes/teste_instalador_android.mjs <porta-cdp> <versao> <pasta-saida>
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 const [porta, versao, saida] = process.argv.slice(2);

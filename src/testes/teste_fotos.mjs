@@ -1,7 +1,7 @@
 // Teste do "+" e de fotos no app real (CDP): abre o "+", anexa uma foto, liga a visão pelo diálogo e confere a resposta.
-// Uso: node src/teste_fotos.mjs <porta-cdp> <pasta-saida> <arquivo-jpg>
+// Uso: node src/testes/teste_fotos.mjs <porta-cdp> <pasta-saida> <arquivo-jpg>
 import fs from 'node:fs';
-import { conectar, espera, relatorio } from './testes/cdp.mjs';
+import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida, jpg] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const { js, foto, fechar } = await conectar({ porta, saida, filtro: a => { const u = a; return /127\.0\.0\.1:\d+/.test(u); } });

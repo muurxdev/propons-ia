@@ -1,7 +1,7 @@
 // Aceleração por GPU (Windows): baixa o módulo Vulkan pela tela de Ajustes, testa CPU × GPU, liga, desliga e religa.
-// Uso: node src/teste_gpu.mjs <porta-cdp> <pasta-saida>   (app aberto com PROPONS_DEPURAR=1, num PC com placa Vulkan)
+// Uso: node src/testes/teste_gpu.mjs <porta-cdp> <pasta-saida>   (app aberto com PROPONS_DEPURAR=1, num PC com placa Vulkan)
 import fs from 'node:fs';
-import { conectar, espera, relatorio } from './testes/cdp.mjs';
+import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const { js, foto, fechar } = await conectar({ porta, saida, filtro: u => /127\.0\.0\.1:\d+/.test(u) });

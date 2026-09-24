@@ -118,7 +118,7 @@ Na **primeira vez** em cada aparelho ela baixa o modelo (~0,5 / 1,2 / 2,7 GB) co
 
 | Pasta | Conteúdo |
 |---|---|
-| `src/` | Interface única para todas as plataformas (`index.template.html` + módulos `app.js`, `plataforma.js`, `markdown.js`, `destaque.js`, `latex.js`, `detecta.js`, `algoritmos.js`, `resumo.js`), comportamento da IA (`conhecimento.md`) e testes |
+| `src/` | Interface única para todas as plataformas (`index.template.html` + módulos `app/*.js` (um arquivo por assunto), `plataforma.js`, `markdown.js`, `destaque.js`, `latex.js`, `detecta.js`, `algoritmos.js`, `resumo.js`), comportamento da IA (`conhecimento.md`) e testes (`src/testes/`) |
 | `app/` | Windows: programa C#/WebView2 e o empacotador do `.exe` único |
 | `linux/` | Inicializador, `install.sh`, geração de `.deb/.rpm/.tar.gz`, `PKGBUILD`, testes em 10 distros |
 | `android/` | App Kotlin (WebView + llama-server como processo), scripts de preparo, compilação e teste no emulador |
@@ -139,7 +139,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1          # Windows → dist\P
 bash linux/build.sh                                          # Linux (Ubuntu com dpkg-dev e rpm) → dist/linux/
 bash android/compilar.sh                                     # Android (JDK 17 + Android SDK) → dist/android/
 bash ios/preparar.sh && cd ios && xcodegen generate          # iOS (macOS + Xcode)
-node src/montar.js && node src/teste_algoritmos.js && node src/teste_markdown.js   # testes da interface
+node src/montar.js && node src/testes/teste_algoritmos.js && node src/testes/teste_markdown.js   # testes da interface
 ```
 Para personalizar a IA, edite `src/conhecimento.md`.
 </details>

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Teste da primeira abertura no emulador: instala o APK de teste, apaga os dados do app (como uma instalação nova),
-# abre e roda src/teste_escolher.mjs (chat → primeira mensagem → Baixar com a bolinha de % → a IA responde).
+# abre e roda src/testes/teste_escolher.mjs (chat → primeira mensagem → Baixar com a bolinha de % → a IA responde).
 # Uso: bash android/ferramentas/testar-primeira-vez.sh [pasta-de-saída] [modelo]
 set -uo pipefail
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
@@ -23,7 +23,7 @@ for i in $(seq 1 60); do PID=$(adb shell pidof $PKG | tr -d '\r'); [ -n "$PID" ]
 sleep 4
 adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
 adb exec-out screencap -p >"$SAIDA/0-aberto.png"
-node "$RAIZ/src/teste_escolher.mjs" 9444 "$SAIDA" "$MODELO"; R=$?
+node "$RAIZ/src/testes/teste_escolher.mjs" 9444 "$SAIDA" "$MODELO"; R=$?
 adb exec-out screencap -p >"$SAIDA/9-final.png"
 # abertura fria: com o modelo já baixado, o app abre no chat sem ligar a IA; a primeira mensagem liga e é respondida
 if [ $R -eq 0 ]; then
@@ -32,6 +32,6 @@ if [ $R -eq 0 ]; then
   adb shell am start -n $PKG/.MainActivity >/dev/null
   for i in $(seq 1 60); do PID=$(adb shell pidof $PKG | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
   sleep 3; adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
-  node "$RAIZ/src/teste_frio.mjs" 9444 "$SAIDA" || R=1
+  node "$RAIZ/src/testes/teste_frio.mjs" 9444 "$SAIDA" || R=1
 fi
 exit $R

@@ -1,6 +1,6 @@
 // Teste da atualização automática do Windows numa cópia do programa:
 // pede para "atualizar" para uma versão publicada e confere se o app baixou, conferiu, trocou o próprio .exe e abriu de novo.
-// Uso: node src/teste_atualizar_windows.mjs <pasta-da-copia> <versao-publicada>   (app aberto com PROPONS_DEPURAR=1)
+// Uso: node src/testes/teste_atualizar_windows.mjs <pasta-da-copia> <versao-publicada>   (app aberto com PROPONS_DEPURAR=1)
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
