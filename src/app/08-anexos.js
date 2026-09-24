@@ -121,7 +121,7 @@ async function adicionarArquivos(lista) {
     }
     if (f.size > LIMITE_ANEXO) { toast(`"${f.name}" é grande demais (${tamanhoBonito(f.size)}). Limite: 40 KB.`, 3500); continue; }
     let texto = '';
-    try { texto = await f.text(); } catch (e) { toast(`Não consegui ler "${f.name}".`); continue; }
+    try { texto = await f.text(); } catch (e) { toast(`Não consegui ler "${f.name}": o arquivo pode estar aberto em outro programa ou corrompido. Feche-o e tente de novo.`, 5000); continue; }
     if (/\u0000/.test(texto) || (!TEXTO_OK.test(f.name) && /[\u0001-\u0008\u000e-\u001f]/.test(texto.slice(0, 2000)))) { toast(`"${f.name}" não parece ser um arquivo de texto.`); continue; }
     if (anexos.some(a => a.nome === f.name)) continue;
     anexos.push({ nome: f.name, tam: f.size, lang: langDoArquivo(f.name), conteudo: texto });

@@ -163,7 +163,7 @@ function perguntar(titulo, html, botoes, opcoes) {
 const confirmar = (titulo, html, rotulo = 'Confirmar', perigo) => perguntar(titulo, html, [['Cancelar', false, ''], [rotulo, true, perigo ? 'perigo' : 'primario']]).then(v => v === true);
 function perguntarTexto(titulo, valor) {
   const id = 'campo' + novoId();
-  const p = perguntar(titulo, `<input id="${id}" maxlength="120" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:16px;outline:0">`, [['Cancelar', null, ''], ['Salvar', 'ok', 'primario']]);
+  const p = perguntar(titulo, `<input id="${id}" class="campo-texto" maxlength="120">`, [['Cancelar', null, ''], ['Salvar', 'ok', 'primario']]);
   const inp = document.getElementById(id); inp.value = valor || ''; setTimeout(() => { inp.focus(); inp.select(); }, 50);
   inp.onkeydown = e => { if (e.key === 'Enter') inp.closest('.dlg').querySelector('.primario').click(); };
   return p.then(v => v === 'ok' ? inp.value.trim() : null);

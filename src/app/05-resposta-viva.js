@@ -55,9 +55,9 @@ function atualizarFolhaPensa(texto) {
   if (colado) t.scrollTop = t.scrollHeight;
 }
 
-/* ---------------- "Working": a palavra em inglês com brilho passando enquanto a IA não escreveu nada ----------------
+/* ---------------- "Pensando": a palavra com brilho passando enquanto a IA não escreveu nada ----------------
    Uma palavra só, trocando de vez em quando (como no Claude). O brilho é CSS; aqui só trocamos a palavra. */
-const PALAVRAS_TRABALHANDO = ['Working', 'Thinking', 'Reasoning', 'Pondering', 'Analyzing', 'Reflecting', 'Considering', 'Figuring it out', 'Processing'];
+const PALAVRAS_TRABALHANDO = ['Pensando', 'Conferindo', 'Calculando', 'Analisando', 'Refletindo', 'Organizando as ideias', 'Considerando', 'Processando'];
 function novaPalavra(el, primeira) {
   if (!el) return null;
   let i = primeira ? 0 : Math.floor(Math.random() * PALAVRAS_TRABALHANDO.length);
@@ -69,7 +69,7 @@ function novaPalavra(el, primeira) {
   }, 4200);
   return () => clearInterval(t);
 }
-const htmlTrabalhando = () => '<span class="trabalhando">Working</span>';
+const htmlTrabalhando = () => '<span class="trabalhando">Pensando</span>';
 
 /* ---------------- segundo plano: avisa quando a resposta fica pronta com a janela fora de foco ---------------- */
 let janelaEscondida = document.hidden;

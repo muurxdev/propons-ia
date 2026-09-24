@@ -3,7 +3,7 @@
 <h1 align="center">Própons IA</h1>
 
 <p align="center">IA de estudos que roda no seu aparelho — Windows, Mac, Linux, Android e iPhone.<br>
-Chat, flashcards, quiz, correção de redação do ENEM, leitura de PDF e uma área de código completa. Funciona offline.</p>
+Chat, flashcards, quiz, correção de redação do ENEM, perguntas sobre PDFs de qualquer tamanho e, no computador, uma área de código completa. Funciona offline.</p>
 
 <p align="center">
 <a href="https://muurxdev.github.io/propons-ia/"><img alt="Baixar" src="https://img.shields.io/badge/baixar-p%C3%A1gina%20oficial-6a48f5?style=for-the-badge"></a>
@@ -95,7 +95,7 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Área de código**: uma tela com a lógica do chat e o foco em codificar. Você pede em português, ela **lê os arquivos**, propõe criar, alterar ou apagar e mostra **linha a linha o que muda**; nada é gravado sem você tocar em **Aplicar**
 - **Abre uma pasta de verdade** do computador (Windows e Linux) ou do celular (Android, pelo seletor do sistema)
 - **Histórico próprio**, **moldes de pedido** para colar, **compactação de contexto** (o que já passou vira um resumo curto) e **gravação de áudio** na mesma caixa
-- **Código completo nas respostas**, com **cores** por linguagem, botão copiar, "Guardar" para mandar para a área de código e **Continuar** se a resposta for cortada
+- **Código completo nas respostas**, com **cores** por linguagem, botão copiar, "Guardar" para mandar para a área de código (no computador) e **Continuar** se a resposta for cortada
 
 **Do aparelho**
 

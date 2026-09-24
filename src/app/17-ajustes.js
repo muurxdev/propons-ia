@@ -269,7 +269,7 @@ async function acaoModelo(acao, m, ram) {
     if (!m.baixado) baixando[m.id] = { pct: 0, feito: 0, total: m.tamanho };
     trocandoPara = m.id; desenharAba();
     await PLATAFORMA.trocarModelo(m.id);
-  } catch (e) { delete baixando[m.id]; trocandoPara = null; toast('Não foi possível: ' + e.message, 4000); desenharAba(); }
+  } catch (e) { delete baixando[m.id]; trocandoPara = null; toast('O modelo não foi baixado (' + e.message + '). Confira a internet e o espaço livre; o download continua de onde parou.', 6000); desenharAba(); }
 }
 function atualizarCartao(id) {
   const el = document.querySelector(`[data-cartao="${id}"]`); if (!el) return;
@@ -533,7 +533,7 @@ async function iniciarAtualizacao() {
       return;
     }
     atualizando = { pct: 1, fase: 'instalando' }; desenharAtualizando();
-  } catch (e) { atualizando = null; desenharAtualizando(); toast('Não foi possível atualizar: ' + e.message, 5000); }
+  } catch (e) { atualizando = null; desenharAtualizando(); toast('A atualização não terminou (' + e.message + '). Confira a internet e tente de novo em Ajustes → Atualizações.', 6000); }
 }
 PLATAFORMA.ao('atualizacao', d => {
   if (d.fase === 'erro') { atualizando = null; toast(d.mensagem || 'A atualização não foi concluída.', 5000); }

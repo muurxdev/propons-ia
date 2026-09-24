@@ -25,18 +25,20 @@
 <style>
 :root{
   --papel:#f5f3fa; --folha:#ffffff; --tinta:#1b1826; --grafite:#5f5b70; --linha:#e3dfee;
-  --roxo:#7c5cff; --botao:#6a48f5; --botao-hover:#5936e8; --lavanda:#eeeaff; --lavanda-tinta:#4b2fd6;
+  --roxo:#6a48f5; --botao:#6a48f5; --botao-hover:#5936e8; --botao-tinta:#ffffff; --lavanda:#eeeaff; --lavanda-tinta:#4b2fd6;
   --ok:#157a4a; --aba-ativa:#ffffff; --brilho:rgba(124,92,255,.18); --brilho2:rgba(88,196,255,.16);
   --display:"Unbounded","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
   --texto:"Lexend","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
   --mono:"Cascadia Code","Cascadia Mono",Consolas,"JetBrains Mono","Ubuntu Mono",ui-monospace,Menlo,monospace;
   --raio:14px; --largura:1120px;
+  /* mesma escala de tipografia do app */
+  --t-xs:11px; --t-sm:12.5px; --t-md:14px; --t-lg:16px; --t-xl:20px; --t-2xl:28px;
   color-scheme:light dark;
 }
 @media (prefers-color-scheme:dark){
   :root{
     --papel:#13111b; --folha:#1c1a26; --tinta:#eeecf5; --grafite:#a5a1b6; --linha:#2d2a3b;
-    --roxo:#8f76ff; --botao:#6a48f5; --botao-hover:#7b5cff; --lavanda:#262040; --lavanda-tinta:#c9bcff;
+    --roxo:#a18cff; --botao:#a18cff; --botao-hover:#b3a2ff; --botao-tinta:#17171b; --lavanda:#262040; --lavanda-tinta:#c9bcff;
     --ok:#5fd49a; --aba-ativa:#3a3162; --brilho:rgba(124,92,255,.22); --brilho2:rgba(64,140,220,.16);
   }
 }
@@ -65,10 +67,10 @@ a{color:inherit}
 
 /* Topo */
 .topo{max-width:var(--largura);margin:0 auto;padding:22px 20px 0;display:flex;align-items:center;gap:16px}
-.marca{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:600;font-size:17px}
+.marca{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:600;font-size:var(--t-lg)}
 .marca svg{width:34px;height:34px;display:block}
 @media (prefers-reduced-motion:no-preference){.marca:hover svg{transform:rotate(-6deg) scale(1.05);transition:transform .25s cubic-bezier(.2,.9,.3,1.3)}}
-.topo nav{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:14px}
+.topo nav{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:var(--t-md)}
 .topo nav a{text-decoration:none;color:var(--grafite);padding:6px 10px;border-radius:8px;transition:background .15s,color .15s}
 .topo nav a:hover{color:var(--tinta);background:var(--lavanda)}
 .topo nav .versao{color:var(--lavanda-tinta);background:var(--lavanda);font-weight:500}
@@ -98,13 +100,13 @@ h1{
 .lede{margin:0;color:var(--grafite);font-size:clamp(15.5px,1.4vw,17px);max-width:52ch}
 .selos{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0;padding:0;list-style:none}
 .selos li{
-  display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--grafite);
+  display:flex;align-items:center;gap:7px;font-size:var(--t-md);color:var(--grafite);
   border:1px solid var(--linha);background:var(--folha);border-radius:99px;padding:6px 12px;
 }
 .selos svg{width:15px;height:15px;color:var(--roxo);flex:none}
 
 /* Seletor de aparelho */
-.instalar h2{font-size:15px;font-weight:500;color:var(--grafite);margin:0 0 10px}
+.instalar h2{font-size:var(--t-md);font-weight:500;color:var(--grafite);margin:0 0 10px}
 .abas{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--lavanda);overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth}
 .abas::-webkit-scrollbar{display:none}
 .aba{
@@ -115,44 +117,52 @@ h1{
 }
 .aba:hover{color:var(--tinta)}
 .aba[aria-selected="true"]{background:var(--aba-ativa);color:var(--tinta);box-shadow:0 1px 3px rgba(30,20,70,.12)}
-.aba .seu{display:block;margin-top:5px;font-size:11px;font-weight:500;color:var(--lavanda-tinta);letter-spacing:.01em}
+.aba .seu{display:block;margin-top:5px;font-size:var(--t-xs);font-weight:500;color:var(--lavanda-tinta);letter-spacing:.01em}
 html:not(.js) .abas, html:not(.js) .instalar > h2{display:none}
+/* aparelho detectado: um botão só, o dele; as outras plataformas ficam atrás de "Outras plataformas" */
+.outras{display:none}
+.detectado .outras{display:inline-flex;align-items:center;gap:6px;margin:14px 0 0;padding:6px 2px;border:0;background:none;
+  color:var(--lavanda-tinta);font:500 var(--t-md)/1.2 var(--texto);cursor:pointer;border-radius:8px}
+.detectado .outras:hover{text-decoration:underline}
+.outras svg{width:16px;height:16px;transition:transform .2s}
+.todas .outras svg{transform:rotate(180deg)}
+.detectado:not(.todas) .abas{display:none}
 
 .painel{margin-top:12px;background:var(--folha);border:1px solid var(--linha);border-radius:var(--raio);padding:22px 22px 24px}
 .js .painel:not(.ativo){display:none}
 @media (prefers-reduced-motion:no-preference){.js .painel.ativo{animation:entra .28s cubic-bezier(.2,.8,.2,1) both}}
 @keyframes entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.painel-titulo{display:none;font-size:18px;margin:0 0 4px}
+.painel-titulo{display:none;font-size:var(--t-xl);margin:0 0 4px}
 html:not(.js) .painel-titulo{display:block}
-.req{margin:0 0 14px;font-size:14px;color:var(--grafite)}
+.req{margin:0 0 14px;font-size:var(--t-md);color:var(--grafite)}
 .req strong{color:var(--tinta);font-weight:500}
 
 .baixar{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
-  background:var(--botao);color:#fff;text-decoration:none;
-  font-weight:600;font-size:17px;padding:16px 20px;border-radius:12px;
+  background:var(--botao);color:var(--botao-tinta);text-decoration:none;
+  font-weight:600;font-size:var(--t-lg);padding:16px 20px;border-radius:12px;
   transition:background .15s,transform .12s,box-shadow .2s;
   box-shadow:0 10px 24px -14px rgba(106,72,245,.9);
 }
 .baixar:hover{background:var(--botao-hover);box-shadow:0 16px 30px -14px rgba(106,72,245,.95)}
 .baixar:active{transform:translateY(1px)}
-.baixar .tam{font-weight:400;font-size:14px;opacity:.85;white-space:nowrap}
+.baixar .tam{font-weight:400;font-size:var(--t-md);opacity:.85;white-space:nowrap}
 .baixar svg{width:20px;height:20px;flex:none}
 .baixar .rotulo{display:flex;align-items:center;gap:10px;min-width:0}
 @media (prefers-reduced-motion:no-preference){.baixar:hover svg{animation:pula .6s ease}}
 @keyframes pula{40%{transform:translateY(3px)}100%{transform:none}}
 
 .passos{list-style:none;counter-reset:p;margin:22px 0 0;padding:0}
-.passos li{counter-increment:p;position:relative;padding:0 0 0 40px;margin:0 0 14px;font-size:15px;color:var(--grafite)}
+.passos li{counter-increment:p;position:relative;padding:0 0 0 40px;margin:0 0 14px;font-size:var(--t-md);color:var(--grafite)}
 .passos li:last-child{margin-bottom:0}
 .passos li::before{
   content:counter(p);position:absolute;left:0;top:0;
   width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
-  background:var(--lavanda);color:var(--lavanda-tinta);font-size:13px;font-weight:600;line-height:1;
+  background:var(--lavanda);color:var(--lavanda-tinta);font-size:var(--t-sm);font-weight:600;line-height:1;
 }
 .passos b{color:var(--tinta);font-weight:500}
 
-.nota{margin:20px 0 0;padding:12px 14px;border-radius:10px;background:var(--papel);font-size:14px;color:var(--grafite)}
+.nota{margin:20px 0 0;padding:12px 14px;border-radius:10px;background:var(--papel);font-size:var(--t-md);color:var(--grafite)}
 .nota b{color:var(--tinta);font-weight:500}
 
 .copiar{margin:0 0 14px;border:1px solid var(--linha);border-radius:12px;background:var(--papel);display:flex;align-items:stretch;overflow:hidden}
@@ -164,32 +174,32 @@ html:not(.js) .painel-titulo{display:block}
 .copiar button:hover{background:var(--lavanda)}
 .copiar button.feito{color:var(--ok)}
 @media (max-width:420px){.copiar{flex-direction:column}.copiar button{border-left:0;border-top:1px solid var(--linha);padding:12px 0}}
-.rotulo-copiar{margin:0 0 8px;font-size:14px;color:var(--grafite)}
+.rotulo-copiar{margin:0 0 8px;font-size:var(--t-md);color:var(--grafite)}
 .rotulo-copiar b{color:var(--tinta);font-weight:500}
 
 .links{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
-.links a{text-decoration:none;font-size:14px;font-weight:500;color:var(--lavanda-tinta);padding:9px 14px;border-radius:10px;border:1px solid var(--linha);transition:background .15s,border-color .15s}
+.links a{text-decoration:none;font-size:var(--t-md);font-weight:500;color:var(--lavanda-tinta);padding:9px 14px;border-radius:10px;border:1px solid var(--linha);transition:background .15s,border-color .15s}
 .links a:hover{background:var(--lavanda);border-color:transparent}
 
 /* Demo: a IA respondendo sem internet */
 .celular{background:var(--folha);border:1px solid var(--linha);border-radius:22px;overflow:hidden;box-shadow:0 24px 60px -28px rgba(60,30,160,.35)}
-.barra{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--linha);font-size:13px}
+.barra{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--linha);font-size:var(--t-sm)}
 .barra .quem{display:flex;align-items:center;gap:8px;font-weight:500}
 .barra .quem svg{width:22px;height:22px}
 .offline{display:flex;align-items:center;gap:6px;color:var(--grafite)}
 .offline svg{width:16px;height:16px}
 .conversa{padding:18px 16px 20px;display:flex;flex-direction:column;gap:12px;min-height:300px}
-.msg-eu{align-self:flex-end;background:var(--lavanda);color:var(--tinta);padding:10px 14px;border-radius:16px 16px 4px 16px;font-size:15px;max-width:80%}
-.pensou{font-size:13px;color:var(--grafite);border-left:2px solid var(--linha);padding:2px 0 2px 12px}
+.msg-eu{align-self:flex-end;background:var(--lavanda);color:var(--tinta);padding:10px 14px;border-radius:16px 16px 4px 16px;font-size:var(--t-md);max-width:80%}
+.pensou{font-size:var(--t-sm);color:var(--grafite);border-left:2px solid var(--linha);padding:2px 0 2px 12px}
 .pensou summary{cursor:pointer;font-weight:500;color:var(--tinta);list-style:none}
 .pensou summary::-webkit-details-marker{display:none}
 .pensou summary::after{content:" +";color:var(--grafite)}
 .pensou[open] summary::after{content:" −"}
-.pensou p{margin:6px 0 0;font-family:var(--mono);font-size:12.5px;line-height:1.7}
-.msg-ia{font-size:15px;line-height:1.6}
-.msg-ia strong{font-family:var(--display);font-weight:600;font-size:26px;display:block;line-height:1.2;margin-bottom:4px;color:var(--roxo)}
-.modelo{margin-top:auto;align-self:flex-start;font-size:12px;color:var(--grafite);border:1px solid var(--linha);border-radius:99px;padding:4px 10px}
-.legenda{margin:12px 4px 0;font-size:13px;color:var(--grafite);text-align:center}
+.pensou p{margin:6px 0 0;font-family:var(--mono);font-size:var(--t-sm);line-height:1.7}
+.msg-ia{font-size:var(--t-md);line-height:1.6}
+.msg-ia strong{font-family:var(--display);font-weight:600;font-size:var(--t-2xl);display:block;line-height:1.2;margin-bottom:4px;color:var(--roxo)}
+.modelo{margin-top:auto;align-self:flex-start;font-size:var(--t-sm);color:var(--grafite);border:1px solid var(--linha);border-radius:99px;padding:4px 10px}
+.legenda{margin:12px 4px 0;font-size:var(--t-sm);color:var(--grafite);text-align:center}
 @media (prefers-reduced-motion:no-preference){
   .js .anima .msg-eu{animation:surge .4s ease-out .3s both}
   .js .anima .pensou{animation:surge .4s ease-out 1.1s both}
@@ -210,16 +220,16 @@ html:not(.js) .painel-titulo{display:block}
 @media (hover:hover){.cartao:hover{transform:translateY(-3px);border-color:var(--roxo);box-shadow:0 18px 34px -24px rgba(60,30,160,.5)}}
 .cartao .ico{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--lavanda);color:var(--lavanda-tinta);margin-bottom:12px}
 .cartao .ico svg{width:19px;height:19px}
-.cartao h3{margin:0 0 6px;font-size:16px;font-weight:600}
-.cartao p{margin:0;font-size:14.5px;color:var(--grafite)}
+.cartao h3{margin:0 0 6px;font-size:var(--t-lg);font-weight:600}
+.cartao p{margin:0;font-size:var(--t-md);color:var(--grafite)}
 
 /* Tabela dos modelos */
 .tabela{width:100%;border-collapse:collapse;background:var(--folha);border:1px solid var(--linha);border-radius:var(--raio);overflow:hidden}
-.tabela th,.tabela td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--linha);font-size:14.5px}
-.tabela thead th{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--grafite);font-weight:500;background:var(--papel)}
+.tabela th,.tabela td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--linha);font-size:var(--t-md)}
+.tabela thead th{font-size:var(--t-sm);text-transform:uppercase;letter-spacing:.06em;color:var(--grafite);font-weight:500;background:var(--papel)}
 .tabela tbody tr:last-child td{border-bottom:0}
 .tabela td b{font-weight:600}
-.tabela td small{display:block;color:var(--grafite);font-size:13px}
+.tabela td small{display:block;color:var(--grafite);font-size:var(--t-sm)}
 .rolar-tabela{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--raio)}
 
 /* Perguntas */
@@ -230,7 +240,7 @@ html:not(.js) .painel-titulo{display:block}
 .faq summary::-webkit-details-marker{display:none}
 .faq summary::after{content:"";position:absolute;right:4px;top:50%;width:9px;height:9px;border-right:2px solid var(--grafite);border-bottom:2px solid var(--grafite);transform:translateY(-70%) rotate(45deg);transition:transform .2s}
 .faq details[open] summary::after{transform:translateY(-30%) rotate(225deg)}
-.faq p{margin:0 0 16px;color:var(--grafite);font-size:15px}
+.faq p{margin:0 0 16px;color:var(--grafite);font-size:var(--t-md)}
 .faq a{color:var(--lavanda-tinta)}
 
 /* Chamada final */
@@ -241,7 +251,7 @@ html:not(.js) .painel-titulo{display:block}
 }
 .final h2{margin:0;font-family:var(--display);font-size:clamp(1.15rem,2.4vw,1.5rem);letter-spacing:-.02em;flex:1 1 280px}
 .final .bt{
-  text-decoration:none;background:var(--botao);color:#fff;font-weight:600;padding:14px 22px;border-radius:12px;
+  text-decoration:none;background:var(--botao);color:var(--botao-tinta);font-weight:600;padding:14px 22px;border-radius:12px;
   transition:background .15s,transform .12s;
 }
 .final .bt:hover{background:var(--botao-hover)}
@@ -250,7 +260,7 @@ html:not(.js) .painel-titulo{display:block}
 .final .bt.sec:hover{background:var(--folha)}
 
 /* Rodapé */
-footer{max-width:var(--largura);margin:0 auto;padding:24px 20px 40px;border-top:1px solid var(--linha);display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px;color:var(--grafite)}
+footer{max-width:var(--largura);margin:0 auto;padding:24px 20px 40px;border-top:1px solid var(--linha);display:flex;flex-wrap:wrap;gap:8px 20px;font-size:var(--t-md);color:var(--grafite)}
 footer a{color:var(--grafite);text-underline-offset:3px}
 footer a:hover{color:var(--tinta)}
 footer .dir{margin-left:auto}
@@ -282,7 +292,7 @@ footer .dir{margin-left:auto}
 
   <section class="intro">
     <h1>A IA de estudos que roda no seu aparelho.</h1>
-    <p class="lede">Chat, flashcards, quiz, resumo, correção de redação no modelo do ENEM e uma área de código completa. Depois que você baixa o modelo, tudo funciona sem internet.</p>
+    <p class="lede">Chat, flashcards, quiz, resumo, correção de redação no modelo do ENEM, perguntas sobre PDFs de qualquer tamanho e, no computador, uma área de código completa. Depois que você baixa o modelo, tudo funciona sem internet.</p>
     <ul class="selos">
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.8M19 12.9a10 10 0 0 0-2.3-1.6M12 20h.01"/></svg>Funciona offline</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Nada sai do aparelho</li>
@@ -292,7 +302,7 @@ footer .dir{margin-left:auto}
 
   <section class="instalar" id="instalar" aria-labelledby="t-instalar">
     <h2 id="t-instalar">Escolha o aparelho</h2>
-    <div class="abas" role="tablist" aria-labelledby="t-instalar">
+    <div class="abas" id="abas-lista" role="tablist" aria-labelledby="t-instalar">
       <button class="aba" role="tab" id="a-android" aria-controls="android" data-so="android">Android</button>
       <button class="aba" role="tab" id="a-ios" aria-controls="ios" data-so="ios">iPhone<span class="longo"> e iPad</span></button>
       <button class="aba" role="tab" id="a-windows" aria-controls="windows" data-so="windows">Windows</button>
@@ -368,6 +378,7 @@ footer .dir{margin-left:auto}
         <a href="https://github.com/muurxdev/propons-ia/blob/main/docs/instalar-linux.md" rel="noopener">Passo a passo com detalhes</a>
       </div>
     </div>
+    <button type="button" class="outras" aria-expanded="false" aria-controls="abas-lista">Outras plataformas <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     <p class="nota" id="conferir">Todos os arquivos saem do mesmo build público e têm <b>SHA-256</b> publicado: <a href="https://github.com/muurxdev/propons-ia/releases/latest/download/SHA256SUMS" rel="noopener">conferir os hashes</a>.</p>
   </section>
 
@@ -526,7 +537,26 @@ footer .dir{margin-left:auto}
   }
 
   var pedido = location.hash.slice(1);
-  escolher(document.getElementById(pedido) && document.getElementById('a-' + pedido) ? pedido : (so || 'android'));
+  var pediuOutro = !!(document.getElementById(pedido) && document.getElementById('a-' + pedido));
+  escolher(pediuOutro ? pedido : (so || 'android'));
+
+  // Com o aparelho detectado, a página mostra só o botão dele; "Outras plataformas" abre as abas
+  var raiz = document.documentElement, outras = document.querySelector('.outras');
+  if (so) {
+    raiz.classList.add('detectado');
+    var nomes = { android: 'Android', ios: 'iPhone', windows: 'Windows', mac: 'Mac', linux: 'Linux' };
+    document.getElementById('t-instalar').textContent = 'Para o seu ' + nomes[so];
+    if (pediuOutro && pedido !== so) raiz.classList.add('todas');
+    outras.setAttribute('aria-expanded', raiz.classList.contains('todas'));
+    outras.addEventListener('click', function () {
+      var abrir = !raiz.classList.contains('todas');
+      raiz.classList.toggle('todas', abrir);
+      outras.setAttribute('aria-expanded', abrir);
+      document.getElementById('t-instalar').textContent = abrir ? 'Escolha o aparelho' : 'Para o seu ' + nomes[so];
+      if (abrir) document.querySelector('.aba[aria-selected="true"]').focus();
+      else { escolher(so); history.replaceState(null, '', location.pathname); }
+    });
+  }
 
   abas.forEach(function (a) {
     a.addEventListener('click', function () {

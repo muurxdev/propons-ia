@@ -7,4 +7,8 @@ node src/montar.js --bundle dist/bundle.js
 [ -x ferramentas/lint/node_modules/.bin/eslint ] || (cd ferramentas/lint && npm i --no-save --silent eslint@9 globals@16)
 ferramentas/lint/node_modules/.bin/eslint -c ferramentas/lint/eslint.config.mjs dist/bundle.js
 git ls-files linux android ios mac treino ferramentas | grep -E '\.sh$|linux/propons-ia$|PKGBUILD$' | xargs "${SHELLCHECK:-shellcheck}" -S warning
-echo "lint e shellcheck ok"
+# visual: contraste AA nos dois temas (app e site) e tamanhos de letra só pelos tokens (--t-xs … --t-2xl)
+node ferramentas/contraste.js >/dev/null || node ferramentas/contraste.js
+node ferramentas/contraste.js --site >/dev/null || node ferramentas/contraste.js --site
+if grep -n "font-size:[0-9]" src/index.template.html; then echo "font-size em número: use os tokens --t-*"; exit 1; fi
+echo "lint, shellcheck, contraste e tipografia ok"

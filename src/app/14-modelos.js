@@ -41,7 +41,7 @@ async function ligarInicial() {
   escolhendoId = MODELO_INICIAL;
   const alvo = addIa({ texto: '', interno: true }, false); if (alvo) alvo.classList.add('digitando');
   try { await PLATAFORMA.escolherModelo(MODELO_INICIAL); }
-  catch (e) { escolhendoId = null; if (alvo) alvo.parentNode.remove(); toast('Não foi possível ligar a IA: ' + e.message, 4000); }
+  catch (e) { escolhendoId = null; if (alvo) alvo.parentNode.remove(); toast('A IA não ligou (' + e.message + '). Tente de novo; se continuar, escolha um modelo mais leve na lista.', 6000); }
 }
 let escolhendoId = null;
 PLATAFORMA.ao('download', d => {
@@ -119,7 +119,7 @@ function desenharListaModelos(folha) {
       if (escolhendoId) return;
       if (semRam(m, ram)) { toast(`O ${nomeModelo(m)} precisa de ${ramNecessaria(m)} GB de memória; este aparelho tem ${gbBonito(ram)}.`, 4500); return; }
       escolhendoId = m.id; desenharListaModelos(folha); estado(m.baixado ? 'ativando' : 'baixando 0%');
-      try { await PLATAFORMA.escolherModelo(m.id); } catch (e) { escolhendoId = null; estado(''); toast('Não foi possível: ' + e.message, 4000); desenharListaModelos(folha); }
+      try { await PLATAFORMA.escolherModelo(m.id); } catch (e) { escolhendoId = null; estado(''); toast('Não deu para usar esse modelo (' + e.message + '). Confira a internet e o espaço livre e tente de novo.', 6000); desenharListaModelos(folha); }
       return;
     }
     if (m.atual || trocandoPara) return;
@@ -174,7 +174,7 @@ async function garantirVisao() {
   const baixar = !ativo.visaoBaixada;
   const ok = await confirmar('Ler fotos', `<p>Para entender fotos, a IA usa um <b>módulo de visão</b>${baixar ? ` de ${gbBonito(ativo.visaoTamanho || 0)}, baixado uma vez só` : ''}.</p><p>Com a visão ligada a IA usa um pouco mais de memória. Dá para desligar em Ajustes → Modelos de IA.</p>`, baixar ? 'Baixar e ligar' : 'Ligar visão');
   if (!ok) return false;
-  try { await PLATAFORMA.ligarVisao(true); } catch (e) { toast('Não foi possível: ' + e.message, 4000); return false; }
+  try { await PLATAFORMA.ligarVisao(true); } catch (e) { toast('A leitura de fotos não ligou (' + e.message + '). Confira a internet e o espaço livre e tente de novo.', 6000); return false; }
   toast(baixar ? 'Baixando a visão… a foto vai assim que terminar.' : 'Ligando a visão…', 3500);
   return new Promise(res => { esperaVisao = res; setTimeout(() => { if (esperaVisao === res) { esperaVisao = null; res(false); } }, 30 * 60000); });
 }

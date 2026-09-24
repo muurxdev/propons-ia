@@ -20,7 +20,7 @@ async function garantirVoz() {
   if (!PLATAFORMA.temTranscricao) { toast('Neste aparelho a transcrição ainda não está disponível.'); return false; }
   const s = await lerSistema();
   if (!s || !s.vozes) return true;                       // iPhone: reconhecimento de voz do próprio iOS
-  if (s.temTranscricao === false) { toast('Transcrição não disponível nesta versão.'); return false; }
+  if (s.temTranscricao === false) { toast('A transcrição ainda não existe neste aparelho. Digite a mensagem ou mande o áudio num computador com a Própons IA.', 5000); return false; }
   const v = s.vozes.find(x => x.atual) || s.vozes[0];
   if (PLATAFORMA.tipo === 'web') {
     if (PLATAFORMA.urlTranscricao || s.transcricaoUrl) { if (!PLATAFORMA.urlTranscricao) PLATAFORMA.urlTranscricao = s.transcricaoUrl; return true; }
@@ -30,7 +30,7 @@ async function garantirVoz() {
   if (v.baixado) return true;
   if (!await confirmar('Transcrever áudio', `<p>Para transformar fala em texto, a IA usa a <b>${esc(v.nome)}</b> (${gbBonito(v.tamanho)}), baixada uma vez só. Depois funciona sem internet.</p><p>Dá para trocar pela voz mais precisa em Ajustes → Modelos de IA.</p>`, 'Baixar')) return false;
   try { baixando[v.id] = { pct: 0, feito: 0, total: v.tamanho }; await PLATAFORMA.baixarVoz(v.id); }
-  catch (e) { delete baixando[v.id]; toast('Não foi possível: ' + e.message, 4000); return false; }
+  catch (e) { delete baixando[v.id]; toast('A voz para transcrever não foi baixada (' + e.message + '). Confira a internet e tente de novo em Ajustes → Voz.', 6000); return false; }
   toast('Baixando a voz…', 2500);
   return new Promise(res => { esperaVoz = { id: v.id, res }; setTimeout(() => { if (esperaVoz && esperaVoz.res === res) { esperaVoz = null; res(false); } }, 30 * 60000); });   // nunca fica esperando para sempre
 }

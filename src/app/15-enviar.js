@@ -239,7 +239,7 @@ async function responder(conv, continuacao) {
     msg = { role: 'assistant', texto: '', llm: '' };
     alvo = atual === conv ? addIa({ texto: '', interno: true }, false) : null;
   }
-  // enquanto nada foi escrito: "Working" com brilho (nos modos de estudo, o aviso do modo); pararPalavra() encerra a troca
+  // enquanto nada foi escrito: "Pensando" com brilho (nos modos de estudo, o aviso do modo); pararPalavra() encerra a troca
   let pararPalavra = null;
   if (alvo) {
     alvo.classList.add('digitando');

@@ -275,14 +275,14 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
     ok('API desligada: o IP da rede não responde mais', !fechada);
   } else console.log('     (sem IP de rede neste PC; teste da API pulado)');
 }
-// 1.20: "Working" com brilho enquanto não há texto, bolinha no fim durante a escrita e aviso do sistema ao terminar
+// 1.20: "Pensando" com brilho enquanto não há texto, bolinha no fim durante a escrita e aviso do sistema ao terminar
 {
   await js(`window.__notif = []; window.__notif0 = window.__notif0 || PLATAFORMA.notificar.bind(PLATAFORMA); PLATAFORMA.notificar = (t, x) => { window.__notif.push([t, x]); return window.__notif0(t, x); }; pref('avisarPronto', 'sim'); nova(); 1`);
   await js(`(()=>{ const e=$('#entrada'); e.value='Explique em duas frases o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
   let viuPalavra = '', animada = false;
   for (let i = 0; i < 80 && !viuPalavra; i++) { await espera(50); viuPalavra = await js(`(()=>{ const t = document.querySelector('.msg.ia .trabalhando'); if (!t) return ''; animada = getComputedStyle(t).animationName; return t.textContent })()`); }
   if (viuPalavra) animada = (await js(`(()=>{ const t = document.querySelector('.msg.ia .trabalhando'); return t ? getComputedStyle(t).animationName : '' })()`)) === 'brilho';
-  ok('antes do 1º token: palavra em inglês com brilho (sem cursor roxo)', /^(Working|Thinking|Reasoning|Pondering|Analyzing|Reflecting|Considering|Figuring it out|Processing)$/.test(viuPalavra), viuPalavra + (animada ? ' (animada)' : ''));
+  ok('antes do 1º token: palavra em português com brilho (sem cursor roxo)', /^(Pensando|Conferindo|Calculando|Analisando|Refletindo|Organizando as ideias|Considerando|Processando)$/.test(viuPalavra), viuPalavra + (animada ? ' (animada)' : ''));
   let bolinha = null;
   for (let i = 0; i < 80 && !bolinha; i++) { await espera(50); bolinha = await js(`(()=>{ const c = document.querySelector('.msg.ia .txt.digitando .cauda'); if (!c || !c.textContent.trim()) return null; const u = c.lastElementChild || c; const s = getComputedStyle(u, '::after'); return { r: s.borderRadius, an: s.animationName, cor: s.backgroundColor } })()`); }
   ok('durante a escrita: bolinha que respira no fim do texto', bolinha && bolinha.an === 'respira' && /50%/.test(bolinha.r), JSON.stringify(bolinha));

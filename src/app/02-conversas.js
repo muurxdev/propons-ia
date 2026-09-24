@@ -29,12 +29,12 @@ let tSalvar = null;
 function salvar(agora) {
   if (salvarBloqueado) return;
   clearTimeout(tSalvar);
-  const f = () => PLATAFORMA.salvar(JSON.stringify(conversas)).catch(e => toast('Não consegui salvar as conversas: ' + e.message, 4000));
+  const f = () => PLATAFORMA.salvar(JSON.stringify(conversas)).catch(e => toast('As conversas não foram salvas (' + e.message + '). Veja se o disco tem espaço; a próxima mensagem tenta salvar de novo.', 6000));
   if (agora) f(); else tSalvar = setTimeout(f, 250);
 }
 async function carregarHistorico() {
   let bruto = '[]';
-  try { bruto = await PLATAFORMA.carregar(); } catch (e) { toast('Não consegui ler as conversas salvas.'); }
+  try { bruto = await PLATAFORMA.carregar(); } catch (e) { toast('Não consegui ler as conversas salvas. Elas continuam no aparelho: feche e abra a Própons IA; se persistir, use Ajustes → Conversas → Importar backup.', 7000); }
   try { conversas = validar(JSON.parse(bruto || '[]')); }
   catch (e) {
     conversas = []; salvarBloqueado = true;
