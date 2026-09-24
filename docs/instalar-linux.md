@@ -2,7 +2,7 @@
 
 > **Requisitos:** distribuição com glibc (Ubuntu, Debian, Mint, Fedora, openSUSE, Arch, Kali…), x86_64 ou ARM64,
 > `curl`, e 3 / 4 / 8 GB de RAM para Lume / Aurora / Ápice. Para abrir em janela própria, Chromium ou Google Chrome
-> (sem eles, abre no navegador padrão). A transcrição de voz existe só no x86_64.
+> (sem eles, abre no navegador padrão). A transcrição de voz existe no x86_64 e no ARM64.
 
 ## Instalar
 

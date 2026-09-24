@@ -34,15 +34,13 @@ for par in "x64 x86_64 amd64" "arm64 aarch64 arm64"; do
     cp -a "$f" "$APP/motor/"
   done
   cp "$SRC/LICENSE"* "$APP/motor/" 2>/dev/null || true
-  # transcrição de áudio (whisper.cpp): só há binário pronto para x86_64
-  if [ "$ARCH" = x86_64 ]; then
-    WTGZ="$AQUI/vendor/whisper-ubuntu-x64.tar.gz"
-    baixar_verificado "https://github.com/ggml-org/whisper.cpp/releases/download/$WHISPER/whisper-bin-ubuntu-x64.tar.gz" "$WTGZ"
-    mkdir -p "$TMP/whisper" "$APP/voz"; tar xzf "$WTGZ" -C "$TMP/whisper"
-    WSRC="$TMP/whisper/whisper-bin-ubuntu-x64"
-    cp -a "$WSRC/whisper-server" "$APP/voz/"
-    for f in "$WSRC"/libwhisper.so* "$WSRC"/libggml*.so*; do cp -a "$f" "$APP/voz/"; done
-  fi
+  # transcrição de áudio (whisper.cpp): binário pronto para x86_64 e, desde o b5130, também para ARM64
+  WTGZ="$AQUI/vendor/whisper-ubuntu-$LA.tar.gz"
+  baixar_verificado "https://github.com/ggml-org/whisper.cpp/releases/download/$WHISPER/whisper-bin-ubuntu-$LA.tar.gz" "$WTGZ"
+  mkdir -p "$TMP/whisper-$LA" "$APP/voz"; tar xzf "$WTGZ" -C "$TMP/whisper-$LA"
+  WSRC="$TMP/whisper-$LA/whisper-bin-ubuntu-$LA"
+  cp -a "$WSRC/whisper-server" "$APP/voz/"
+  for f in "$WSRC"/libwhisper.so* "$WSRC"/libggml*.so*; do cp -a "$f" "$APP/voz/"; done
   cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$RAIZ/payload/interface/motor.env" "$RAIZ/payload/interface/"*.mjs "$RAIZ/payload/interface/"*.js "$APP/interface/"
   install -m 755 "$AQUI/propons-ia" "$APP/propons-ia"
   install -m 644 "$AQUI/propons-ia.desktop" "$RAIZ/logo/logo.svg" "$APP/"

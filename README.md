@@ -63,7 +63,7 @@ propons-ia --parar                  # desliga, se tiver ficado aberta
 propons-ia --atualizar              # instala a versão mais nova
 propons-ia --apagar-modelo avancado # apaga um modelo baixado
 propons-ia --visao                  # liga a leitura de fotos
-propons-ia --voz                    # liga a transcrição de áudio (x86_64)
+propons-ia --voz                    # liga a transcrição de áudio (x86_64 e ARM64)
 propons-ia --gpu                    # usa a placa de vídeo (Vulkan); --sem-gpu volta ao processador
 curl -fsSL https://raw.githubusercontent.com/muurxdev/propons-ia/main/linux/install.sh | bash -s -- --remover
 ```
