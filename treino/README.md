@@ -49,7 +49,8 @@ app). Desvio entre rodadas de ±0,7 a ±2,8 pontos: diferenças maiores que isso
 rodada.
 
 Conclusões: **pensar é o maior ganho em todos os tamanhos** (inclusive no Lume, +19 pontos); o **Auto** fica entre o
-Médio e o Alto em metade do tempo do Alto e virou o esforço padrão dos três.
+Médio e o Alto em metade do tempo do Alto e virou o esforço padrão no computador (no celular, onde o raciocínio roda
+no processador e pode levar um minuto, Lume e Aurora começam no Médio).
 
 ### Linha de base (22–23/09/2026, RTX 3050, Vulkan)
 

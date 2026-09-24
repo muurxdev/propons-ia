@@ -5,8 +5,9 @@ const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', 
 const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], auto: ['Auto', 'Raciocina só quando a pergunta pede (contas, código, "por quê"); nas outras responde direto.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
 /* o esforço é por modelo (cada um guarda o seu) */
 const idModeloAtual = () => (ESCOLHER ? MODELO_INICIAL : ((sistemaCache && (sistemaCache.modelos || []).find(m => m.atual) || {}).id)) || 'normal';
-// padrão Auto nos três (placar de 24/09/2026: acerto entre o Médio e o Alto em metade do tempo do Alto)
-const PADRAO_ESFORCO = { leve: 'auto', normal: 'auto', avancado: 'auto' };
+// padrão Auto no computador (placar de 24/09/2026: acerto entre o Médio e o Alto em metade do tempo do Alto); no
+// celular o raciocínio roda no processador e pode levar um minuto, então Lume e Aurora começam no Médio
+const PADRAO_ESFORCO = CELULAR ? { leve: 'medio', normal: 'medio', avancado: 'auto' } : { leve: 'auto', normal: 'auto', avancado: 'auto' };
 // níveis que cada modelo usa de verdade (medidos no placar, treino/README.md): um nível só aparece se muda algo
 // mensurável (tempo, tamanho ou acerto). No iPhone o motor não raciocina: sem Alto e sem Auto.
 const ESFORCOS_MODELO = { leve: ['baixo', 'medio', 'auto', 'alto'], normal: ['baixo', 'medio', 'auto', 'alto'], avancado: ['baixo', 'medio', 'auto', 'alto'] };
