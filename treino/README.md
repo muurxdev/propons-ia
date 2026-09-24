@@ -89,6 +89,24 @@ Qualidade do que passa: contas em geral corretas, mas o português das perguntas
 para volume, não para elevar o teto. Para valer a pena, gerar com um modelo grande (API) ou curar material público
 (ENEM/INEP) e usar o `gerar.mjs` só como revisor/filtro.
 
+## Regra antes de treinar de novo (24/09/2026)
+
+O LoRA v0 piorou as armadilhas (33 % → 17 %): treinar com pouco dado piora o modelo. Por isso:
+
+- **Nenhuma rodada nova de LoRA** até haver **~1.500 pares de preferência** (anti-alucinação) e **alguns milhares de
+  exemplos revisados**. Toda rodada é julgada pelo placar (`avaliar.mjs`); se não melhorar, não entra.
+- **Professores (fonte de volume)**: DeepSeek R1/V4 (licença MIT) para raciocínio e matemática; Devstral/Ministral
+  (Apache 2.0) para código. **Nada de Llama como professor**: a licença exige "Llama" no nome de modelo treinado com as
+  respostas dele. Material público de vestibular só com a licença de cada fonte anotada no `jsonl`.
+- O `gerar.mjs` com o modelo local (Aurora/Ápice pensando) fica como **revisor e filtro**, não como gerador principal:
+  `PROFESSOR_CHAVE=… node treino/dados/gerar.mjs https://api.deepseek.com --modelo deepseek-reasoner --materia …`.
+- **VPS só para dados** (`treino/vps/`): `instalar.sh` prepara uma VPS Arch de 4 GB com um timer do systemd que roda
+  `rodar.sh` a cada 2 horas (uma matéria por rodada, a chave fica só no `.env` da VPS). O PC traz os dados com
+  `rsync -av <vps>:propons-dados/repo/treino/dados/gerado-*.jsonl treino/dados/` e revisa por amostragem.
+- **Mescla** (depois do treino): TIES/DARE com o mergekit **só entre versões Qwen da própria Própons** (ex.: uma boa em
+  matemática + uma boa em código). Modelos de famílias diferentes (Llama, Mistral, Nemotron, DeepSeek) não se mesclam:
+  arquitetura e vocabulário são outros.
+
 ## Próximas etapas
 
 1. **Dados** (`dados/`): identidade e estilo (300–500 diálogos), conhecimento de estudo (ENEM/vestibular, revisado),

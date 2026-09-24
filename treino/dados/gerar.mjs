@@ -4,11 +4,12 @@
 // Em matemática e programação exigimos DUAS respostas independentes que concordem; nas outras matérias, uma resposta
 // + revisor. Saída: dados/gerado-<materia>.jsonl (revise por amostragem antes de treinar!).
 // Uso: node treino/dados/gerar.mjs http://127.0.0.1:8765 [chave] --materia matematica --n 60 [--paralelo 2] [--topicos arq.txt]
+//      PROFESSOR_CHAVE=… node treino/dados/gerar.mjs https://api.deepseek.com --modelo deepseek-reasoner --materia matematica --n 40
 import fs from 'node:fs';
 import path from 'node:path';
 const args = process.argv.slice(2);
 const url = (args.find(a => /^https?:/.test(a)) || 'http://127.0.0.1:8765').replace(/\/$/, '');
-const chave = args.find((a, i) => i > 0 && !a.startsWith('--') && !/^https?:/.test(a) && !/^\d+$/.test(a) && !['--materia', '--n', '--topicos', '--paralelo'].includes(args[i - 1])) || '';
+const chave = args.find((a, i) => i > 0 && !a.startsWith('--') && !/^https?:/.test(a) && !/^\d+$/.test(a) && !['--materia', '--n', '--topicos', '--paralelo', '--modelo'].includes(args[i - 1])) || '';
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const MATERIA = opt('--materia', 'matematica'), N = +opt('--n', 40), PARALELO = +opt('--paralelo', 2);
 const aqui = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
@@ -27,10 +28,25 @@ const TOPICOS = {
 const topicos = opt('--topicos') ? fs.readFileSync(opt('--topicos'), 'utf8').split('\n').map(s => s.trim()).filter(Boolean) : (TOPICOS[MATERIA] || TOPICOS.matematica);
 const ESTILOS = ['pergunta direta de aluno, informal', 'pedido de explicação para prova', 'exercício com números concretos para resolver passo a passo', 'dúvida sobre um erro comum', 'pedido de resumo curto', 'pedido de exemplo do dia a dia'];
 
+// --modelo <id>: professor numa API de fora compatível com a da OpenAI (ex.: https://api.deepseek.com com
+// deepseek-reasoner, https://api.mistral.ai com devstral-…); a chave vem de PROFESSOR_CHAVE (nunca na linha de comando).
+// Sem --modelo: o llama-server local, como antes. Nada disso roda dentro do app.
+const MODELO = opt('--modelo', '');
+if (MODELO && process.env.PROFESSOR_CHAVE) cab.Authorization = 'Bearer ' + process.env.PROFESSOR_CHAVE;
 async function chat(mensagens, { pensar = true, temperatura = 0.7, max = 1200, esquema } = {}) {
-  const corpo = { messages: mensagens, max_tokens: max, temperature: temperatura, top_p: 0.95, top_k: 20, min_p: 0.02, seed: Math.floor(Math.random() * 2147483647),
-    chat_template_kwargs: { enable_thinking: pensar }, ...(esquema ? { response_format: { type: 'json_schema', json_schema: { name: 'r', schema: esquema } } } : {}) };
-  const r = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: cab, body: JSON.stringify(corpo) });
+  if (MODELO && esquema) {   // APIs de fora aceitam json_object, não o esquema completo: o formato vai no pedido
+    const u = mensagens[mensagens.length - 1];
+    mensagens = [...mensagens.slice(0, -1), { ...u, content: u.content + '\n\nResponda só com um JSON válido neste formato (JSON Schema): ' + JSON.stringify(esquema) }];
+  }
+  const corpo = MODELO ? { model: MODELO, messages: mensagens, max_tokens: Math.max(max, 2000), temperature: temperatura, top_p: 0.95, ...(esquema ? { response_format: { type: 'json_object' } } : {}) }
+    : { messages: mensagens, max_tokens: max, temperature: temperatura, top_p: 0.95, top_k: 20, min_p: 0.02, seed: Math.floor(Math.random() * 2147483647),
+      chat_template_kwargs: { enable_thinking: pensar }, ...(esquema ? { response_format: { type: 'json_schema', json_schema: { name: 'r', schema: esquema } } } : {}) };
+  let r;
+  for (let t = 0; t < 5; t++) {   // limite de uso da API (429) ou instabilidade: espera e tenta de novo
+    r = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: cab, body: JSON.stringify(corpo) });
+    if (r.status !== 429 && r.status < 500) break;
+    await new Promise(ok => setTimeout(ok, 5000 * (t + 1)));
+  }
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const j = await r.json(); return String(j.choices[0].message.content || '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
 }

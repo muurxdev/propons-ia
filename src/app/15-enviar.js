@@ -1,8 +1,5 @@
 /* ---------------- enviar / responder ---------------- */
-const PEDE_CODIGO = /\b(?:fa[çc]a|crie|cria|escreva|escreve|gere|gera|implemente|implementa|programe|desenvolva|monte|me\s+d[êáe]|mostre|mostra|quero|preciso\s+de|refatore|corrija|conserte|converta|traduza)\b[\s\S]{0,60}\b(?:c[óo]digo|programa|script|fun[çc][ãa]o|classe|m[ée]todo|algoritmo|api|site|p[áa]gina|app|jogo|bot|calculadora|sistema)\b|\b(?:em|no|na|usando|com)\s+(?:python|java(?:script)?|typescript|c\+\+|c#|c|go|golang|rust|php|kotlin|swift|ruby|sql|html|css|bash|dart|lua)\b|```/i;
 const INVENTA = /[\[(]\s*-?\d+\s*,\s*-?\d+\s*,/;
-// contas e matemática: temperatura baixa (resposta quase determinística), como em código
-const PEDE_EXATO = /\d\s*[-+*/^×÷=]\s*\d|\b(?:calcule|calcula|resolva|resolve|some|multiplique|divida|derivada|integral|equa[çc][ãa]o|fra[çc][ãa]o|porcentagem|raiz quadrada|matriz|logaritmo|quanto [ée]|quantos? (?:s[ãa]o|d[áa]))\b/i;
 
 /* tokens de verdade: o tokenizador do próprio modelo (/tokenize) mede cada texto uma vez; antes disso (ou no iOS) vale a
    estimativa por caracteres. Tudo que decide o que cabe na memória da IA passa por tokens(). */
@@ -196,7 +193,9 @@ async function responder(conv, continuacao) {
   const modo = (pergunta && MODOS[pergunta.modo]) || null, comEsquema = !!(modo && modo.esquema);   // modo de estudo com JSON
   const pedeCodigo = !modo && PEDE_CODIGO.test(texto);
   // Esforço Alto: o modelo raciocina antes de responder (thinking do Qwen3.5); o raciocínio aparece recolhível
-  const pensar = esforco() === 'alto' && !comEsquema && !continuacao && PLATAFORMA.tipo !== 'ios';
+  // Auto: pensa só quando a pergunta pede (precisaPensar, em src/detecta.js); nas outras age como o Médio
+  const escolhido = esforco(), querPensar = escolhido === 'alto' || (escolhido === 'auto' && precisaPensar(texto));
+  const pensar = querPensar && !comEsquema && !continuacao && PLATAFORMA.tipo !== 'ios';
   // pensar não pode virar espera: o raciocínio é curto e a resposta vem logo
 
   // algoritmo com lista de números: passo a passo e resumo calculados por código (exatos e instantâneos)
@@ -216,7 +215,7 @@ async function responder(conv, continuacao) {
     return;
   }
 
-  const nivel = esforco();
+  const nivel = escolhido === 'auto' ? (pensar ? 'alto' : 'medio') : escolhido;
   // pensar gasta tokens do raciocínio; a reserva nunca passa de 45 % da memória da IA (no celular ela é menor)
   const maxTokens = Math.min(pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500, Math.floor(nCtx * 0.45));
   let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'

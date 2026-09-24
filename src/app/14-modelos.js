@@ -2,17 +2,21 @@
    Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado) e Própons Ápice (pesado, o mais capaz). */
 const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
-const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
+const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], auto: ['Auto', 'Raciocina só quando a pergunta pede (contas, código, "por quê"); nas outras responde direto.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
 /* o esforço é por modelo (cada um tem o seu; o Lume costuma pedir Baixo, o Ápice aguenta Alto) */
 const idModeloAtual = () => (ESCOLHER ? MODELO_INICIAL : ((sistemaCache && (sistemaCache.modelos || []).find(m => m.atual) || {}).id)) || 'normal';
 const PADRAO_ESFORCO = { leve: 'baixo', normal: 'medio', avancado: 'alto' };
-const esforcoDe = id => { const v = pref('esforco:' + id); return ESFORCO[v] ? v : (PADRAO_ESFORCO[id] || 'medio'); };
+// níveis que cada modelo usa de verdade (medidos no placar, treino/README.md): um nível só aparece se muda algo
+// mensurável (tempo, tamanho ou acerto). No iPhone o motor não raciocina: sem Alto e sem Auto.
+const ESFORCOS_MODELO = { leve: ['baixo', 'medio', 'auto', 'alto'], normal: ['baixo', 'medio', 'auto', 'alto'], avancado: ['baixo', 'medio', 'auto', 'alto'] };
+const esforcosDe = id => (ESFORCOS_MODELO[id] || Object.keys(ESFORCO)).filter(k => PLATAFORMA.tipo !== 'ios' || (k !== 'alto' && k !== 'auto'));
+const esforcoDe = id => { const v = pref('esforco:' + id), l = esforcosDe(id); return l.includes(v) ? v : l.includes(PADRAO_ESFORCO[id]) ? PADRAO_ESFORCO[id] : l.includes('medio') ? 'medio' : l[0]; };
 const esforco = () => esforcoDe(idModeloAtual());
 const definirEsforco = (id, v) => { pref('esforco:' + id, v); pref('esforco', v); pref('esforcoModelo', id); };
 ICO.esforco = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
 function abrirEsforco(depois) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço · ' + nomeModelo(idModeloAtual()), true)}<div class="lista-modelos">${Object.entries(ESFORCO).map(([k, [r, d]]) =>
+  f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço · ' + nomeModelo(idModeloAtual()), true)}<div class="lista-modelos">${esforcosDe(idModeloAtual()).map(k => [k, ESFORCO[k]]).map(([k, [r, d]]) =>
     `<button class="lm${k === esforco() ? ' on' : ''}" data-e="${k}"><span class="pt"><b>${r}</b><small>${d}</small></span><span class="st">${k === esforco() ? `<span class="check">${ICO.check}</span>` : ''}</span></button>`).join('')}</div>
     <p class="info" style="margin:10px 12px 2px">Cada modelo guarda o seu nível: o Lume costuma render mais no Baixo; o Ápice aproveita o Alto.</p></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
