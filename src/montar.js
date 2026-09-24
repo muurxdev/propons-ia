@@ -27,6 +27,20 @@ if (/professor|Estruturas de Dados/i.test(html)) console.warn('AVISO: ainda há 
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.copyFileSync(path.join(S, 'conhecimento.md'), path.join(OUT, 'conhecimento.md'));
+// configuração única do motor: motor.json para Windows/Android/Mac/iOS e motor.env (shell) para o launcher do Linux
+const motor = JSON.parse(ler('motor.json'));
+for (const k of ['pc', 'celular']) {
+  const m = motor[k];
+  if (!m || !Array.isArray(m.contexto) || !m.contexto.length || !Array.isArray(m.args) || !(m.imagemMaxTokens > 0)) throw new Error('motor.json: "' + k + '" incompleto');
+  if (m.args.some(a => a === '-c' || a === '--ctx-size')) throw new Error('motor.json: o contexto vai em "contexto", não em "args"');
+}
+fs.writeFileSync(path.join(OUT, 'motor.json'), JSON.stringify(motor, null, 2));
+const sh = v => "'" + String(v).replace(/'/g, "'\\''") + "'";
+fs.writeFileSync(path.join(OUT, 'motor.env'), [
+  '# gerado por src/montar.js a partir de src/motor.json',
+  'MOTOR_ARGS=' + sh(motor.pc.args.join(' ')),
+  'MOTOR_CONTEXTO=' + sh(motor.pc.contexto.map(([g, c]) => g + ':' + c).join(' ')),
+  'MOTOR_IMAGEM=' + motor.pc.imagemMaxTokens, ''].join('\n'));
 // as mesmas bibliotecas também como arquivos servidos pelo motor (o WebView do Android não importa módulos por blob)
 for (const f of ['pdf.min.mjs', 'pdf.worker.min.mjs', 'mammoth.browser.min.js']) fs.copyFileSync(path.join(S, 'vendor', f), path.join(OUT, f));
 console.log(`interface ${VERSAO}: index.html ${html.length} bytes`);

@@ -23,6 +23,8 @@ const POR_MENSAGEM = 6;   // marcas do modelo de chat em volta de cada mensagem
 
 // "resuma o PDF", "do que trata o arquivo": o documento inteiro é lido por partes e cada parte vira um resumo
 const PEDIDO_GERAL = /\b(?:resum\w*|sintetiz\w*|do que (?:se )?trata|sobre o que (?:[ée]|fala)|principais (?:pontos|ideias|t[óo]picos|assuntos)|(?:explique|analise|leia) (?:o|a|este|esse|esta|essa) (?:pdf|arquivo|documento|texto|apostila|livro))\b/i;
+// teto do arquivo por pergunta: mesmo com 32k de memória, trechos demais deixam a leitura lenta e a resposta vaga
+const TETO_ARQUIVO = 8000, TETO_BLOCO = 12000;
 const docsDe = m => ((m && m.anexos) || []).filter(a => a.conteudo);
 
 // A última pergunta: arquivo que não cabe vira os trechos ligados à pergunta (src/busca.js) ou o resumo por partes;
@@ -31,7 +33,7 @@ function conteudoDaPergunta(m, anteriores, livre) {
   const texto = m.llm || m.texto || '', docs = docsDe(m), pergunta = m.texto || '';
   if (!docs.length) {
     const antigos = [].concat(...anteriores.filter(x => x.role === 'user').map(docsDe)).filter(a => a.conteudo.length > 1500).slice(-3);
-    const cabe = Math.floor((livre - tokens(texto)) * 0.6);
+    const cabe = Math.min(TETO_ARQUIVO, Math.floor((livre - tokens(texto)) * 0.6));
     if (!antigos.length || pergunta.trim().length < 8 || cabe < 300) return { texto, anexos: 0 };
     const achados = antigos.map(a => { const r = BUSCA.trechosRelevantes(a.conteudo, pergunta, charsPara(a.conteudo, cabe / antigos.length)); return r && `Arquivo: ${a.nome}\n${r.texto}`; }).filter(Boolean);
     if (!achados.length) return { texto, anexos: 0 };
@@ -45,7 +47,7 @@ function conteudoDaPergunta(m, anteriores, livre) {
   const grandes = docs.filter(a => tokens(a.conteudo) > 600), pequenos = docs.filter(a => !grandes.includes(a));
   const fixos = pequenos.map(a => bloco(a, a.conteudo));
   const resto = livre - tokens(cabeca) - fixos.reduce((s, b) => s + tokens(b), 0) - 80 * grandes.length;
-  const cada = Math.max(200, Math.floor(resto / Math.max(1, grandes.length)));
+  const cada = Math.max(200, Math.floor(Math.min(resto, TETO_ARQUIVO) / Math.max(1, grandes.length)));
   const geral = PEDIDO_GERAL.test(pergunta) || !pergunta.trim() || !!m.modo;
   const reduzidos = grandes.map(a => {
     const tam = a.paginas ? `${a.paginas} páginas` : 'arquivo longo';
@@ -63,7 +65,7 @@ function conteudoDaPergunta(m, anteriores, livre) {
 
 // lê um arquivo longo por partes (blocos de páginas que cabem na memória) e resume cada uma: fica em a.resumos
 async function resumirEmPartes(a, aoPasso, sinal) {
-  const partes = BUSCA.blocos(a.conteudo, charsPara(a.conteudo, Math.max(1200, Math.floor(nCtx * 0.6) - 700))), feitos = [];
+  const partes = BUSCA.blocos(a.conteudo, charsPara(a.conteudo, Math.min(TETO_BLOCO, Math.max(1200, Math.floor(nCtx * 0.6) - 700)))), feitos = [];
   for (let i = 0; i < partes.length; i++) {
     const p = partes[i];
     aoPasso(partes.length > 1 ? `Lendo ${a.nome}: ${p.de ? `páginas ${p.de}–${p.ate}` : `parte ${i + 1}`} (${i + 1} de ${partes.length})` : `Lendo ${a.nome}`);

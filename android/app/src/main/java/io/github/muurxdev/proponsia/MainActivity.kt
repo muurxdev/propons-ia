@@ -365,6 +365,18 @@ class MainActivity : Activity() {
     // motor que não subiu (pendurado ou morto): mata antes de tentar de novo; a porta da página continua a mesma
     private fun motorFalhou() { motor?.let { try { it.destroy(); it.waitFor() } catch (_: Exception) {} } }
     private fun arquivoChave(): File = File(filesDir, "motor.chave").apply { writeText(chave + "\n") }   // só este app lê
+    // argumentos do motor vêm de interface/motor.json (gerado de src/motor.json, igual nos 5 sistemas):
+    // contexto pelo degrau de RAM do celular, cache KV, raciocínio e o resto; nada disso fica escrito aqui
+    private fun configMotor(): JSONObject = JSONObject(File(pastaInterface, "motor.json").readText()).getJSONObject("celular")
+    private fun argsMotor(): Array<String> {
+        val m = configMotor(); val degraus = m.getJSONArray("contexto"); var ctx = 0
+        for (i in 0 until degraus.length()) {
+            val d = degraus.getJSONArray(i)
+            if (ctx == 0 || ramTotal >= (d.getDouble(0) * 0.93 * 1073741824L).toLong()) ctx = d.getInt(1)   // "6 GB" aparece como 5,6
+        }
+        val a = m.getJSONArray("args")
+        return arrayOf("-c", "$ctx") + Array(a.length()) { a.getString(it) }
+    }
     private fun ligarMotor(arq: File): String? {
         if (motor == null) porta = portaLivre()
         val dir = applicationInfo.nativeLibraryDir
@@ -374,8 +386,7 @@ class MainActivity : Activity() {
         // prioridade menor (nice) que a da tela: a interface continua lisa enquanto a IA responde
         val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
         val pb = ProcessBuilder(*nice, exe.path, "-m", arq.path, "--host", "127.0.0.1", "--port", "$porta", "--path", pastaInterface.path,
-            "-c", "4096", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "450",
-            "--api-key-file", arquivoChave().path, "-t", "$threads", *argsVisao())
+            *argsMotor(), "--api-key-file", arquivoChave().path, "-t", "$threads", *argsVisao())
         pb.environment()["LD_LIBRARY_PATH"] = dir
         pb.directory(filesDir); pb.redirectErrorStream(true); pb.redirectOutput(File(filesDir, "motor.log"))
         val p = try { pb.start() } catch (e: Exception) { return "O motor da IA não pôde ser iniciado: ${e.message}" }
@@ -394,7 +405,7 @@ class MainActivity : Activity() {
     private fun argsVisao(): Array<String> {
         val arq = if (prefs.getBoolean("visao", false)) acharModelo(modelo.visao()) else null
         visaoAtiva = arq != null
-        return if (arq == null) emptyArray() else arrayOf("--mmproj", arq.path, "--image-max-tokens", "300")
+        return if (arq == null) emptyArray() else arrayOf("--mmproj", arq.path, "--image-max-tokens", "${configMotor().getInt("imagemMaxTokens")}")
     }
 
     // liga/desliga a visão: baixa o módulo do modelo atual se preciso e religa o motor

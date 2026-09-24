@@ -53,5 +53,5 @@ fi
 [ -f "$RAIZ/payload/interface/index.html" ] || node "$RAIZ/src/montar.js"
 node "$RAIZ/src/montar.js" >/dev/null
 A="$AQUI/app/src/main/assets/interface"; rm -rf "$A"; mkdir -p "$A"
-cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$RAIZ/payload/interface/"*.mjs "$RAIZ/payload/interface/"*.js "$A/"   # + pdf.js e mammoth como arquivos
+cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$RAIZ/payload/interface/motor.json" "$RAIZ/payload/interface/"*.mjs "$RAIZ/payload/interface/"*.js "$A/"   # + pdf.js e mammoth como arquivos
 echo "interface: $(ls "$A" | tr '\n' ' ')"

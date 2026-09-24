@@ -309,13 +309,24 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         }
         return 8765
     }
+    // argumentos do motor vêm de interface/motor.json (gerado de src/motor.json, igual nos 5 sistemas): contexto pelo
+    // degrau de RAM do Mac, cache KV, raciocínio e o resto; nada disso fica escrito aqui
+    func configMotor() -> (args: [String], imagem: Int) {
+        let url = recursos.appendingPathComponent("interface/motor.json")
+        guard let d = try? Data(contentsOf: url), let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              let pc = j["pc"] as? [String: Any], let degraus = pc["contexto"] as? [[Double]], let extra = pc["args"] as? [String] else { return ([], 400) }
+        var ctx = 0
+        for d in degraus where ctx == 0 || Double(ram) >= d[0] * 0.93 * 1_073_741_824 { ctx = Int(d[1]) }   // "8 GB" aparece como 7,8
+        return (["-c", "\(ctx)"] + extra, pc["imagemMaxTokens"] as? Int ?? 400)
+    }
     func ligarMotor() async -> String? {
         guard let arq = acharModelo(modelo) else { return "O modelo não está baixado." }
         if motor == nil { porta = portaLivre() }
         let exe = pastaMotor.appendingPathComponent("llama-server")
-        var args = ["-m", arq.path, "--host", "127.0.0.1", "--port", "\(porta)", "--path", recursos.appendingPathComponent("interface").path,
-                    "-c", "8192", "-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "600", "--api-key-file", arquivoChave().path]
-        if visaoLigada(), let v = acharModelo(modelo.visao()) { args += ["--mmproj", v.path, "--image-max-tokens", "400"]; visaoAtiva = true } else { visaoAtiva = false }
+        let cfg = configMotor()
+        var args = ["-m", arq.path, "--host", "127.0.0.1", "--port", "\(porta)", "--path", recursos.appendingPathComponent("interface").path]
+            + cfg.args + ["--api-key-file", arquivoChave().path]
+        if visaoLigada(), let v = acharModelo(modelo.visao()) { args += ["--mmproj", v.path, "--image-max-tokens", "\(cfg.imagem)"]; visaoAtiva = true } else { visaoAtiva = false }
         if ProcessInfo.processInfo.environment["PROPONS_SEM_GPU"] == "1" { args += ["-ngl", "0"] }   // testes em máquina virtual sem GPU
         let p = Process(); p.executableURL = exe; p.arguments = args; p.currentDirectoryURL = pastaMotor
         let log = suporte.appendingPathComponent("motor.log"); fm.createFile(atPath: log.path, contents: nil)

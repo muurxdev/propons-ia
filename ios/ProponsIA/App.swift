@@ -164,11 +164,21 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         #else
         let gpu = true
         #endif
+        let contexto = Int32(ctx)
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             motor.fila.async { [motor] in
-                do { try motor.carregar(caminho: arq.path, gpu: gpu, contexto: 4096); c.resume() } catch { c.resume(throwing: error) }
+                do { try motor.carregar(caminho: arq.path, gpu: gpu, contexto: contexto); c.resume() } catch { c.resume(throwing: error) }
             }
         }
+    }
+    // contexto pelo degrau de RAM do iPhone, de interface/motor.json (gerado de src/motor.json, igual nos 5 sistemas)
+    private var ctx: Int {
+        guard let u = Bundle.main.url(forResource: "motor", withExtension: "json", subdirectory: "interface"), let d = try? Data(contentsOf: u),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any], let cel = j["celular"] as? [String: Any],
+              let degraus = cel["contexto"] as? [[Double]], let primeiro = degraus.first else { return Int(Motor.contextoPadrao) }
+        var c = Int(primeiro[1])
+        for g in degraus where Double(ram) >= g[0] * 0.93 * 1_073_741_824 { c = Int(g[1]) }   // "6 GB" aparece como 5,6
+        return c
     }
 
     private func acharModelo(_ m: ModeloIA) -> URL? {

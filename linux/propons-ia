@@ -341,14 +341,28 @@ baixar_modelo_dentro() {
 }
 
 # ---------- motor ----------
+# argumentos do motor vêm de interface/motor.env (gerado de src/motor.json, igual nos 5 sistemas): contexto pelo
+# degrau de RAM do PC, cache KV, raciocínio e o resto; nada disso fica escrito aqui
+argumentos_motor() {
+  # shellcheck source=/dev/null
+  . "$APP_DIR/interface/motor.env"
+  local ram ctx=0 d
+  ram=$(( $(ram_bytes) * 100 / 1073741824 ))   # em centésimos de GB ("8 GB" aparece como 7,8)
+  for d in $MOTOR_CONTEXTO; do
+    if [ "$ctx" = 0 ] || [ "$ram" -ge $(( ${d%%:*} * 93 )) ]; then ctx=${d#*:}; fi
+  done
+  MOTOR_CTX=$ctx
+}
 ligar_motor() {  # usa PORTA e CHAVE já definidas
+  argumentos_motor
+  local args; read -ra args <<<"$MOTOR_ARGS"
   # prioridade menor (nice) que a da janela: a interface continua lisa enquanto a IA responde
-  local visao=(); visao_ativa && visao=(--mmproj "$VISAO_ARQ" --image-max-tokens 400)
+  local visao=(); visao_ativa && visao=(--mmproj "$VISAO_ARQ" --image-max-tokens "$MOTOR_IMAGEM")
   # GPU: o llama.cpp carrega o backend Vulkan da pasta GGML_BACKEND_PATH; sem GPU a variável fica vazia (só CPU)
   local gpu=(); if [ "$GPU_ATIVA" = 1 ]; then gpu=(-ngl 999 -dev "$GPU_DISP"); export GGML_BACKEND_PATH="$GPU_SO"; else unset GGML_BACKEND_PATH; fi
   local host=127.0.0.1; [ "${API:-0}" = 1 ] && host=0.0.0.0   # --api: outros aparelhos da rede (sempre com a chave)
   nice -n 5 "$MOTOR" -m "$ARQ" "${visao[@]}" "${gpu[@]}" --host "$host" --port "$PORTA" --path "$INTERFACE" \
-    -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning-format auto --reasoning-budget 600 --api-key-file "$CHAVEFILE" >>"$LOG" 2>&1 &
+    -c "$MOTOR_CTX" "${args[@]}" --api-key-file "$CHAVEFILE" >>"$LOG" 2>&1 &
   MOTOR_PID=$!
   echo "$MOTOR_PID" >"$PIDFILE"; echo "$PORTA" >"$PORTAFILE"
 }

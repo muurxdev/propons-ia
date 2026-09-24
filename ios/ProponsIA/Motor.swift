@@ -40,7 +40,9 @@ final class Motor {
     }
 
     /// Carrega um GGUF. gpu=true usa Metal (iPhone/Mac); no simulador use false.
-    func carregar(caminho: String, gpu: Bool, contexto: Int32 = 4096) throws {
+    /// Sem o interface/motor.json (não deveria acontecer: vai no pacote), o menor degrau do celular.
+    static let contextoPadrao: Int32 = 4096
+    func carregar(caminho: String, gpu: Bool, contexto: Int32) throws {
         descarregar()
         var mp = llama_model_default_params()
         mp.n_gpu_layers = gpu ? 99 : 0

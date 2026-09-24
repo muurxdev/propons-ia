@@ -37,6 +37,26 @@ XTC mais forte). **Pensar (Esforço Alto) é hoje o maior ganho contra alucinaç
 no Lume o orçamento de 1200 tokens é curto (48 %). Armadilhas continuam o foco dos dados de preferência (Etapa 1c);
 a meta 2.0 (acerto +15 pontos, armadilhas < 10 % de invenção) passa a ser medida contra o Aurora pensando.
 
+### Memória da IA (contexto) por aparelho — `medir_contexto.mjs`, 24/09/2026, CPU (-ngl 0)
+
+`node treino/medir_contexto.mjs <llama-server> <pasta-dos-modelos>`: RAM do processo e velocidade com ~3 mil tokens.
+
+| modelo | contexto | cache KV | RAM após carregar | RAM após 3k tokens | leitura (t/s) | escrita (t/s) |
+|---|---|---|---|---|---|---|
+| Aurora (2B) | 8192 | f16 | 1559 MB | 1624 MB | 1114 | 22,6 |
+| Aurora (2B) | 16384 | q8_0 | 1542 MB | 1607 MB | 1115 | 23,2 |
+| Aurora (2B) | 32768 | f16 | 1840 MB | 1907 MB | 1121 | 22,6 |
+| Aurora (2B) | 32768 | q8_0 | 1662 MB | 1722 MB | 1120 | 23,2 |
+| Ápice (4B) | 8192 | f16 | 3116 MB | 3246 MB | 486 | 8,3 |
+| Ápice (4B) | 16384 | q8_0 | 3142 MB | 3271 MB | 492 | 8,1 |
+| Ápice (4B) | 32768 | f16 | 3910 MB | 4041 MB | 488 | 7,9 |
+| Ápice (4B) | 32768 | q8_0 | 3430 MB | 3560 MB | 490 | 8,3 |
+
+O Qwen3.5 é híbrido (poucas camadas de atenção): 32k com cache q8 custa ~100 MB a mais que 8k no Aurora e ~300 MB
+no Ápice, sem perder velocidade. Por isso `src/motor.json` usa **PC: 16k (< 8 GB) e 32k (≥ 8 GB); celular: 4k (< 6 GB)
+e 8k (≥ 6 GB)**, sempre com `-fa on -ctk q8_0 -ctv q8_0` (testado também na GPU por Vulkan). O que decide o tempo de
+resposta com PDF é quanto do arquivo vai em cada pergunta: o app limita a 8 mil tokens de trechos (`TETO_ARQUIVO`).
+
 ## Etapa 1 — dados (`dados/`)
 
 Formato: um `jsonl` por assunto; cada linha `{"licenca","tipo","messages":[…]}` (SFT) ou

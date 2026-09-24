@@ -43,7 +43,7 @@ for par in "x64 x86_64 amd64" "arm64 aarch64 arm64"; do
     cp -a "$WSRC/whisper-server" "$APP/voz/"
     for f in "$WSRC"/libwhisper.so* "$WSRC"/libggml*.so*; do cp -a "$f" "$APP/voz/"; done
   fi
-  cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$RAIZ/payload/interface/"*.mjs "$RAIZ/payload/interface/"*.js "$APP/interface/"
+  cp "$RAIZ/payload/interface/index.html" "$RAIZ/payload/interface/conhecimento.md" "$RAIZ/payload/interface/motor.env" "$RAIZ/payload/interface/"*.mjs "$RAIZ/payload/interface/"*.js "$APP/interface/"
   install -m 755 "$AQUI/propons-ia" "$APP/propons-ia"
   install -m 644 "$AQUI/propons-ia.desktop" "$RAIZ/logo/logo.svg" "$APP/"
   install -m 644 "$RAIZ/logo/logo256.png" "$APP/propons-ia.png"

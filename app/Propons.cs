@@ -664,6 +664,30 @@ class Janela : Form
     }
 
     // ---------- motor ----------
+    // argumentos do motor vêm de interface\motor.json (gerado de src/motor.json, igual nos 5 sistemas):
+    // contexto pelo degrau de RAM do PC, cache KV, raciocínio e o resto; nada disso fica escrito aqui
+    Dictionary<string, object> ConfigMotor()
+    {
+        Dictionary<string, object> j = (Dictionary<string, object>)json.DeserializeObject(File.ReadAllText(Path.Combine(pasta, @"interface\motor.json")));
+        return (Dictionary<string, object>)j["pc"];
+    }
+    int ContextoMotor()
+    {
+        int ctx = 0; double ram = RamGB();
+        foreach (object d in (object[])ConfigMotor()["contexto"])
+        {
+            object[] par = (object[])d;
+            if (ctx == 0 || ram >= Convert.ToDouble(par[0]) * 0.93) ctx = Convert.ToInt32(par[1]);   // "8 GB" aparece como 7,8
+        }
+        return ctx;
+    }
+    string ArgsMotor()
+    {
+        StringBuilder sb = new StringBuilder(" -c " + ContextoMotor());
+        foreach (object a in (object[])ConfigMotor()["args"]) sb.Append(' ').Append(a);
+        return sb.ToString();
+    }
+
     async Task<string> LigarMotor()
     {
         string exe = Path.Combine(pasta, @"motor\llama-server.exe");
@@ -676,7 +700,7 @@ class Janela : Form
             ProcessStartInfo psi = new ProcessStartInfo(exe,
                 "-m \"" + arquivoModelo + "\" --host " + (ApiLigada() ? "0.0.0.0" : "127.0.0.1") + " --port " + porta +   // API na rede local: escuta em todas as interfaces (com a chave)
                 " --path \"" + Path.Combine(pasta, "interface") + "\"" +
-                " -c 8192 -np 1 --cache-ram 0 -ctxcp 2 --reasoning-format auto --reasoning-budget 600 --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao() + gpuArgs);   // pensar (Esforço Alto) é ligado por pedido; o orçamento limita o raciocínio
+                ArgsMotor() + " --api-key-file \"" + ArquivoChave() + "\"" + ArgsVisao() + gpuArgs);   // pensar (Esforço Alto) é ligado por pedido; o orçamento limita o raciocínio
             psi.WorkingDirectory = pasta; psi.UseShellExecute = false; psi.CreateNoWindow = true; psi.WindowStyle = ProcessWindowStyle.Hidden;
             psi.RedirectStandardOutput = true; psi.RedirectStandardError = true;
             Process p = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -719,7 +743,7 @@ class Janela : Form
     {
         string arq = VisaoLigada() ? AcharModelo(modelo.Visao()) : null;
         visaoAtiva = arq != null;
-        return arq == null ? "" : " --mmproj \"" + arq + "\" --image-max-tokens 400";
+        return arq == null ? "" : " --mmproj \"" + arq + "\" --image-max-tokens " + ConfigMotor()["imagemMaxTokens"];
     }
 
     // liga/desliga a visão: baixa o módulo do modelo atual se preciso e religa o motor
