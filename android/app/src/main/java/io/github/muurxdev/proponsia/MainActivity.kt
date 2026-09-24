@@ -9,7 +9,6 @@ import android.provider.Settings
 import android.view.WindowManager
 import android.content.ClipData
 import android.content.Intent
-import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.content.res.Configuration
 import android.graphics.Color
@@ -129,6 +128,17 @@ class MainActivity : Activity() {
                 val u = req.url
                 if (u.host == "127.0.0.1" || u.scheme == "file" || u.scheme == "data" || u.scheme == "about") return false
                 abrirLink(u.toString()); return true
+            }
+            // abertura fria (página em https://propons.local/, sem motor ainda): os arquivos ao lado do index.html
+            // (pdf.js, mammoth) vêm da pasta da interface — só nomes simples, nada fora dela
+            override fun shouldInterceptRequest(view: WebView, req: WebResourceRequest): android.webkit.WebResourceResponse? {
+                val u = req.url
+                if (u.host != "propons.local") return null
+                val nome = u.lastPathSegment ?: return null
+                if (!Regex("^[a-z0-9.-]+\\.(mjs|js|md|json)$").matches(nome)) return null
+                val f = File(pastaInterface, nome); if (!f.isFile) return null
+                val mime = if (nome.endsWith(".md")) "text/markdown" else if (nome.endsWith(".json")) "application/json" else "text/javascript"
+                return android.webkit.WebResourceResponse(mime, "utf-8", f.inputStream())
             }
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) { urlAtual = url ?: "" }
             override fun onPageFinished(view: WebView, url: String?) { if (cssMargens.isNotEmpty()) view.evaluateJavascript(cssMargens, null) }
@@ -509,7 +519,6 @@ class MainActivity : Activity() {
                 "tema" -> ui.post { aplicarTema(args.optString("v") == "escuro") }.also { responder(id, true) }
                 "link" -> { abrirLink(args.optString("url")); responder(id, true) }
                 "salvarArquivo" -> ui.post { salvarArquivo(id, args.optString("nome"), args.optString("conteudo"), args.optString("tipo"), args.optBoolean("base64")) }
-                "abrirPasta" -> ui.post { escolherPasta(id) }
                 else -> thread {
                     try {
                         val dados: Any = when (acao) {
@@ -526,13 +535,6 @@ class MainActivity : Activity() {
                                 if (baixandoId != null || trocando) throw Exception("já há um download em andamento")
                                 if (acharModelo(m) == null) soBaixar(m) else evento("download-fim", JSONObject().put("id", m.id).put("ok", true)); true
                             }
-                            "pastaInfo" -> { val u = pastaSalva(); if (u == null) JSONObject().put("nome", "") else JSONObject().put("nome", nomeDaPasta(u)) }
-                            "esquecerPasta" -> { pastaSalva()?.let { try { contentResolver.releasePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (_: Exception) {} }
-                                prefs.edit().remove("pasta").apply(); mapaPasta.clear(); true }
-                            "listarPasta" -> listarPasta()
-                            "lerArquivo" -> lerArquivoPasta(args.optString("caminho"))
-                            "gravarArquivo" -> gravarArquivoPasta(args.optString("caminho"), args.optString("conteudo"))
-                            "apagarArquivo" -> apagarArquivoPasta(args.optString("caminho"))
                             "buscar" -> paginaDaWeb(args.optString("url"))
                             "cancelarDownload" -> { cancelarBaixar = true; true }
                             "apagarModelo" -> apagarModelo(modeloDe(args))
@@ -780,106 +782,6 @@ class MainActivity : Activity() {
         try { startActivityForResult(i, PEDIDO_SALVAR) } catch (e: Exception) { responderErro(id, "não há app para salvar arquivos") }
     }
 
-
-    // ---------------- pasta do aparelho para a Área de código (SAF: a pessoa escolhe, o sistema dá a permissão) ----------------
-    private var idPastaPendente: Any? = null
-    private fun pastaSalva(): Uri? {
-        val s = prefs.getString("pasta", null) ?: return null
-        val u = Uri.parse(s)
-        val temPermissao = contentResolver.persistedUriPermissions.any { it.uri == u && it.isReadPermission && it.isWritePermission }
-        return if (temPermissao) u else null
-    }
-    private fun nomeDaPasta(u: Uri): String {
-        val id = DocumentsContract.getTreeDocumentId(u)
-        val fim = id.substringAfterLast(':', "").substringAfterLast('/')
-        return if (fim.isNotEmpty()) fim else id
-    }
-    private fun escolherPasta(id: Any?) {
-        idPastaPendente = id
-        val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        try { startActivityForResult(i, PEDIDO_PASTA) } catch (e: Exception) { idPastaPendente = null; responderErro(id, "este aparelho não tem seletor de pastas") }
-    }
-    // cada arquivo da pasta, com o caminho relativo (só texto/código, como no PC)
-    private val TEXTO_CODIGO = Regex("\\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|ya?ml|toml|ini|cfg|conf|sh|bash|ps1|bat|lua|r|dart|vue|svelte|env|gitignore|csv)$", RegexOption.IGNORE_CASE)
-    private val PASTAS_FORA = Regex("^(node_modules|\\.git|dist|build|out|__pycache__|venv|\\.venv|target|bin|obj|\\.next|\\.cache)$", RegexOption.IGNORE_CASE)
-    private fun andarPasta(arvore: Uri, docId: String, prefixo: String, nivel: Int, saida: JSONArray, mapa: MutableMap<String, String>) {
-        if (nivel > 6 || saida.length() >= 400) return
-        val filhos = DocumentsContract.buildChildDocumentsUriUsingTree(arvore, docId)
-        val c = contentResolver.query(filhos, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-            DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE,
-            DocumentsContract.Document.COLUMN_SIZE), null, null, null) ?: return
-        c.use {
-            while (it.moveToNext() && saida.length() < 400) {
-                val filhoId = it.getString(0); val nome = it.getString(1) ?: continue
-                val mime = it.getString(2) ?: ""; val tam = it.getLong(3)
-                if (nome.startsWith(".") && nome != ".env" && nome != ".gitignore") continue
-                if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    if (!PASTAS_FORA.matches(nome)) andarPasta(arvore, filhoId, prefixo + nome + "/", nivel + 1, saida, mapa)
-                } else if (TEXTO_CODIGO.containsMatchIn(nome) && tam <= 60000) {
-                    val caminho = prefixo + nome
-                    mapa[caminho] = filhoId
-                    saida.put(JSONObject().put("nome", caminho).put("tam", tam))
-                }
-            }
-        }
-    }
-    private val mapaPasta = mutableMapOf<String, String>()
-    private fun listarPasta(): JSONArray {
-        val u = pastaSalva() ?: throw Exception("nenhuma pasta escolhida")
-        val saida = JSONArray(); mapaPasta.clear()
-        andarPasta(u, DocumentsContract.getTreeDocumentId(u), "", 0, saida, mapaPasta)
-        return saida
-    }
-    private fun docDe(caminho: String): Uri? {
-        val u = pastaSalva() ?: throw Exception("nenhuma pasta escolhida")
-        if (mapaPasta.isEmpty()) listarPasta()
-        val id = mapaPasta[caminho] ?: return null
-        return DocumentsContract.buildDocumentUriUsingTree(u, id)
-    }
-    private fun lerArquivoPasta(caminho: String): String {
-        val d = docDe(caminho) ?: throw Exception("arquivo não encontrado: $caminho")
-        return contentResolver.openInputStream(d)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: throw Exception("não consegui ler")
-    }
-    // grava por cima ou cria (criando as subpastas que faltarem)
-    private fun gravarArquivoPasta(caminho: String, conteudo: String): Boolean {
-        val u = pastaSalva() ?: throw Exception("nenhuma pasta escolhida")
-        var alvo = docDe(caminho)
-        if (alvo == null) {
-            val partes = caminho.split("/").filter { it.isNotEmpty() }
-            var paiId = DocumentsContract.getTreeDocumentId(u)
-            for (p in partes.dropLast(1)) {
-                val pai = DocumentsContract.buildDocumentUriUsingTree(u, paiId)
-                var achou: String? = null
-                contentResolver.query(DocumentsContract.buildChildDocumentsUriUsingTree(u, paiId),
-                    arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                        DocumentsContract.Document.COLUMN_MIME_TYPE), null, null, null)?.use { c ->
-                    while (c.moveToNext()) if (c.getString(1) == p && c.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) { achou = c.getString(0); break }
-                }
-                paiId = achou ?: DocumentsContract.getDocumentId(
-                    DocumentsContract.createDocument(contentResolver, pai, DocumentsContract.Document.MIME_TYPE_DIR, p)
-                        ?: throw Exception("não consegui criar a pasta $p"))
-            }
-            val pai = DocumentsContract.buildDocumentUriUsingTree(u, paiId)
-            // o tipo tem que combinar com a extensão, senão o Android renomeia (forca.py viraria forca.py.txt)
-            val ext = partes.last().substringAfterLast('.', "").lowercase()
-            val mime = when (ext) { "txt" -> "text/plain"; "md", "markdown" -> "text/markdown"; "json" -> "application/json"
-                "html", "htm" -> "text/html"; "css" -> "text/css"; "csv" -> "text/csv"; "xml" -> "text/xml"; else -> "application/octet-stream" }
-            alvo = DocumentsContract.createDocument(contentResolver, pai, mime, partes.last())
-                ?: throw Exception("não consegui criar o arquivo")
-            mapaPasta.clear()
-        }
-        val destino = alvo ?: throw Exception("não consegui abrir o arquivo")
-        contentResolver.openOutputStream(destino, "wt")?.use { it.write(conteudo.toByteArray(Charsets.UTF_8)) } ?: throw Exception("não consegui gravar")
-        return true
-    }
-    private fun apagarArquivoPasta(caminho: String): Boolean {
-        val d = docDe(caminho) ?: throw Exception("arquivo não encontrado: $caminho")
-        val ok = DocumentsContract.deleteDocument(contentResolver, d)
-        mapaPasta.clear()
-        return ok
-    }
-
     // pesquisa na internet: a página do app não pode ler sites de fora (política de origem), então o app busca
     private fun paginaDaWeb(url: String): String {
         if (!url.startsWith("https://") && !url.startsWith("http://")) throw Exception("endereço inválido")
@@ -920,16 +822,6 @@ class MainActivity : Activity() {
                 val u = fotoCamera; fotoCamera = null
                 val tirou = resultCode == RESULT_OK && u != null && File(File(cacheDir, "camera"), u.lastPathSegment ?: "").length() > 0
                 cb?.onReceiveValue(if (tirou) arrayOf(u!!) else null)
-            }
-            PEDIDO_PASTA -> {
-                val id = idPastaPendente; idPastaPendente = null
-                val uri = data?.data
-                if (resultCode != RESULT_OK || uri == null) { responder(id, false); return }
-                try {
-                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                    prefs.edit().putString("pasta", uri.toString()).apply(); mapaPasta.clear()
-                    responder(id, JSONObject().put("nome", nomeDaPasta(uri)))
-                } catch (e: Exception) { responderErro(id, e.message ?: "não consegui guardar a permissão da pasta") }
             }
             PEDIDO_SALVAR -> {
                 val id = idSalvarPendente; val conteudo = salvarPendente; val emBase64 = salvarPendenteBase64
@@ -1010,14 +902,14 @@ class MainActivity : Activity() {
     @Volatile private var respondendo = false
     @Volatile private var servicoResposta = false
     private fun iniciarServicoResposta() {
-        if (servicoResposta || baixandoId != null) return
+        if (servicoResposta) return
         servicoResposta = true
-        try { ServicoDownload.iniciar(this, "Própons IA", "Respondendo…") } catch (e: Exception) { servicoResposta = false; Log.w("ProponsIA", "serviço da resposta: ${e.message}") }
+        try { ServicoResposta.iniciar(this) } catch (e: Exception) { servicoResposta = false; Log.w("ProponsIA", "serviço da resposta: ${e.message}") }
     }
     private fun pararServicoResposta() {
         if (!servicoResposta) return
         servicoResposta = false
-        if (baixandoId == null) try { ServicoDownload.terminar(this) } catch (_: Exception) {}
+        try { ServicoResposta.terminar(this) } catch (_: Exception) {}
     }
     // Android 13+: pede uma vez a permissão para mostrar a notificação do download
     private fun pedirNotificacoes() {
@@ -1100,7 +992,6 @@ class MainActivity : Activity() {
         val chave: String = ByteArray(18).also { SecureRandom().nextBytes(it) }.let { android.util.Base64.encodeToString(it, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING) }
         const val PEDIDO_ARQUIVOS = 1
         const val PEDIDO_SALVAR = 2
-        const val PEDIDO_PASTA = 6
         const val PEDIDO_CAMERA = 4
         const val PEDIDO_MICROFONE = 5
         const val ACAO_INSTALACAO = "io.github.muurxdev.proponsia.INSTALACAO"

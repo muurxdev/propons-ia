@@ -12,9 +12,12 @@ const nomes = "const NOMES={bubble:'Bubble sort',selection:'Selection sort',quic
 algo = algo.replace(/const NOMES=\{[^\n]*\};/, nomes);
 if (!algo.includes(nomes)) throw new Error('NOMES não substituído');
 
-// bibliotecas de terceiros (src/vendor): entram como texto (type="text/plain", o navegador não interpreta) e só viram
-// código quando um PDF/DOCX é anexado (src/app/08-anexos.js carrega por blob). Assim os hosts continuam copiando um index.html só.
-const vendor = [['vendor-pdf', 'vendor/pdf.min.mjs'], ['vendor-pdf-worker', 'vendor/pdf.worker.min.mjs'], ['vendor-mammoth', 'vendor/mammoth.browser.min.js']]
+// bibliotecas de terceiros (src/vendor: pdf.js e mammoth, ~2,3 MB) vão como arquivos ao lado do index.html, servidos
+// pelo motor ou pelo próprio app na abertura fria (Windows: propons.local; Android: shouldInterceptRequest).
+// --embutir (iPhone): entram também dentro do HTML como texto (type="text/plain") e viram código por blob,
+// porque lá a página é file:// e não há servidor atrás. (Na abertura fria dos outros, PDF só depois da 1ª mensagem.)
+const EMBUTIR = process.argv.includes('--embutir');
+const vendor = !EMBUTIR ? '' : [['vendor-pdf', 'vendor/pdf.min.mjs'], ['vendor-pdf-worker', 'vendor/pdf.worker.min.mjs'], ['vendor-mammoth', 'vendor/mammoth.browser.min.js']]
   .map(([id, f]) => { const c = ler(f); if (/<\/script/i.test(c)) throw new Error(f + ' contém </script'); return `<script type="text/plain" id="${id}">${c}</script>`; }).join('\n');
 const partes = {
   VERSAO, PLATAFORMA: ler('plataforma.js'), ALGO: algo, DESTAQUE: ler('destaque.js'), MD: ler('markdown.js'),

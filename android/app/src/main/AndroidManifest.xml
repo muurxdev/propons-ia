@@ -7,6 +7,8 @@
     <!-- downloads em segundo plano (tela apagada) com notificação de progresso -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- a IA terminando uma resposta com o app em segundo plano (geração no próprio aparelho, sem limite diário) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -52,5 +54,13 @@
             android:name=".ServicoDownload"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".ServicoResposta"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="A IA roda no próprio aparelho (sem servidor) e precisa terminar a resposta que a pessoa pediu quando o app vai para segundo plano." />
+        </service>
     </application>
 </manifest>
