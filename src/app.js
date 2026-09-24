@@ -1409,7 +1409,7 @@ function enfeitar(el) {
     p.appendChild(b);
     // guardar o bloco na área de código (dá para editar e pedir mudanças lá)
     const g = document.createElement('button'); g.className = 'copiar guardar'; g.innerHTML = ICO.codigo + '<span>Guardar</span>';
-    g.onclick = () => { const lang = (p.dataset.lang || '').toLowerCase(), ext = ({ python: 'py', javascript: 'js', typescript: 'ts', 'c/c++': 'c', c: 'c', 'c#': 'cs', java: 'java', kotlin: 'kt', html: 'html', css: 'css', json: 'json', sql: 'sql', bash: 'sh', go: 'go', rust: 'rs', php: 'php', ruby: 'rb', swift: 'swift' })[lang] || 'txt'; const nome = guardarNoProjeto('codigo.' + ext, p.querySelector('code').innerText, true); abrirCodigo(nome); };
+    g.onclick = () => { const lang = (p.dataset.lang || '').toLowerCase(), ext = ({ python: 'py', javascript: 'js', typescript: 'ts', 'c/c++': 'c', c: 'c', 'c#': 'cs', java: 'java', kotlin: 'kt', html: 'html', css: 'css', json: 'json', sql: 'sql', bash: 'sh', go: 'go', rust: 'rs', php: 'php', ruby: 'rb', swift: 'swift' })[lang] || 'txt'; guardarNoProjeto('codigo.' + ext, p.querySelector('code').innerText, true); abrirTela('codigo'); };
     p.appendChild(g);
   });
   el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); });
@@ -1526,7 +1526,7 @@ async function adicionarArquivos(lista) {
       catch (e) { toast(`Não consegui ler "${f.name}"${/password|senha|encrypt/i.test(e.message || '') ? ' (tem senha)' : ''}.`, 4000); continue; }
       if (!d.texto.trim()) { toast(ePdf ? `"${f.name}" não tem texto (pode ser só imagem — mande as páginas como fotos).` : `"${f.name}" está vazio.`, 4500); continue; }
       // quanto cabe na memória da IA nesta conversa (o resto é cortado ao enviar)
-      const cabe = Math.max(1200, nCtx - estimar(SYSTEM) - 1500 - 300), tokens = estimar(d.texto);
+      const cabe = Math.max(1200, nCtx - estimar(SYSTEM) - 3000 - 300), tokens = estimar(d.texto);
       if (tokens > cabe) toast(`"${f.name}"${d.paginas ? ` (${d.paginas} páginas)` : ''} é longo: a IA lê cerca de ${Math.round(100 * cabe / tokens)}% dele nesta conversa. Pergunte sobre partes específicas ou mande um trecho.`, 6000);
       else if (d.cortado) toast(`"${f.name}": usei as primeiras ${MAX_PAGINAS} páginas.`, 4000);
       anexos.push({ nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto, paginas: d.paginas });
@@ -2381,7 +2381,6 @@ async function enviar(texto) {
 }
 
 ICO.ramificar = '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10"/><path d="M6 12c0-3 3-3 6-3h4"/></svg>';
-async function regenerar() { if (atual && atual.msgs.length) await regenerarDe(atual.msgs[atual.msgs.length - 1]); }
 // gera de novo a partir de uma resposta: ela e tudo depois dela saem; a pergunta anterior é respondida outra vez
 async function regenerarDe(m) {
   const c = atual; if (!c || geracao) return;

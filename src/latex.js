@@ -51,7 +51,6 @@ function semLatex(src) {
         out += mapa(A, c === '_' ? SUB : SUP) || (c + (A.length > 1 ? `(${A})` : A));
       } else if (c === '{' || c === '}') i++;
       else if (c === '&') i++;               // alinhamento de matrizes
-      else if (c === '\\' ) i++;
       else { out += c; i++; }
     }
     return out.replace(/\\\\/g, '\n');

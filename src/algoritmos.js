@@ -75,7 +75,7 @@ function traceQuick(arr){
 function traceBinaria(arr,val){
   const d=[...arr].sort((a,b)=>a-b), st=[]; const ord = arr.join()===d.join();
   st.push({l:[...d], t:(ord?'':`A lista precisa estar ORDENADA, então primeiro ordenamos: ${fmt(d)}. `)+`Procurando o ${val}. i = 0, f = ${d.length-1}.`});
-  let i=0, f=d.length-1, it=0; const out=[];
+  let i=0, f=d.length-1, it=0;
   while(i<=f){
     it++; const ic=Math.floor((i+f)/2);
     const rng=[i,f];

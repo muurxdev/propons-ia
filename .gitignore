@@ -49,3 +49,9 @@ treino/saida/
 treino/gguf/
 treino/.llama.cpp/
 treino/dados/tudo.jsonl
+
+# dados pessoais do app rodando da pasta do projeto (conversas, config) — nunca versionar
+dados/
+# builds e releases soltos na raiz
+/*.exe
+release-*/
