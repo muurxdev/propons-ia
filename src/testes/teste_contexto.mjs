@@ -45,7 +45,7 @@ await js(`$('#entrada').value = 'E quem publicou Marés de Ferro?'; ajustar(); $
 await ate('!geracao && atual.msgs.length >= 4', 240000);
 const ped2 = await js(`(() => { const m = window.__pedidos[window.__pedidos.length - 1]; return m[m.length - 1].content; })()`);
 ok('arquivo enviado antes continua consultável (página 111 nos trechos)', /— página 111 —/.test(ped2));
-ok('a resposta traz o poeta (Eurico Valadares)', /Eurico|Valadares/.test(await js('atual.msgs[atual.msgs.length - 1].texto')), await js('atual.msgs[atual.msgs.length - 1].texto'));
+ok('a resposta usa a página 111 (Eurico Valadares, 1932)', /Eurico|Valadares|1932/.test(await js('atual.msgs[atual.msgs.length - 1].texto')), await js('atual.msgs[atual.msgs.length - 1].texto'));
 
 // 4) contagem de tokens: o que o app calculou bate com o prompt de verdade (apply-template + tokenize)
 const cmp = await js(`(async () => {
@@ -79,6 +79,16 @@ const antes = await js('montarHistorico(atual, 1500, SYSTEM).length');
 const deu = await js('compactarConversa(atual)');
 ok('compactar gera o resumo', deu && (await js('!!atual.resumo')), await js('(atual.resumo || "").slice(0, 120)'));
 ok('compactadas saem da memória da IA mas continuam na tela', (await js('montarHistorico(atual, 1500, SYSTEM).length')) < antes && (await js('document.querySelectorAll("#conversa .msg.eu").length')) >= 6);
+
+// 6b) compactar sozinho: com a memória cheia, a resposta já está em andamento (botão parar) e mostra o passo
+await js(`nova(); (() => { const c = { id: novoId(), titulo: 'Cheia', criada: Date.now(), atualizada: Date.now(), msgs: [] }; for (let i = 0; i < 8; i++) c.msgs.push({ role: 'user', texto: 'Pergunta longa ' + i + ' ' + 'sobre fotossíntese e respiração celular. '.repeat(40), llm: '' }, { role: 'assistant', texto: 'Resposta ' + i + ' ' + 'A fotossíntese transforma luz em energia química. '.repeat(40), llm: '' }); c.msgs.forEach(m => m.llm = m.texto); conversas.unshift(c); abrir(c.id); window.__nCtx0 = nCtx; nCtx = 4096; return 1; })()`);
+await js(`$('#entrada').value = 'Resuma em uma frase o que conversamos.'; ajustar(); $('#enviar').click(); 1`);
+let viuCompactar = false, ocupado = false;
+for (let i = 0; i < 100 && !viuCompactar; i++) { await espera(100); viuCompactar = await js(`/Compactando a conversa/.test((document.querySelector('.busca-passo') || {}).textContent || '')`); if (viuCompactar) ocupado = await js('!!geracao'); }
+ok('compactar sozinho: aparece o passo "Compactando a conversa" com a resposta em andamento', viuCompactar && ocupado);
+await ate('!geracao', 300000, 500);
+ok('compactar sozinho: conversa ganhou o resumo e a resposta saiu', await js(`!!atual.resumo && atual.msgs[atual.msgs.length - 1].role === 'assistant' && !!atual.msgs[atual.msgs.length - 1].texto`));
+await js(`nCtx = window.__nCtx0; 1`);
 
 // 7) resumo por partes ("resuma o arquivo"): lê o arquivo inteiro em blocos
 if (!rapido) {

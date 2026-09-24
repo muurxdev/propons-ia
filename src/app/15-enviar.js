@@ -21,7 +21,8 @@ const POR_MENSAGEM = 6;   // marcas do modelo de chat em volta de cada mensagem
 // "resuma o PDF", "do que trata o arquivo": o documento inteiro é lido por partes e cada parte vira um resumo
 const PEDIDO_GERAL = /\b(?:resum\w*|sintetiz\w*|do que (?:se )?trata|sobre o que (?:[ée]|fala)|principais (?:pontos|ideias|t[óo]picos|assuntos)|(?:explique|analise|leia) (?:o|a|este|esse|esta|essa) (?:pdf|arquivo|documento|texto|apostila|livro))\b/i;
 // teto do arquivo por pergunta: mesmo com 32k de memória, trechos demais deixam a leitura lenta e a resposta vaga
-const TETO_ARQUIVO = 8000, TETO_BLOCO = 12000;
+// (no celular, com 8 mil de memória, o teto é 35 % dela: ler o arquivo no processador do celular é lento)
+const TETO_BLOCO = 12000, tetoArquivo = () => Math.min(8000, Math.floor(nCtx * 0.35));
 const docsDe = m => ((m && m.anexos) || []).filter(a => a.conteudo);
 
 // A última pergunta: arquivo que não cabe vira os trechos ligados à pergunta (src/busca.js) ou o resumo por partes;
@@ -30,7 +31,7 @@ function conteudoDaPergunta(m, anteriores, livre) {
   const texto = m.llm || m.texto || '', docs = docsDe(m), pergunta = m.texto || '';
   if (!docs.length) {
     const antigos = [].concat(...anteriores.filter(x => x.role === 'user').map(docsDe)).filter(a => a.conteudo.length > 1500).slice(-3);
-    const cabe = Math.min(TETO_ARQUIVO, Math.floor((livre - tokens(texto)) * 0.6));
+    const cabe = Math.min(tetoArquivo(), Math.floor((livre - tokens(texto)) * 0.6));
     if (!antigos.length || pergunta.trim().length < 8 || cabe < 300) return { texto, anexos: 0 };
     const achados = antigos.map(a => { const r = BUSCA.trechosRelevantes(a.conteudo, pergunta, charsPara(a.conteudo, cabe / antigos.length)); return r && `Arquivo: ${a.nome}\n${r.texto}`; }).filter(Boolean);
     if (!achados.length) return { texto, anexos: 0 };
@@ -44,7 +45,7 @@ function conteudoDaPergunta(m, anteriores, livre) {
   const grandes = docs.filter(a => tokens(a.conteudo) > 600), pequenos = docs.filter(a => !grandes.includes(a));
   const fixos = pequenos.map(a => bloco(a, a.conteudo));
   const resto = livre - tokens(cabeca) - fixos.reduce((s, b) => s + tokens(b), 0) - 80 * grandes.length;
-  const cada = Math.max(200, Math.floor(Math.min(resto, TETO_ARQUIVO) / Math.max(1, grandes.length)));
+  const cada = Math.max(200, Math.floor(Math.min(resto, tetoArquivo()) / Math.max(1, grandes.length)));
   const geral = PEDIDO_GERAL.test(pergunta) || !pergunta.trim() || !!m.modo;
   const reduzidos = grandes.map(a => {
     const tam = a.paginas ? `${a.paginas} páginas` : 'arquivo longo';
@@ -216,14 +217,12 @@ async function responder(conv, continuacao) {
     return;
   }
 
-  // conversa que já enche a memória da IA: o começo vira um resumo antes de responder (Ajustes → Respostas)
-  if (!continuacao && !comEsquema) await compactarSeCheia(conv);
   const nivel = escolhido === 'auto' ? (pensar ? 'alto' : 'medio') : escolhido;
   // pensar gasta tokens do raciocínio; a reserva nunca passa de 45 % da memória da IA (no celular ela é menor)
   const maxTokens = Math.min(pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500, Math.floor(nCtx * 0.45));
   let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + textoPreferencias() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
     : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '')
-    + textoResumo(conv);
+;
   let fontes = null, blocoWeb = '';   // a busca em si roda depois de a resposta aparecer na conversa
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
   let historico = montarHistorico(conv, maxTokens, SISTEMA);
@@ -255,6 +254,10 @@ async function responder(conv, continuacao) {
   $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
   // a conversa mostra o passo (pesquisa, leitura do arquivo) no lugar da palavra animada
   const mostrarPasso = t => { if (alvo) { alvo.innerHTML = '<span class="busca-passo">' + esc(t) + '<i></i><i></i><i></i></span>'; rolar(); } };
+  // conversa que já enche a memória da IA: o começo vira um resumo antes de responder (Ajustes → Respostas); a resposta
+  // já está em andamento, então o passo aparece na conversa e o botão de parar vale
+  if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) && alvo && !msg.texto) alvo.innerHTML = pensar ? '' : htmlTrabalhando();
+  SISTEMA += textoResumo(conv);
   // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
   if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
     if (semInternet()) SISTEMA += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';

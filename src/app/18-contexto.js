@@ -91,9 +91,9 @@ function abrirFolhaContexto() {
 $('#medidorCtx').onclick = abrirFolhaContexto;
 
 // compactar: as mensagens antigas (todas menos as 4 últimas) viram um resumo que entra no texto de sistema
-async function compactarConversa(conv) {
+async function compactarConversa(conv, dentroDaResposta) {
   if (!conv) return false;
-  if (geracao) { toast('Espere a resposta terminar para compactar.'); return false; }
+  if (geracao && !dentroDaResposta) { toast('Espere a resposta terminar para compactar.'); return false; }
   if (!online) { toast('A IA ainda está ligando. Tente de novo em instantes.'); return false; }
   const vivas = conv.msgs.filter(m => !m.interno && !m.compactada), velhas = vivas.slice(0, -4);
   if (velhas.length < 2) { toast('Ainda não há mensagens antigas para compactar.'); return false; }

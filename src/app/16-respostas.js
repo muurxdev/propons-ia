@@ -42,11 +42,13 @@ function abaRespostas(c) {
   modelos.forEach(m => ligarSeg(c, 'esforco-' + m.id, v => { definirEsforco(m.id, v); atualizarSeletorModelo(); }));
 }
 // antes de responder: se a conversa já não cabe na memória da IA, compacta primeiro (o começo vira um resumo)
-async function compactarSeCheia(conv) {
+async function compactarSeCheia(conv, aoPasso) {
   if (!compactaSozinho() || !conv || !online) return;
   const u = montarHistorico(conv, Math.min(1500, Math.floor(nCtx * 0.45)), SYSTEM + textoMemoria() + textoPreferencias() + textoResumo(conv)).uso;
   const cheia = u.omitidas > 0 || (u.sistema + u.historico + u.anexos) / Math.max(1, u.total - u.reserva) > 0.9;
-  if (cheia && conv.msgs.filter(m => !m.interno && !m.compactada).length > 6) await compactarConversa(conv);
+  if (!cheia || conv.msgs.filter(m => !m.interno && !m.compactada).length <= 6) return false;
+  if (aoPasso) aoPasso();
+  return compactarConversa(conv, true);
 }
 
 /* ---------------- ajuda (!) : um balão pequeno explicando o módulo, a seção ou o modelo ---------------- */
