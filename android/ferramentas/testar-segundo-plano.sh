@@ -23,13 +23,13 @@ if ! adb devices | grep -q emulator; then
   nohup emulator -avd propons -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -cores 4 >"$SAIDA/emulador.log" 2>&1 &
 fi
 adb wait-for-device
-for i in $(seq 1 180); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break; sleep 2; done
+for _ in $(seq 1 180); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break; sleep 2; done
 adb install -r -g "$APK" >/dev/null || exit 1
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS 2>/dev/null
 adb shell am force-stop $PKG
 adb shell am start -n $PKG/.MainActivity --ez ligar true >/dev/null
 adb forward tcp:9765 tcp:8765 >/dev/null
-for i in $(seq 1 300); do curl -sf --max-time 2 http://127.0.0.1:9765/health >/dev/null && break; sleep 2; done
+for _ in $(seq 1 300); do curl -sf --max-time 2 http://127.0.0.1:9765/health >/dev/null && break; sleep 2; done
 sleep 6
 PID=$(adb shell pidof $PKG | tr -d '\r')
 adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
@@ -51,7 +51,7 @@ ALVO=normal; ARQ=Qwen3.5-2B-Q4_K_M.gguf.baixando
 js "PLATAFORMA.apagarModelo('$ALVO').catch(()=>0).then(()=>1)" >/dev/null
 echo "== download do modelo $ALVO"
 js "PLATAFORMA.baixarModelo('$ALVO').then(()=>1)" >/dev/null
-for i in $(seq 1 60); do [ "$(tam $ARQ)" -gt 20000000 ] && break; sleep 1; done
+for _ in $(seq 1 60); do [ "$(tam $ARQ)" -gt 20000000 ] && break; sleep 1; done
 NOTIF=$(adb shell dumpsys notification --noredact | grep -A40 "pkg=$PKG" | grep -m1 -oE "android.title=String \([^)]*\)")
 ok "$( [ -n "$NOTIF" ] && echo 1 || echo 0)" "notificação de progresso aparece — $NOTIF"
 adb exec-out screencap -p >"$SAIDA/1-baixando.png"

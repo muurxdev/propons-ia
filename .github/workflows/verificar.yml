@@ -1,0 +1,25 @@
+name: Verificar
+
+# Em todo pull request e push na main: monta a interface, roda os testes de lógica, o ESLint no JavaScript montado
+# e o shellcheck nos scripts. (A tag v* roda tudo isso também, dentro do "Compilar e publicar".)
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Lint, shellcheck e testes de lógica
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22 }
+      - run: node src/montar.js
+      - name: Testes de lógica
+        run: for f in src/testes/teste_*.js; do echo "== $f"; node "$f" || exit 1; done
+      - name: ESLint + shellcheck
+        run: bash ferramentas/verificar.sh

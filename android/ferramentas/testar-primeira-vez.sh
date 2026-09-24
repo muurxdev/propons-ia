@@ -14,12 +14,12 @@ if ! adb devices | grep -q emulator; then
   nohup emulator -avd propons -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 4096 -cores 4 >"$SAIDA/emulador.log" 2>&1 &
 fi
 adb wait-for-device
-for i in $(seq 1 180); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break; sleep 2; done
+for _ in $(seq 1 180); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break; sleep 2; done
 adb install -r -g "$APK" >/dev/null || exit 1
 adb shell pm clear $PKG >/dev/null                      # como instalação nova: sem modelo, sem configuração
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS 2>/dev/null
 adb shell am start -n $PKG/.MainActivity >/dev/null
-for i in $(seq 1 60); do PID=$(adb shell pidof $PKG | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
+for _ in $(seq 1 60); do PID=$(adb shell pidof $PKG | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
 sleep 4
 adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
 adb exec-out screencap -p >"$SAIDA/0-aberto.png"
@@ -30,7 +30,7 @@ if [ $R -eq 0 ]; then
   echo "== abertura fria"
   adb shell am force-stop $PKG; sleep 1
   adb shell am start -n $PKG/.MainActivity >/dev/null
-  for i in $(seq 1 60); do PID=$(adb shell pidof $PKG | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
+  for _ in $(seq 1 60); do PID=$(adb shell pidof $PKG | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
   sleep 3; adb forward tcp:9444 localabstract:webview_devtools_remote_$PID >/dev/null
   node "$RAIZ/src/testes/teste_frio.mjs" 9444 "$SAIDA" || R=1
 fi

@@ -44,7 +44,7 @@ function semLatex(src) {
         } else if (nome === 'left' || nome === 'right' || nome === 'big' || nome === 'Big' || nome === 'bigl' || nome === 'bigr' || nome === 'displaystyle') {
           if (t[i] === '.') i++; // \left. = delimitador vazio
         } else if (nome === 'begin' || nome === 'end') {
-          let a; [a, i] = grupo(t, i); // ambientes: ignora o nome
+          [, i] = grupo(t, i); // ambientes: ignora o nome
         } else out += CMD[nome] !== undefined ? CMD[nome] : nome;
       } else if (c === '_' || c === '^') {
         let a; [a, i] = grupo(t, i + 1); const A = conv(a);

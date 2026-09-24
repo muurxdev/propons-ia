@@ -3,7 +3,7 @@
 DADOS="$HOME/.local/share/propons-ia"
 T0=$(date +%s)
 setsid propons-ia >/tmp/propons-teste.log 2>&1 < /dev/null &
-for i in $(seq 1 600); do
+for _ in $(seq 1 600); do
   [ -f "$DADOS/motor.porta" ] && curl -sf "http://127.0.0.1:$(cat "$DADOS/motor.porta")/health" >/dev/null && break
   sleep 1
 done

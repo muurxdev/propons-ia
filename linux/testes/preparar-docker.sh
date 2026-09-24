@@ -10,5 +10,5 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 if ! /usr/bin/docker info >/dev/null 2>&1; then
   systemctl start docker >/dev/null 2>&1 || { nohup /usr/bin/dockerd >/var/log/dockerd.log 2>&1 & }
 fi
-for i in $(seq 1 40); do /usr/bin/docker info >/dev/null 2>&1 && break; sleep 2; done
+for _ in $(seq 1 40); do /usr/bin/docker info >/dev/null 2>&1 && break; sleep 2; done
 /usr/bin/docker version --format 'docker {{.Server.Version}}' 2>&1 | tail -2

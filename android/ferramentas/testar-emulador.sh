@@ -29,7 +29,7 @@ if ! adb devices | grep -q emulator; then
   nohup emulator -avd propons -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory "${EMU_MEM:-4096}" -cores 4 >"$SAIDA/emulador.log" 2>&1 &
 fi
 timeout 300 adb wait-for-device || { echo "emulador não apareceu em 5 min"; tail -30 "$SAIDA/emulador.log"; exit 1; }
-BOOT=0; for i in $(seq 1 240); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && { BOOT=1; break; }; sleep 2; done
+BOOT=0; for _ in $(seq 1 240); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && { BOOT=1; break; }; sleep 2; done
 [ $BOOT = 1 ] || { echo "emulador não terminou de ligar em 8 min"; tail -30 "$SAIDA/emulador.log"; exit 1; }
 echo "android $(adb shell getprop ro.build.version.release | tr -d '\r') pronto"
 adb shell settings put global window_animation_scale 0; adb shell settings put global transition_animation_scale 0
@@ -49,7 +49,7 @@ fi
 adb shell am start -n $PKG/.MainActivity --ez ligar true >/dev/null
 # espera a IA ficar pronta (motor respondendo dentro do celular)
 PRONTO=0; PORTA=8765
-for i in $(seq 1 600); do
+for _ in $(seq 1 600); do
   if adb shell "run-as $PKG sh -c 'ls files/modelos 2>/dev/null'" 2>/dev/null | grep -q '\.gguf$'; then
     # o motor usa a primeira porta livre a partir de 8765 (a anterior pode estar em TIME_WAIT)
     for PORTA in 8765 8766 8767 8768; do

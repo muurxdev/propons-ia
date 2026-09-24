@@ -21,7 +21,7 @@ jobs:
     name: Versão consistente
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: VERSAO == tag == 6 arquivos == topo do novidades.md
         run: node ferramentas/versao.js --check ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
 
@@ -30,17 +30,19 @@ jobs:
     needs: versao
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
       - run: node src/montar.js
       - name: Testes de lógica (algoritmos, markdown, latex…)
         run: for f in src/testes/teste_*.js; do echo "== $f"; node "$f" || exit 1; done
+      - name: ESLint no JavaScript montado + shellcheck nos scripts
+        run: bash ferramentas/verificar.sh
       - name: Sintaxe do script da página
         run: node -e "const h=require('fs').readFileSync('payload/interface/index.html','utf8');require('fs').writeFileSync('/tmp/p.js',[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n'))" && node --check /tmp/p.js
       - name: Hash da interface (sem \r, para bater com o checkout CRLF do Windows)
         run: node -e "const c=require('crypto');console.log(c.createHash('sha256').update(require('fs').readFileSync('payload/interface/index.html','utf8').replace(/\r/g,'')).digest('hex'))" | tee payload/interface/index.html.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: interface, path: payload/interface/ }
 
   windows:
@@ -49,14 +51,14 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with: { path: "payload/motor\npayload/voz\napp/Microsoft.Web.WebView2.*.dll\npayload/WebView2Loader.dll", key: "terceiros-windows-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - run: powershell -ExecutionPolicy Bypass -File build.ps1
       - name: A interface embutida é a mesma que foi testada
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with: { name: interface, path: interface-testada }
       - run: node -e "const c=require('crypto');const h=c.createHash('sha256').update(require('fs').readFileSync('payload/interface/index.html','utf8').replace(/\r/g,'')).digest('hex');const t=require('fs').readFileSync('interface-testada/index.html.sha256','utf8').trim();if(h!==t){console.error('index.html diferente do testado',h,t);process.exit(1)}console.log('interface igual à testada')"
       - run: Copy-Item -LiteralPath "dist\Pr$([char]0xF3)pons IA.exe" -Destination dist\Propons-IA-Windows.exe
@@ -75,14 +77,14 @@ jobs:
           # sem --leve: forçar o modelo pula justamente a abertura fria que queremos testar
           $p = Start-Process -FilePath "dist\Propons-IA-Windows.exe" -PassThru
           try { node src/testes/teste_frio.mjs 9333 dist/teste-frio } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: teste-windows
           path: |
             dist/teste-windows/
             dist/teste-frio/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: windows, path: dist/Propons-IA-Windows.exe }
 
   linux:
@@ -91,16 +93,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with: { path: linux/vendor, key: "terceiros-linux-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq rpm dpkg-dev
       - run: bash linux/build.sh
       - name: Instalar e verificar em 4 distros (Docker)
         run: sudo FILTRO="Ubuntu 24.04,Debian 12,Fedora 43,Arch" bash linux/testes/testar-distros.sh | tee dist/linux/testes-distros.txt; grep -q FALHOU dist/linux/testes-distros.txt && exit 1 || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: linux, path: dist/linux/ }
 
   android:
@@ -108,14 +110,14 @@ jobs:
     needs: testes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with: { distribution: temurin, java-version: 17 }
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
         with: { gradle-version: '8.11.1' }
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with: { path: linux/vendor, key: "terceiros-android-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - name: Chave de assinatura (segredo do GitHub)
         env:
@@ -137,7 +139,7 @@ jobs:
           A="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
           "$A" verify --print-certs dist/android/Propons-IA-Android.apk | tee /tmp/cert.txt
           grep -qi "SHA-256 digest: c0adede8f1b5a286b98057bccb8866a4de98bd40b8c73aa6becfc6008e0a26ae" /tmp/cert.txt || { echo "APK assinado com outra chave!"; exit 1; }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: android, path: dist/android/Propons-IA-Android.apk }
 
   android-emulador:
@@ -147,14 +149,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with: { distribution: temurin, java-version: 17 }
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
         with: { gradle-version: '8.11.1' }
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with: { path: linux/vendor, key: "terceiros-android-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - name: Liberar KVM
         run: |
@@ -164,7 +166,7 @@ jobs:
         env: { GRADLE: gradle }
       - run: bash android/ferramentas/testar-emulador.sh "$PWD/dist/teste-android"
         env: { GRADLE: gradle }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with: { name: teste-android, path: dist/teste-android/ }
 
@@ -173,10 +175,10 @@ jobs:
     needs: testes
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with: { path: linux/vendor, key: "terceiros-ios-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - run: brew install xcodegen
       - run: bash ios/preparar.sh
@@ -195,7 +197,7 @@ jobs:
           zip -qry ../Propons-IA-iOS.ipa Payload
           ls -la ../Propons-IA-iOS.ipa
       - run: node ferramentas/gerar-fonte-altstore.js Propons-IA-iOS.ipa altstore-source.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: ios, path: "Propons-IA-iOS.ipa\naltstore-source.json" }
 
   mac:
@@ -204,16 +206,16 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with: { path: linux/vendor, key: "terceiros-mac-${{ hashFiles('ferramentas/terceiros.sums') }}" }
       - name: Compilar o app (Apple Silicon + Intel, motor, voz)
         run: bash mac/compilar.sh
       - name: Autoteste (abre o app, baixa o modelo Leve, responde e roda o Diagnóstico)
         run: bash mac/autoteste.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: mac, path: dist/mac/Propons-IA-Mac.zip }
 
   publicar:
@@ -222,8 +224,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with: { path: arte, merge-multiple: true }
       - name: Conferir e somar
         run: |

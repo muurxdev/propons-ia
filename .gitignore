@@ -55,3 +55,4 @@ dados/
 # builds e releases soltos na raiz
 /*.exe
 release-*/
+ferramentas/lint/node_modules/

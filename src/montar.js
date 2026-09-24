@@ -30,3 +30,10 @@ fs.copyFileSync(path.join(S, 'conhecimento.md'), path.join(OUT, 'conhecimento.md
 // as mesmas bibliotecas também como arquivos servidos pelo motor (o WebView do Android não importa módulos por blob)
 for (const f of ['pdf.min.mjs', 'pdf.worker.min.mjs', 'mammoth.browser.min.js']) fs.copyFileSync(path.join(S, 'vendor', f), path.join(OUT, f));
 console.log(`interface ${VERSAO}: index.html ${html.length} bytes`);
+// --bundle <arquivo>: grava só o JavaScript da página (para o lint do CI)
+const iB = process.argv.indexOf('--bundle');
+if (iB > 0) {
+  const js = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n;\n');
+  fs.mkdirSync(path.dirname(path.resolve(process.argv[iB + 1])), { recursive: true });
+  fs.writeFileSync(process.argv[iB + 1], js);
+}

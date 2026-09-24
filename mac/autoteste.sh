@@ -7,7 +7,7 @@ APP="$RAIZ/dist/mac/Própons IA.app"
 SAIDA="$RAIZ/dist/mac/autoteste.json"; rm -f "$SAIDA"
 PROPONS_AUTOTESTE="$SAIDA" PROPONS_MODELO=leve PROPONS_SEM_GPU="${PROPONS_SEM_GPU:-1}" "$APP/Contents/MacOS/ProponsIA" &
 PID=$!
-for i in $(seq 1 900); do [ -f "$SAIDA" ] && break; kill -0 $PID 2>/dev/null || break; sleep 1; done
+for _ in $(seq 1 900); do [ -f "$SAIDA" ] && break; kill -0 $PID 2>/dev/null || break; sleep 1; done
 sleep 2; kill $PID 2>/dev/null
 [ -f "$SAIDA" ] || { echo "o app não gravou o resultado"; tail -40 "$HOME/Library/Application Support/Propons IA/motor.log" 2>/dev/null; exit 1; }
 node -e '
