@@ -303,7 +303,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 // 1.20: ajustes pedidos — "+" no canto, esforço por modelo, clicar liga (sem "Usar"), sem popup ao escolher modo
 {
   const ordem = await js(`[...document.querySelectorAll('.linha > *')].map(e => e.id || e.className)`);
-  ok('caixa organizada: "+" e o modelo à esquerda; microfone e enviar à direita', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[ordem.length-3] === 'espaco' && ordem[ordem.length-2] === 'falar' && ordem[ordem.length-1] === 'enviar', JSON.stringify(ordem));
+  ok('caixa organizada: "+" e o modelo à esquerda; contexto, microfone e enviar à direita', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[ordem.length-4] === 'espaco' && ordem[ordem.length-3] === 'medidorCtx' && ordem[ordem.length-2] === 'falar' && ordem[ordem.length-1] === 'enviar', JSON.stringify(ordem));
   await js(`abrirSeletorModelo(); 1`); await espera(1000);
   const lm = await js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b => ({ nome: b.querySelector('b').textContent, esf: (b.querySelector('b .pill')||{}).textContent || '', st: b.querySelector('.st').textContent.trim() }))`);
   ok('a lista de modelos não repete o nível de esforço (nem botão "Usar")', lm.every(x => !x.esf) && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));

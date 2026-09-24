@@ -56,8 +56,8 @@ const ESQ_AGENTE = { type: 'object', properties: {
   acoes: { type: 'array', maxItems: 6, items: { type: 'object', properties: {
     tipo: { type: 'string', enum: ['ler', 'criar', 'escrever', 'apagar'] }, arquivo: { type: 'string' }, conteudo: { type: 'string' },
   }, required: ['tipo', 'arquivo'], additionalProperties: false } } }, required: ['resposta', 'acoes'], additionalProperties: false };
-const TEM_PASTA = typeof window.showDirectoryPicker === 'function' || !!PLATAFORMA.temPastaNativa;
-let pastaNativa = false;   // no celular quem guarda a pasta é o próprio aparelho (SAF)
+// a Área de código é só do computador (Windows, Mac, Linux): a pasta vem do seletor de pastas do navegador
+const TEM_PASTA = typeof window.showDirectoryPicker === 'function';
 const MAX_ARQS = 400, MAX_LER = 60000;
 let pastaRaiz = null;      // FileSystemDirectoryHandle da pasta aberta
 let pastaNome = '';
@@ -68,11 +68,6 @@ const idbPasta = {
   async por(k, v) { const db = await this.abrir(); try { return await new Promise((ok, falha) => { const t = db.transaction('kv', 'readwrite'); const s = t.objectStore('kv'); const p = v === undefined ? s.get(k) : s.put(v, k); p.onsuccess = () => ok(p.result); t.onerror = () => falha(t.error); }); } finally { db.close(); } },
 };
 async function restaurarPasta() {
-  if (PLATAFORMA.temPastaNativa) {
-    if (pastaNativa) return;
-    try { const r = await PLATAFORMA.pastaInfo(); if (r && r.nome) { pastaNativa = true; pastaNome = r.nome; cacheArqs = null; } } catch (e) {}
-    return;
-  }
   if (!TEM_PASTA || pastaRaiz) return;
   try {
     const h = await idbPasta.por('pasta'); if (!h) return;
@@ -81,13 +76,6 @@ async function restaurarPasta() {
   } catch (e) {}
 }
 async function escolherPasta() {
-  if (PLATAFORMA.temPastaNativa) {
-    try {
-      const r = await PLATAFORMA.abrirPasta();
-      if (!r || !r.nome) return false;
-      pastaNativa = true; pastaNome = r.nome; cacheArqs = null; return true;
-    } catch (e) { toast('Não consegui abrir a pasta: ' + e.message, 4000); return false; }
-  }
   try {
     const h = await window.showDirectoryPicker({ mode: 'readwrite', id: 'propons-codigo' });
     if ((await h.requestPermission({ mode: 'readwrite' })) !== 'granted') { toast('Sem permissão para essa pasta.'); return false; }
@@ -99,12 +87,8 @@ const IGNORAR = /^(node_modules|\.git|dist|build|out|__pycache__|venv|\.venv|tar
 const TEXTO_CODIGO = /\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|ya?ml|toml|ini|cfg|conf|sh|bash|ps1|bat|lua|r|dart|vue|svelte|env|gitignore|csv)$/i;
 // arquivos da pasta aberta (recursivo, só texto/código) ou da área interna
 const arqs = {
-  get origem() { return (pastaRaiz || pastaNativa) ? 'pasta' : 'interno'; },
+  get origem() { return pastaRaiz ? 'pasta' : 'interno'; },
   async listar(recarregar) {
-    if (pastaNativa) {
-      if (cacheArqs && !recarregar) return cacheArqs;
-      try { return cacheArqs = (await PLATAFORMA.listarPasta()) || []; } catch (e) { toast('Não consegui ler a pasta: ' + e.message, 4000); return cacheArqs = []; }
-    }
     if (!pastaRaiz) return projeto().arquivos.map(a => ({ nome: a.nome, tam: new Blob([a.conteudo]).size }));
     if (cacheArqs && !recarregar) return cacheArqs;
     const saida = [];
@@ -129,13 +113,11 @@ const arqs = {
     return { dir, nome: partes[partes.length - 1] };
   },
   async ler(caminho) {
-    if (pastaNativa) return PLATAFORMA.lerArquivoPasta(caminho);
     if (!pastaRaiz) { const a = arqDoProjeto(projeto(), caminho); if (!a) throw new Error('não existe'); return a.conteudo; }
     const { dir, nome } = await this.handle(caminho);
     return (await (await dir.getFileHandle(nome)).getFile()).text();
   },
   async gravar(caminho, conteudo) {
-    if (pastaNativa) { await PLATAFORMA.gravarArquivoPasta(caminho, String(conteudo)); cacheArqs = null; return; }
     if (!pastaRaiz) {   // área do app: sobrescreve o arquivo com esse nome (guardarNoProjeto renomeia para não colidir)
       const p = projeto(), a = arqDoProjeto(p, caminho);
       if (a) a.conteudo = String(conteudo).slice(0, LIMITE_CODIGO);
@@ -149,7 +131,6 @@ const arqs = {
     cacheArqs = null;
   },
   async apagar(caminho) {
-    if (pastaNativa) { await PLATAFORMA.apagarArquivoPasta(caminho); cacheArqs = null; return; }
     if (!pastaRaiz) { const p = projeto(); p.arquivos = p.arquivos.filter(a => a.nome !== caminho); salvarProjeto(p); return; }
     const { dir, nome } = await this.handle(caminho); await dir.removeEntry(nome); cacheArqs = null;
   },
@@ -247,7 +228,7 @@ function telaCodigo(alvoTela) {
   const desenharTopo = async () => {
     const barra = cod.querySelector('.cod-topo'), lista = await arqs.listar(), ch = codigoChat();
     const nSes = codigoSessoes().filter(s => s.msgs && s.msgs.length).length;
-    barra.innerHTML = `${TEM_PASTA ? `<button class="cod-chip" data-pasta title="Escolher a pasta do aparelho">${ICO.pasta}<b>${(pastaRaiz || pastaNativa) ? esc(pastaNome) : pastaNome ? 'Reabrir ' + esc(pastaNome) : 'Abrir pasta'}</b></button>`
+    barra.innerHTML = `${TEM_PASTA ? `<button class="cod-chip" data-pasta title="Escolher a pasta do aparelho">${ICO.pasta}<b>${pastaRaiz ? esc(pastaNome) : pastaNome ? 'Reabrir ' + esc(pastaNome) : 'Abrir pasta'}</b></button>`
         : `<span class="cod-chip fixo">${ICO.pasta}<b>Área do app</b></span>`}
       <button class="cod-tag" data-arquivos>${lista.length ? `${lista.length} ${lista.length === 1 ? 'arquivo' : 'arquivos'}` : 'nenhum arquivo'}</button>
       <span class="cod-espaco"></span>

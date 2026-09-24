@@ -1,0 +1,97 @@
+// Teste no app real: arquivo longo por trechos, resumo por partes, contagem de tokens de verdade e a bolinha de contexto.
+// Uso: node src/testes/teste_contexto.mjs <porta-cdp> <pasta-saida> [--rapido]   (--rapido pula o resumo por partes)
+import { conectar, espera, relatorio } from './cdp.mjs';
+const [porta = 9333, saida = 'dist/teste-contexto'] = process.argv.slice(2);
+const rapido = process.argv.includes('--rapido');
+const { ok, resumo } = relatorio();
+const { js, foto, ate } = await conectar({ porta, saida });
+if (!(await ate('online', 300000))) { ok('IA ligada', false); resumo(); }
+console.log('   memória da IA:', await js('nCtx'), 'tokens · modelo:', await js(`$('#nomeModelo').textContent`));
+
+// documento de 120 páginas com fatos no meio e no fim (o mesmo tipo do teste_busca.js)
+await js(`(() => {
+  const F = ['A revolução industrial transformou a produção e as relações de trabalho nas cidades europeias.',
+    'Na biologia, a célula é a unidade básica da vida e realiza funções como respiração e síntese de proteínas.',
+    'O estudo das funções do primeiro grau envolve coeficiente angular, coeficiente linear e gráficos.',
+    'A redação dissertativa argumentativa exige tese clara, argumentos consistentes e proposta de intervenção.',
+    'Em química, as ligações iônicas ocorrem entre metais e ametais pela transferência de elétrons.',
+    'Na física, a segunda lei de Newton relaciona força resultante, massa e aceleração.'];
+  const fatos = { 52: 'A cidade fictícia de Vale Serrano foi fundada em 1873 por tropeiros que cruzavam a serra.', 111: 'O poeta Eurico Valadares publicou o livro Marés de Ferro em 1932.' };
+  const pags = []; for (let p = 1; p <= 120; p++) { const f = []; for (let i = 0; i < 14; i++) f.push(F[(p * 7 + i * 3) % F.length]); if (fatos[p]) f.splice(5, 0, fatos[p]); pags.push('— página ' + p + ' —\\n' + f.join(' ')); }
+  window.__doc = pags.join('\\n\\n');
+  // guarda o que vai para a IA em cada pedido
+  window.__pedidos = []; const g = PLATAFORMA.gerar; PLATAFORMA.gerar = (m, op, a, s) => { window.__pedidos.push(m); return g(m, op, a, s); };
+  return 1; })()`);
+
+// 1) a bolinha está na caixa
+await js('nova(); 1'); await espera(400);
+ok('bolinha de contexto ao lado do microfone', await js(`(() => { const b = $('#medidorCtx'), f = $('#falar'); return !!b && b.offsetWidth > 0 && b.nextElementSibling === f; })()`));
+
+// 2) pergunta sobre o meio do arquivo: vão os trechos com a página certa, não o começo
+await js(`anexos = [{ nome: 'apostila.pdf', tam: 400000, lang: 'texto', conteudo: window.__doc, paginas: 120 }]; desenharChips(); $('#entrada').value = 'Em que ano Vale Serrano foi fundada?'; ajustar(); 1`);
+await espera(400);
+ok('anexo ainda não enviado aparece na bolinha', (await js(`usoAgora().partes.find(p => p[0].startsWith('Anexos'))[1]`)) > 0);
+await js(`$('#enviar').click(); 1`);
+await ate('!geracao && atual && atual.msgs.length >= 2', 240000);
+const ult = await js('atual.msgs[atual.msgs.length - 1]');
+const pedido = await js(`(() => { const m = window.__pedidos[window.__pedidos.length - 1]; const u = m[m.length - 1]; return typeof u.content === 'string' ? u.content : ''; })()`);
+ok('o pedido leva a página 52 (o fato está no meio do arquivo)', /— página 52 —/.test(pedido) && /Vale Serrano/.test(pedido), pedido.length + ' caracteres');
+ok('o pedido não leva o arquivo inteiro', pedido.length < (await js('window.__doc.length')) / 2);
+ok('a resposta traz o ano certo (1873)', /1873/.test(ult.texto || ''), ult.texto);
+await foto('c1-trechos');
+
+// 3) pergunta seguinte, sem anexar de novo: o arquivo da conversa continua consultável
+await js(`$('#entrada').value = 'E quem publicou Marés de Ferro?'; ajustar(); $('#enviar').click(); 1`);
+await ate('!geracao && atual.msgs.length >= 4', 240000);
+const ped2 = await js(`(() => { const m = window.__pedidos[window.__pedidos.length - 1]; return m[m.length - 1].content; })()`);
+ok('arquivo enviado antes continua consultável (página 111 nos trechos)', /— página 111 —/.test(ped2));
+ok('a resposta traz o poeta (Eurico Valadares)', /Eurico|Valadares/.test(await js('atual.msgs[atual.msgs.length - 1].texto')), await js('atual.msgs[atual.msgs.length - 1].texto'));
+
+// 4) contagem de tokens: o que o app calculou bate com o prompt de verdade (apply-template + tokenize)
+const cmp = await js(`(async () => {
+  const base = location.protocol.startsWith('http') && location.hostname !== 'propons.local' ? '' : 'http://127.0.0.1:8765';
+  const cab = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + PLATAFORMA.chave };
+  const difs = [];
+  for (const c of conversas.filter(c => c.msgs.some(m => !m.interno && m.role === 'user')).slice(0, 20)) {
+    const S = SYSTEM + textoMemoria() + textoResumo(c), h = montarHistorico(c, 1500, S);
+    await medirTokens([S, ...textosDe(h)]);
+    const h2 = montarHistorico(c, 1500, S), calc = h2.uso.sistema + h2.uso.historico + h2.uso.anexos;
+    const t = await (await fetch(base + '/apply-template', { method: 'POST', headers: cab, body: JSON.stringify({ messages: [{ role: 'system', content: S }, ...h2.map(x => typeof x.content === 'string' ? x : { role: x.role, content: x.content.filter(p => p.type === 'text').map(p => p.text).join('\\n') })] }) })).json();
+    const n = await PLATAFORMA.contarTokens(t.prompt);
+    difs.push(Math.abs(calc - n) / n);
+  }
+  return { n: difs.length, pior: Math.max(...difs), media: difs.reduce((a, b) => a + b, 0) / difs.length };
+})()`);
+ok('orçamento calculado × prompt real em ' + cmp.n + ' conversas: diferença < 5 %', cmp.n >= 5 && cmp.pior < 0.05, `pior ${(cmp.pior * 100).toFixed(1)}% · média ${(cmp.media * 100).toFixed(1)}%`);
+
+// 5) a folha "Contexto": as partes somam o total mostrado e há o botão de compactar
+await js(`$('#medidorCtx').click(); 1`); await espera(700);
+const folha = await js(`(() => { const f = document.querySelector('.dlg.contexto'); if (!f) return null; const nums = [...f.querySelectorAll('.ctx-lista li:not(.res) b')].map(b => +b.textContent.replace(/\\D/g, '')); return { itens: [...f.querySelectorAll('.ctx-lista li span')].map(s => s.textContent), soma: nums.reduce((a, b) => a + b, 0), cab: nCtx - usoAgora().reserva, botao: !!f.querySelector('[data-compactar]'), consulta: /apostila.pdf continua consultável/.test(f.textContent) }; })()`);
+ok('folha Contexto abre com as partes e diz que o arquivo continua consultável', !!folha && folha.itens.includes('Conversa') && folha.itens.includes('Livre') && folha.consulta, folha && folha.itens.join(', '));
+ok('partes + livre = memória disponível para a conversa', folha && Math.abs(folha.soma - folha.cab) <= 2, folha && `${folha.soma} × ${folha.cab}`);
+ok('botão "Compactar conversa"', folha && folha.botao);
+await foto('c2-folha');
+await js('fecharDialogo && fecharDialogo(); document.querySelectorAll(".dlg-fundo").forEach(f => f.remove()); 1');
+
+// 6) compactar: as mensagens antigas viram um resumo e saem da memória (continuam na tela)
+await js(`(() => { for (let i = 0; i < 4; i++) atual.msgs.push({ role: 'user', texto: 'Pergunta de enchimento ' + i + ' sobre fotossíntese.', llm: 'Pergunta de enchimento ' + i + ' sobre fotossíntese.' }, { role: 'assistant', texto: 'Resposta curta ' + i + ': a fotossíntese usa luz, água e gás carbônico.', llm: 'Resposta curta ' + i }); salvar(); abrir(atual.id); return 1; })()`);
+const antes = await js('montarHistorico(atual, 1500, SYSTEM).length');
+const deu = await js('compactarConversa(atual)');
+ok('compactar gera o resumo', deu && (await js('!!atual.resumo')), await js('(atual.resumo || "").slice(0, 120)'));
+ok('compactadas saem da memória da IA mas continuam na tela', (await js('montarHistorico(atual, 1500, SYSTEM).length')) < antes && (await js('document.querySelectorAll("#conversa .msg.eu").length')) >= 6);
+
+// 7) resumo por partes ("resuma o arquivo"): lê o arquivo inteiro em blocos
+if (!rapido) {
+  await js(`nova(); anexos = [{ nome: 'apostila.pdf', tam: 400000, lang: 'texto', conteudo: window.__doc, paginas: 120 }]; desenharChips(); $('#entrada').value = 'Resuma o arquivo'; ajustar(); $('#enviar').click(); 1`);
+  const viuPasso = await ate(`/Lendo apostila\\.pdf/.test((document.querySelector('.busca-passo') || {}).textContent || '')`, 60000, 200);
+  ok('mostra o passo "Lendo apostila.pdf: páginas…"', viuPasso);
+  await foto('c3-lendo');
+  await ate('!geracao && atual.msgs.length >= 2', 900000, 1000);
+  const partes = await js('(atual.msgs[0].anexos[0].resumos || []).length');
+  ok('o arquivo foi resumido em várias partes', partes >= 2, partes + ' partes');
+  const pr = await js(`(() => { const m = window.__pedidos[window.__pedidos.length - 1]; return m[m.length - 1].content; })()`);
+  ok('a resposta final usa os resumos das partes', /Páginas \d+–\d+:/.test(pr));
+  ok('resposta final não vazia', ((await js('atual.msgs[atual.msgs.length - 1].texto')) || '').length > 80);
+  await foto('c4-resumo');
+}
+resumo();

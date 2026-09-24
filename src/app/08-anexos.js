@@ -5,7 +5,7 @@ function desenharChips() {
   const rm = c.querySelector('[data-rm-modo]'); if (rm) rm.onclick = () => definirModo(null);
   c.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => { e.stopPropagation(); anexos = anexos.filter(a => a.nome !== b.dataset.rm); desenharChips(); ajustar(); });
   ligarVerAnexos(c, anexos, true);
-  ajustar();
+  ajustar(); atualizarMedidor();
 }
 // foto → JPEG reduzido (lado maior até 1024 px) para a IA + miniatura para o histórico
 async function prepararFoto(f) {
@@ -108,9 +108,9 @@ async function adicionarArquivos(lista) {
       try { d = ePdf ? await comLimite(extrairPdf(f), 120000, 'a leitura do PDF') : await comLimite(extrairDocx(f), 60000, 'a leitura do documento'); }
       catch (e) { toast(`Não consegui ler "${f.name}"${/password|senha|encrypt/i.test(e.message || '') ? ' (tem senha)' : ''}.`, 4000); continue; }
       if (!d.texto.trim()) { toast(ePdf ? `"${f.name}" não tem texto (pode ser só imagem — mande as páginas como fotos).` : `"${f.name}" está vazio.`, 4500); continue; }
-      // quanto cabe na memória da IA nesta conversa (o resto é cortado ao enviar)
-      const cabe = Math.max(1200, nCtx - estimar(SYSTEM) - 3000 - 300), tokens = estimar(d.texto);
-      if (tokens > cabe) toast(`"${f.name}"${d.paginas ? ` (${d.paginas} páginas)` : ''} é longo: a IA lê cerca de ${Math.round(100 * cabe / tokens)}% dele nesta conversa. Pergunte sobre partes específicas ou mande um trecho.`, 6000);
+      // arquivo maior que a memória da IA: vai por trechos ligados a cada pergunta (src/busca.js), não só o começo
+      const cabe = Math.max(1200, nCtx - tokens(SYSTEM) - Math.min(3000, Math.floor(nCtx * 0.45)) - 300);
+      if (tokens(d.texto) > cabe) toast(`"${f.name}"${d.paginas ? ` (${d.paginas} páginas)` : ''} é maior que a memória da IA: a cada pergunta ela lê os trechos ligados ao que você perguntou. Para uma visão geral, peça "resuma o arquivo".${d.cortado ? ` (Usei as primeiras ${MAX_PAGINAS} páginas.)` : ''}`, 7000);
       else if (d.cortado) toast(`"${f.name}": usei as primeiras ${MAX_PAGINAS} páginas.`, 4000);
       anexos.push({ nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto, paginas: d.paginas });
       guardarNaBiblioteca({ tipo: 'arquivo', nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto });

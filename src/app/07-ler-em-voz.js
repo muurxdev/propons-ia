@@ -90,7 +90,8 @@ function enfeitar(el) {
     const b = document.createElement('button'); b.className = 'copiar'; b.innerHTML = ICO.copiar + '<span>Copiar</span>';
     b.onclick = () => copiarTexto(p.querySelector('code').innerText).then(() => { b.lastChild.textContent = 'Copiado'; setTimeout(() => b.lastChild.textContent = 'Copiar', 1200); });
     p.appendChild(b);
-    // guardar o bloco na área de código (dá para editar e pedir mudanças lá)
+    // guardar o bloco na área de código (dá para editar e pedir mudanças lá); a área de código é só do computador
+    if (CELULAR) return;
     const g = document.createElement('button'); g.className = 'copiar guardar'; g.innerHTML = ICO.codigo + '<span>Guardar</span>';
     g.onclick = () => { const lang = (p.dataset.lang || '').toLowerCase(), ext = ({ python: 'py', javascript: 'js', typescript: 'ts', 'c/c++': 'c', c: 'c', 'c#': 'cs', java: 'java', kotlin: 'kt', html: 'html', css: 'css', json: 'json', sql: 'sql', bash: 'sh', go: 'go', rust: 'rs', php: 'php', ruby: 'rb', swift: 'swift' })[lang] || 'txt'; guardarNoProjeto('codigo.' + ext, p.querySelector('code').innerText, true); abrirTela('codigo'); };
     p.appendChild(g);

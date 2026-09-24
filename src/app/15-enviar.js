@@ -4,29 +4,107 @@ const INVENTA = /[\[(]\s*-?\d+\s*,\s*-?\d+\s*,/;
 // contas e matemática: temperatura baixa (resposta quase determinística), como em código
 const PEDE_EXATO = /\d\s*[-+*/^×÷=]\s*\d|\b(?:calcule|calcula|resolva|resolve|some|multiplique|divida|derivada|integral|equa[çc][ãa]o|fra[çc][ãa]o|porcentagem|raiz quadrada|matriz|logaritmo|quanto [ée]|quantos? (?:s[ãa]o|d[áa]))\b/i;
 
-function montarHistorico(conv, maxTokens, extra) {
-  const orcamento = Math.max(1200, nCtx - estimar(SYSTEM) - maxTokens - 300);
-  const msgs = conv.msgs.filter(m => !m.interno);
-  const saida = []; let usado = 0;
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    const m = msgs[i];
-    let conteudo = m.llm || m.texto;
-    const fotos = m.imagens && m.imagens.length;
-    if (fotos && !(i === msgs.length - 1 && m._envio)) conteudo += `\n[${fotos === 1 ? 'uma foto foi enviada' : fotos + ' fotos foram enviadas'} nesta mensagem]`;
-    const custo = estimar(conteudo) + (fotos && i === msgs.length - 1 && m._envio ? TOKENS_FOTO * fotos : 0);
-    if (usado + custo > orcamento) {
-      if (i === msgs.length - 1) conteudo = conteudo.slice(0, Math.floor((orcamento - usado) * 3.2)) + '\n[…texto cortado por ser longo demais]';
-      else if (m.anexos && m.anexos.length) conteudo = m.texto + `\n[anexos anteriores omitidos: ${m.anexos.map(a => a.nome).join(', ')}]`;
-      else break;
-      if (usado + estimar(conteudo) > orcamento) break;
+/* tokens de verdade: o tokenizador do próprio modelo (/tokenize) mede cada texto uma vez; antes disso (ou no iOS) vale a
+   estimativa por caracteres. Tudo que decide o que cabe na memória da IA passa por tokens(). */
+const medidos = new Map();
+const chaveTexto = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return s.length + ':' + (h >>> 0); };
+const tokens = s => { s = s || ''; if (s.length < 40) return estimar(s); const v = medidos.get(chaveTexto(s)); return v != null ? v : estimar(s); };
+async function medirTokens(textos) {
+  for (const s of textos) {
+    if (!s || s.length < 40) continue;
+    const k = chaveTexto(s); if (medidos.has(k)) continue;
+    const n = await PLATAFORMA.contarTokens(s); if (n == null) return;   // motor sem /tokenize: fica a estimativa
+    medidos.set(k, n); if (medidos.size > 500) medidos.delete(medidos.keys().next().value);
+  }
+}
+// quantos caracteres deste texto cabem em tk tokens (pela proporção medida do próprio texto)
+const charsPara = (s, tk) => Math.max(0, Math.floor(tk * s.length / Math.max(1, tokens(s))));
+const POR_MENSAGEM = 6;   // marcas do modelo de chat em volta de cada mensagem
+
+// "resuma o PDF", "do que trata o arquivo": o documento inteiro é lido por partes e cada parte vira um resumo
+const PEDIDO_GERAL = /\b(?:resum\w*|sintetiz\w*|do que (?:se )?trata|sobre o que (?:[ée]|fala)|principais (?:pontos|ideias|t[óo]picos|assuntos)|(?:explique|analise|leia) (?:o|a|este|esse|esta|essa) (?:pdf|arquivo|documento|texto|apostila|livro))\b/i;
+const docsDe = m => ((m && m.anexos) || []).filter(a => a.conteudo);
+
+// A última pergunta: arquivo que não cabe vira os trechos ligados à pergunta (src/busca.js) ou o resumo por partes;
+// arquivos mandados antes na conversa continuam consultáveis pelos trechos. Devolve o texto e quanto dele é de arquivo.
+function conteudoDaPergunta(m, anteriores, livre) {
+  const texto = m.llm || m.texto || '', docs = docsDe(m), pergunta = m.texto || '';
+  if (!docs.length) {
+    const antigos = [].concat(...anteriores.filter(x => x.role === 'user').map(docsDe)).filter(a => a.conteudo.length > 1500).slice(-3);
+    const cabe = Math.floor((livre - tokens(texto)) * 0.6);
+    if (!antigos.length || pergunta.trim().length < 8 || cabe < 300) return { texto, anexos: 0 };
+    const achados = antigos.map(a => { const r = BUSCA.trechosRelevantes(a.conteudo, pergunta, charsPara(a.conteudo, cabe / antigos.length)); return r && `Arquivo: ${a.nome}\n${r.texto}`; }).filter(Boolean);
+    if (!achados.length) return { texto, anexos: 0 };
+    const extra = '\n\n[Trechos dos arquivos enviados antes nesta conversa, ligados a esta pergunta]\n' + achados.join('\n\n');
+    return { texto: texto + extra, anexos: tokens(extra) };
+  }
+  const corte = texto.indexOf('\n\nArquivo anexado: ');
+  const cabeca = corte >= 0 ? texto.slice(0, corte) : texto;
+  if (tokens(texto) <= livre) return { texto, anexos: tokens(texto) - tokens(cabeca) };
+  const bloco = (a, corpo, nota) => `Arquivo anexado: ${a.nome}${nota ? ' ' + nota : ''}\n\`\`\`${a.lang}\n${corpo}\n\`\`\``;
+  const grandes = docs.filter(a => tokens(a.conteudo) > 600), pequenos = docs.filter(a => !grandes.includes(a));
+  const fixos = pequenos.map(a => bloco(a, a.conteudo));
+  const resto = livre - tokens(cabeca) - fixos.reduce((s, b) => s + tokens(b), 0) - 80 * grandes.length;
+  const cada = Math.max(200, Math.floor(resto / Math.max(1, grandes.length)));
+  const geral = PEDIDO_GERAL.test(pergunta) || !pergunta.trim() || !!m.modo;
+  const reduzidos = grandes.map(a => {
+    const tam = a.paginas ? `${a.paginas} páginas` : 'arquivo longo';
+    if (geral && a.resumos && a.resumos.length) {
+      const r = a.resumos.map(p => (p.de ? `Páginas ${p.de}–${p.ate}:` : 'Parte:') + '\n' + p.texto).join('\n\n');
+      return bloco(a, r.slice(0, charsPara(r, cada)), `(${tam}; o arquivo inteiro não cabe na memória: abaixo, o resumo de cada parte)`);
     }
-    usado += estimar(conteudo);
-    if (fotos && i === msgs.length - 1 && m._envio) { usado += TOKENS_FOTO * fotos; saida.unshift({ role: m.role, content: [{ type: 'text', text: conteudo }, ...m._envio.map(url => ({ type: 'image_url', image_url: { url } }))] }); }
+    const t = BUSCA.trechosRelevantes(a.conteudo, pergunta, charsPara(a.conteudo, cada));
+    if (t) return bloco(a, t.texto, `(${tam}; só os trechos ligados à pergunta cabem na memória${t.paginas.length ? ': páginas ' + t.paginas.join(', ') : ''})`);
+    return bloco(a, a.conteudo.slice(0, charsPara(a.conteudo, cada)) + '\n[…o resto do arquivo não coube]', `(${tam}; só o começo cabe na memória)`);
+  });
+  const final = cabeca + '\n\n' + fixos.concat(reduzidos).join('\n\n');
+  return { texto: final, anexos: tokens(final) - tokens(cabeca) };
+}
+
+// lê um arquivo longo por partes (blocos de páginas que cabem na memória) e resume cada uma: fica em a.resumos
+async function resumirEmPartes(a, aoPasso, sinal) {
+  const partes = BUSCA.blocos(a.conteudo, charsPara(a.conteudo, Math.max(1200, Math.floor(nCtx * 0.6) - 700))), feitos = [];
+  for (let i = 0; i < partes.length; i++) {
+    const p = partes[i];
+    aoPasso(partes.length > 1 ? `Lendo ${a.nome}: ${p.de ? `páginas ${p.de}–${p.ate}` : `parte ${i + 1}`} (${i + 1} de ${partes.length})` : `Lendo ${a.nome}`);
+    let r = '';
+    await PLATAFORMA.gerar([{ role: 'system', content: 'Resuma em português do Brasil, em até 12 linhas, este trecho de um documento: as ideias principais, definições, nomes, datas e números importantes. Escreva só o resumo.' },
+      { role: 'user', content: p.texto }], { temperatura: 0.2, exato: true, maxTokens: 500 }, t => { r += t; }, sinal);
+    feitos.push({ de: p.de, ate: p.ate, texto: r.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim() });
+  }
+  a.resumos = feitos;
+}
+
+// Monta o que vai para a IA dentro da memória dela (nCtx) e mede cada parte em .uso: a bolinha de contexto mostra isto.
+function montarHistorico(conv, maxTokens, sistema, extra) {
+  const reserva = maxTokens + 300, tkSistema = tokens(sistema || SYSTEM);
+  const orcamento = Math.max(1200, nCtx - tkSistema - reserva);
+  const msgs = conv.msgs.filter(m => !m.interno && !m.compactada);   // compactadas: viraram o resumo (conv.resumo)
+  const saida = []; let usado = 0, deArquivo = 0, omitidas = 0;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i], ultima = i === msgs.length - 1;
+    const fotos = m.imagens && m.imagens.length, fotosAgora = !!(fotos && ultima && m._envio), tkFotos = fotosAgora ? TOKENS_FOTO * fotos : 0;
+    let conteudo = m.llm || m.texto, doc = 0;
+    if (ultima && m.role === 'user') { const r = conteudoDaPergunta(m, msgs.slice(0, i), orcamento - tkFotos - POR_MENSAGEM); conteudo = r.texto; doc = r.anexos; }
+    else if (m.anexos && m.anexos.length) doc = Math.max(0, tokens(conteudo) - tokens(m.texto));
+    if (fotos && !fotosAgora) conteudo += `\n[${fotos === 1 ? 'uma foto foi enviada' : fotos + ' fotos foram enviadas'} nesta mensagem]`;
+    if (usado + tokens(conteudo) + POR_MENSAGEM + tkFotos > orcamento) {
+      if (ultima) { conteudo = conteudo.slice(0, charsPara(conteudo, orcamento - usado - POR_MENSAGEM - tkFotos)) + '\n[…texto cortado por ser longo demais]'; doc = Math.min(doc, tokens(conteudo)); }
+      else if (m.anexos && m.anexos.length) { conteudo = m.texto + `\n[anexos anteriores omitidos: ${m.anexos.map(a => a.nome).join(', ')}]`; doc = 0; }
+      else { omitidas = i + 1; break; }
+      if (usado + tokens(conteudo) + POR_MENSAGEM + tkFotos > orcamento) { omitidas = i + 1; break; }
+    }
+    usado += tokens(conteudo) + POR_MENSAGEM + tkFotos; deArquivo += doc + tkFotos;
+    if (fotosAgora) saida.unshift({ role: m.role, content: [{ type: 'text', text: conteudo }, ...m._envio.map(url => ({ type: 'image_url', image_url: { url } }))] });
     else saida.unshift({ role: m.role, content: conteudo });
   }
-  while (saida.length && saida[0].role !== 'user') saida.shift();   // começa sempre por uma pergunta
-  return extra ? saida.concat(extra) : saida;
+  while (saida.length && saida[0].role !== 'user') { const x = saida.shift(); usado -= tokens(x.content) + POR_MENSAGEM; omitidas++; }   // começa sempre por uma pergunta
+  const r = extra ? saida.concat(extra) : saida;
+  r.uso = { total: nCtx, sistema: tkSistema, historico: Math.max(0, usado - deArquivo), anexos: deArquivo, reserva, omitidas };
+  return r;
 }
+// o texto de cada mensagem montada (para medir com o tokenizador de verdade)
+const textosDe = h => h.map(x => typeof x.content === 'string' ? x.content : x.content.filter(c => c.type === 'text').map(c => c.text).join('\n'));
 
 function textoParaModelo(texto, lista) {
   if (!lista.length) return texto;
@@ -137,12 +215,14 @@ async function responder(conv, continuacao) {
   }
 
   const nivel = esforco();
-  const maxTokens = pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500;   // pensar gasta tokens do raciocínio
+  // pensar gasta tokens do raciocínio; a reserva nunca passa de 45 % da memória da IA (no celular ela é menor)
+  const maxTokens = Math.min(pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500, Math.floor(nCtx * 0.45));
   let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
-    : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '');
-  let fontes = null;   // a busca em si roda depois de a resposta aparecer na conversa
+    : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '')
+    + textoResumo(conv);
+  let fontes = null, blocoWeb = '';   // a busca em si roda depois de a resposta aparecer na conversa
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
-  const historico = montarHistorico(conv, maxTokens);
+  let historico = montarHistorico(conv, maxTokens, SISTEMA);
   // continuar só a partir do texto inteiro: se a resposta cortada não coube na memória da IA, continuar dela sairia errado
   if (continuacao && (!historico.length || historico[historico.length - 1].content !== (continuacao.llm || continuacao.texto))) {
     toast('A resposta ficou longa demais para continuar. Peça de novo, de preferência numa conversa nova.', 4000); return;
@@ -164,23 +244,47 @@ async function responder(conv, continuacao) {
     if (comEsquema) alvo.innerHTML = `<p class="info">${esc(modo.espera)}</p>`;
     else if (!msg.texto && !pensar) { alvo.innerHTML = htmlTrabalhando(); pararPalavra = novaPalavra(alvo.firstChild, true); }   // pensando, a palavra fica só na linha do raciocínio
   }
+  // a partir daqui a resposta está em andamento (o botão vira "parar"): pesquisa e leitura do arquivo também param
+  const ctrl = new AbortController();
+  geracao = { conv, ctrl, el: alvo };
+  janelaEscondida = document.hidden;   // antes de qualquer espera: trocar de janela durante a pesquisa ou a leitura também conta
+  PLATAFORMA.ocupado(true);
+  $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
+  // a conversa mostra o passo (pesquisa, leitura do arquivo) no lugar da palavra animada
+  const mostrarPasso = t => { if (alvo) { alvo.innerHTML = '<span class="busca-passo">' + esc(t) + '<i></i><i></i><i></i></span>'; rolar(); } };
   // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
   if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
     if (semInternet()) SISTEMA += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';
     else {
       estado('pesquisando na internet');
-      // a conversa mostra o passo da busca no lugar da palavra animada
-      const mostrarPasso = t => { if (alvo) { alvo.innerHTML = '<span class="busca-passo">' + esc(t) + '<i></i><i></i><i></i></span>'; rolar(); } };
       let r = null;
       try { r = await pesquisarNaWeb(texto.slice(0, 300), mostrarPasso); } catch (e) {}
       if (alvo && !msg.texto) alvo.innerHTML = htmlTrabalhando();
       estado('', false, 'rede');
-      if (r && r.fontes.length) { SISTEMA += '\n\n' + blocoPesquisa(r); fontes = r.fontes; msg.fontes = fontes;
+      if (r && r.fontes.length) { blocoWeb = blocoPesquisa(r); SISTEMA += '\n\n' + blocoWeb; fontes = r.fontes; msg.fontes = fontes;
         if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlFontes(fontes); const cartoes = c.firstElementChild; alvo.parentNode.insertBefore(cartoes, alvo); cartoes.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); }); } }
       else SISTEMA += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
     }
   }
-  janelaEscondida = document.hidden;
+  // "resuma o PDF" (ou um modo de estudo) com um arquivo que não cabe na memória: lê por partes e resume cada uma;
+  // os resumos ficam guardados no anexo e servem para as próximas perguntas gerais sobre ele
+  const docsLongos = pergunta && !continuacao ? docsDe(pergunta).filter(a => !a.resumos && tokens(a.conteudo) > nCtx * 0.5) : [];
+  if (docsLongos.length && !ctrl.signal.aborted && (PEDIDO_GERAL.test(texto) || !texto.trim() || modo)) {
+    estado('lendo o arquivo');
+    for (const a of docsLongos) {
+      if (ctrl.signal.aborted) break;
+      try { await resumirEmPartes(a, mostrarPasso, ctrl.signal); } catch (e) { if (e.name === 'AbortError') break; toast('Não consegui resumir "' + a.nome + '" por partes; uso os trechos.'); }
+    }
+    estado('', false, 'rede');
+    if (alvo && !msg.texto && !comEsquema && !ctrl.signal.aborted) alvo.innerHTML = pensar ? '' : htmlTrabalhando();
+    salvar();
+  }
+  // com o texto de sistema final (pesquisa incluída): mede com o tokenizador do modelo e monta de novo
+  await medirTokens([SISTEMA, ...textosDe(montarHistorico(conv, maxTokens, SISTEMA))]);
+  historico = montarHistorico(conv, maxTokens, SISTEMA);
+  await medirTokens(textosDe(historico));
+  historico = montarHistorico(conv, maxTokens, SISTEMA);
+  registrarUso(conv, historico.uso, blocoWeb);
   // raciocínio (Esforço Alto): bloco recolhível acima da resposta enquanto pensa; recolhe quando a resposta começa
   let pensEl = null, pensTxt = '';
   let pararPalavraPens = null;
@@ -194,13 +298,9 @@ async function responder(conv, continuacao) {
   }
   // o raciocínio vai para a folha (aberta ou não): nunca ocupa a conversa
   const aoPensar = pensar ? p => { pensTxt += p; atualizarFolhaPensa(pensTxt); } : undefined;
-  const ctrl = new AbortController();
-  geracao = { conv, ctrl, el: alvo };
   // leitura em voz alta enquanto a resposta chega (Aparência → Ler em voz alta: toda resposta)
   if (!continuacao) pararLeitura();
   const narrador = !continuacao && PLATAFORMA.temFala && pref('lerRespostas') === 'sim' ? novoNarrador(msg) : null;
-  PLATAFORMA.ocupado(true);
-  $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
 
   const inicio = msg.texto || '';
   let novo = '', fim = 'stop', erro = null, tTimer = 0, tRaf = 0;
@@ -306,7 +406,7 @@ async function responder(conv, continuacao) {
   if (!continuacao) conv.msgs.push(msg);
   conv.atualizada = Date.now();
   if (atual === conv && alvo) { alvo.parentNode.remove(); addIa(msg, true); }
-  salvar(); desenharLista();
+  salvar(); desenharLista(); atualizarMedidor();
   if (!erro && !ctrl.signal.aborted) avisarPronto(msg);   // janela em segundo plano: notificação do sistema
 }
 

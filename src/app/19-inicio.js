@@ -7,7 +7,7 @@ async function verificar(imediato) {
     online = true;
     if (!jaFicouOnline) setTimeout(responderPendente, 300);
     jaFicouOnline = true;
-    try { const p = await PLATAFORMA.props(); const ctx = p && ((p.default_generation_settings && p.default_generation_settings.n_ctx) || p.n_ctx); if (ctx) nCtx = ctx; } catch (e) {}
+    try { const p = await PLATAFORMA.props(); const ctx = p && ((p.default_generation_settings && p.default_generation_settings.n_ctx) || p.n_ctx); if (ctx) { nCtx = ctx; atualizarMedidor(); } } catch (e) {}
     aquecer();
   } else if (!ok) {
     online = false;

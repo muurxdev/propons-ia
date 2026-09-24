@@ -24,6 +24,9 @@ ok('bubble sort exato', m && /4 trocas/.test(m.texto) && !!m.passos);
 m = await pergunta('faça um código em python que calcula o fatorial de um número');
 ok('código com cores', await js(`!!document.querySelector('.msg.ia:last-child .tk-kw')`), m && m.texto.slice(0, 80));
 await foto('3-codigo');
+// a Área de código é só do computador: no celular não há "Código" no menu nem "Guardar" nos blocos
+ok('sem Área de código no celular', await js(`!TELAS.codigo && !document.querySelector('#latNav [data-tela="codigo"]') && !document.querySelector('.msg.ia .guardar')`));
+ok('bolinha de contexto na caixa', await js(`!!$('#medidorCtx') && $('#medidorCtx').offsetWidth > 0 && usoAgora().total === nCtx`));
 await js(`adicionarArquivos([new File(['print(sum([1, 2, 3]))\\n'], 'soma.py', {type: 'text/plain'})])`);
 m = await pergunta('o que esse arquivo imprime?');
 ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto.slice(0, 100));   // Lume (0.8B) varia; basta falar do arquivo

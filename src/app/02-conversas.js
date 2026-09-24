@@ -8,12 +8,12 @@ function validar(lista) {
     id: (() => { const id = /^[a-z0-9]{4,40}$/i.test(c.id) && !ids.has(c.id) ? c.id : novoId(); ids.add(id); return id; })(),
     titulo: txt(c.titulo).slice(0, 120) || 'Conversa',
     criada: +c.criada || Date.now(), atualizada: +c.atualizada || +c.criada || Date.now(),
-    ...(c.fixada ? { fixada: true } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
+    ...(c.fixada ? { fixada: true } : {}), ...(txt(c.resumo).trim() ? { resumo: txt(c.resumo).slice(0, 3000) } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
-      ...(m.interno ? { interno: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
+      ...(m.interno ? { interno: true } : {}), ...(m.compactada ? { compactada: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
       ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}),
-      ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo) })) } : {}),
+      ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo), ...(+a.paginas ? { paginas: +a.paginas } : {}), ...(Array.isArray(a.resumos) ? { resumos: a.resumos.filter(r => r && typeof r.texto === 'string').slice(0, 40).map(r => ({ de: +r.de || 0, ate: +r.ate || 0, texto: txt(r.texto).slice(0, 4000) })) } : {}) })) } : {}),
       ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 8).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
       ...(m.passos && Array.isArray(m.passos.lista) ? { passos: { titulo: txt(m.passos.titulo), lista: m.passos.lista.map(txt) } } : {}),
@@ -177,7 +177,7 @@ function nova() {
   atual = null; cancelarEdicao();
   $('#tituloAtual').textContent = 'Própons IA';
   $('#conversa').innerHTML = boasVindas();
-  desenharLista(); if (!estreita()) $('#entrada').focus();
+  desenharLista(); atualizarMedidor(); if (!estreita()) $('#entrada').focus();
 }
 function abrir(id) {
   const c = conversas.find(x => x.id === id); if (!c) return nova();
@@ -196,7 +196,7 @@ function abrir(id) {
     });
   } finally { colDestacada = null; }
   if (geracao && geracao.conv === c && geracao.el) col.appendChild(geracao.el.parentNode);
-  $('#conversa').appendChild(col);
+  $('#conversa').appendChild(col); atualizarMedidor();
   if (trocou) { $('#entrada').value = c.rascunho || ''; ajustar(); }
   rolar(true); desenharLista();
 }

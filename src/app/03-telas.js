@@ -1,7 +1,8 @@
 /* ---------------- telas do menu lateral (Área de código e Biblioteca) ----------------
    São telas de verdade: ocupam o lugar do chat (com a caixa de digitação escondida) e ficam listadas no menu lateral,
    abaixo da busca. Continuam ligadas ao chat: mandar um arquivo ou usar um item volta para a conversa com o anexo. */
-const TELAS = { codigo: { nome: 'Código', ico: 'codigo', conta: () => projeto().arquivos.length, render: (el) => telaCodigo(el) },
+// a Área de código é só do computador; no celular o menu lateral fica só com a Biblioteca
+const TELAS = { ...(CELULAR ? {} : { codigo: { nome: 'Código', ico: 'codigo', conta: () => projeto().arquivos.length, render: (el) => telaCodigo(el) } }),
                 biblioteca: { nome: 'Biblioteca', ico: 'biblioteca', conta: () => biblioteca.length, render: (el) => telaBiblioteca(el) } };
 let telaAtual = '';
 function desenharNavLateral() {

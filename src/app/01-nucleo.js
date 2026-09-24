@@ -38,6 +38,8 @@ const ICO = {
 };
 
 /* ---------------- estado ---------------- */
+// celular (Android/iPhone): sem Área de código, contexto e esforço sob medida para aparelho com menos memória
+const CELULAR = PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios';
 let conversas = [], atual = null, SYSTEM = '', online = false, jaFicouOnline = false;
 /* o texto sobre o próprio aplicativo só entra quando a pergunta é sobre ele: no celular, cada palavra a mais
    no texto de sistema atrasa a primeira resposta de toda conversa nova. */

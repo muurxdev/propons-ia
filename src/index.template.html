@@ -323,7 +323,32 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* linha de baixo da caixa: "+" no canto esquerdo, e do outro lado modelo · microfone · enviar (como no Claude) */
 .linha{display:flex;align-items:center;gap:8px;margin-top:6px;min-width:0;flex-wrap:nowrap}
 .linha .espaco{flex:1 1 0;min-width:0}
-#anexar,#falar,#enviar,.bt-web{flex:none}   /* só o nome do modelo encolhe; os botões nunca saem da caixa */
+#anexar,#falar,#enviar,.bt-web,#medidorCtx{flex:none}
+/* bolinha de contexto: o anel enche conforme a memória da IA é usada (laranja ≥ 70 %, vermelho ≥ 90 %) */
+#medidorCtx{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:var(--accent);transition:background var(--t1)}
+#medidorCtx:hover{background:var(--hover)}
+#medidorCtx svg{width:20px;height:20px;transform:rotate(-90deg);fill:none;stroke-width:3}
+#medidorCtx .trilho{stroke:var(--line);stroke-width:3.5}
+#medidorCtx .uso{stroke:currentColor;stroke-linecap:round;stroke-dasharray:calc(var(--p,0) * 1) 100;transition:stroke-dasharray var(--t3) var(--padrao)}
+#medidorCtx.alto{color:var(--warn)}
+#medidorCtx.cheio{color:var(--danger)}
+.ctx{padding:4px 16px 12px}
+.ctx-num{display:flex;align-items:baseline;gap:10px;margin:4px 0 10px}
+.ctx-num b{font-size:28px;font-weight:600;letter-spacing:-.02em}
+.ctx-num span{color:var(--muted);font-size:13.5px}
+.ctx-barra{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--hover);margin-bottom:14px}
+.ctx-barra i{display:block;height:100%}
+.ctx-lista{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:8px}
+.ctx-lista li{display:flex;align-items:center;gap:10px;font-size:14px}
+.ctx-lista li span{flex:1;min-width:0}
+.ctx-lista li b{font-weight:500;font-variant-numeric:tabular-nums}
+.ctx-lista li > i{width:10px;height:10px;border-radius:3px;flex:none}
+.ctx-lista li.res{color:var(--muted)}
+.ctx .p1{background:var(--accent)} .ctx .p2{background:#d9589a} .ctx .p3{background:#8a6cf0} .ctx .p4{background:#2f9fe0}
+.ctx .p5{background:#20a36b} .ctx .p6{background:#e0932a} .ctx .p7{background:#c9a227}
+.ctx .livre{background:var(--hover);box-shadow:inset 0 0 0 1px var(--line)}
+.ctx .reserva{background:repeating-linear-gradient(45deg,var(--line) 0 3px,transparent 3px 6px);box-shadow:inset 0 0 0 1px var(--line)}
+.ctx-acoes{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}   /* só o nome do modelo encolhe; os botões nunca saem da caixa */
 .linha #anexar{margin-left:-4px}   /* "+" colado no canto, com o modelo ao lado */
 .linha #falar{margin-right:2px}
 #entrada{display:block;width:100%;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:var(--fs)/1.5 var(--sans);padding:8px 6px 4px;min-height:36px;max-height:240px}
@@ -782,6 +807,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
         <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span><span class="roda"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
         <button class="bt-web" id="btPesquisa" title="Pesquisa na internet ligada — toque para desligar" aria-label="Desligar a pesquisa na internet" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="x"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
         <span class="espaco"></span>
+        <button id="medidorCtx" title="Contexto" aria-label="Contexto: memória da IA em uso"><svg viewBox="0 0 24 24"><circle class="trilho" cx="12" cy="12" r="8"/><circle class="uso" cx="12" cy="12" r="8" pathLength="100"/></svg></button>
         <button class="icone" id="falar" title="Falar e transcrever" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>
       </div>
@@ -809,6 +835,7 @@ const fmt = a => '[' + a.join(', ') + ']';
 {{MD}}
 {{LATEX}}
 {{DETECT}}
+{{BUSCA}}
 {{APP}}
 </script>
 {{VENDOR}}

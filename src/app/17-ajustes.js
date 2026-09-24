@@ -12,7 +12,6 @@ let sistemaCache = null;
      Lume 0,9 GB · Aurora 2,0 GB (2,6 com visão) · Ápice 4,4 GB (5,1 com visão).
      PC: + ~2,5 GB de sistema e app → 3 / 4 / 8 GB. Celular: + ~3 GB de sistema e tela, e o Android fecha apps quando
      aperta → 3 / 6 / 12 GB. Abaixo disso o modelo fica bloqueado (sem "baixar mesmo assim"); só o Lume nunca é bloqueado. */
-const CELULAR = PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios';
 const RAM_MIN = CELULAR ? { leve: 3, normal: 6, avancado: 12 } : { leve: 3, normal: 4, avancado: 8 };
 const ramNecessaria = m => RAM_MIN[m.id || m] || (m.ramMin || 0);
 const semRam = (m, ram) => !!(ram && (m.id || m) !== 'leve' && ram < ramNecessaria(m) * GB * 0.93);

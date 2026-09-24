@@ -170,6 +170,15 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
       if (tipo === 'ios') return pedir('estado');
       const r = await fetch(base + '/props', { headers: cab(), cache: 'no-store' }); return r.ok ? r.json() : null;
     },
+    // quantos tokens um texto ocupa de verdade (o tokenizador do próprio modelo); null quando não dá (iOS, motor fora)
+    async contarTokens(texto) {
+      if (tipo === 'ios') return null;
+      try {
+        const r = await fetch(base + '/tokenize', { method: 'POST', headers: cab(), body: JSON.stringify({ content: texto }) });
+        if (!r.ok) return null;
+        const j = await r.json(); return Array.isArray(j.tokens) ? j.tokens.length : null;
+      } catch (e) { return null; }
+    },
     async textoSistema() {
       if (tipo === 'ios') return pedir('conhecimento');
       // o motor exige a chave também para os arquivos estáticos (menos o index.html)
@@ -267,15 +276,6 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     apagarVoz(id) { return pedir('apagarVoz', { id }, 15000); },
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },
-    // pasta de verdade do aparelho (Android: o sistema pede a permissão de armazenamento)
-    temPastaNativa: tipo === 'android',
-    abrirPasta: () => pedir('abrirPasta', {}, 180000),
-    pastaInfo: () => pedir('pastaInfo', {}, 8000),
-    esquecerPasta: () => pedir('esquecerPasta', {}, 8000),
-    listarPasta: () => pedir('listarPasta', {}, 45000),
-    lerArquivoPasta: caminho => pedir('lerArquivo', { caminho }, 30000),
-    gravarArquivoPasta: (caminho, conteudo) => pedir('gravarArquivo', { caminho, conteudo }, 45000),
-    apagarArquivoPasta: caminho => pedir('apagarArquivo', { caminho }, 20000),
     // pesquisa na internet: o app baixa a página por nós (a janela web não lê sites de fora)
     temBusca: tipo !== 'web',
     buscarPagina: url => pedir('buscar', { url }, 25000),

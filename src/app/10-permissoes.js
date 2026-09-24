@@ -5,7 +5,7 @@ const PERMISSOES = {
   camera: { nome: 'Câmera', ico: 'camera', para: 'tirar uma foto na hora para a IA ver', nav: 'camera' },
   microfone: { nome: 'Microfone', ico: 'microfone', para: 'gravar a sua voz e transcrever em texto', nav: 'microphone' },
   notificacao: { nome: 'Notificações', ico: 'sino', para: 'avisar quando a resposta ficar pronta com o app em segundo plano' },
-  pasta: { nome: 'Pasta de arquivos', ico: 'pasta', para: 'ler e gravar os seus arquivos na Área de código' },
+  ...(CELULAR ? {} : { pasta: { nome: 'Pasta de arquivos', ico: 'pasta', para: 'ler e gravar os seus arquivos na Área de código' } }),
 };
 const permLembrada = k => pref('perm:' + k) || '';
 async function estadoPermissao(k) {
@@ -14,7 +14,7 @@ async function estadoPermissao(k) {
       : Notification.permission === 'granted' ? 'ok' : Notification.permission === 'denied' ? 'negado' : 'pedir';
     return permLembrada(k) === 'ok' ? 'ok' : 'pedir';       // no aparelho quem pergunta é o sistema
   }
-  if (k === 'pasta') return !TEM_PASTA ? 'indisponivel' : (pastaRaiz || pastaNativa) ? 'ok' : 'pedir';
+  if (k === 'pasta') return !TEM_PASTA ? 'indisponivel' : pastaRaiz ? 'ok' : 'pedir';
   if (k === 'camera' && !PLATAFORMA.temVisao) return 'indisponivel';
   try {
     if (navigator.permissions && navigator.permissions.query) {
