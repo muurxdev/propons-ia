@@ -90,8 +90,11 @@ class Modelo
 
     // módulo de visão (ler fotos): baixado só quando a pessoa manda a primeira foto
     public long VisaoTamanho; public string VisaoSha;
+    public string VisaoArquivo, VisaoUrl;   // modelo de outra família/repositório: o módulo de visão vem explícito
     public Modelo Visao()
     {
+        if (VisaoUrl != null)
+            return new Modelo { Id = "visao-" + Id, Nome = "Visão (" + Nome + ")", Arquivo = VisaoArquivo, Tamanho = VisaoTamanho, Sha256 = VisaoSha, Url = VisaoUrl };
         string tam = Arquivo.Replace("Qwen3.5-", "").Replace("-Q4_K_M.gguf", "");
         return new Modelo { Id = "visao-" + Id, Nome = "Visão (" + Nome + ")", Arquivo = "mmproj-Qwen3.5-" + tam + "-F16.gguf",
             Tamanho = VisaoTamanho, Sha256 = VisaoSha, Url = "https://huggingface.co/unsloth/Qwen3.5-" + tam + "-GGUF/resolve/main/mmproj-F16.gguf" };

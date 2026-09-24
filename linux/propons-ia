@@ -15,6 +15,7 @@ CONFIG="$DADOS/config"
 TRAVA="$DADOS/.trava"
 
 # id | arquivo | bytes | sha256 | RAM recomendada (GB) | nome | descrição | visão: bytes | visão: sha256
+#    [| url do modelo | visão: arquivo | visão: url]  (opcionais: modelo de outra família ou repositório)
 MODELOS_LISTA=(
   "leve|Qwen3.5-0.8B-Q4_K_M.gguf|532517120|bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517|3|Leve (0.8B)|mais rápido, para PCs com pouca memória|204987232|56e4c6cfe73b0c82e3e82bc518d7591997e61d81f723fc41a586f4fa69ea2453"
   "normal|Qwen3.5-2B-Q4_K_M.gguf|1280835840|aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223|6|Normal (2B)|equilíbrio entre velocidade e qualidade|668227264|7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
@@ -130,10 +131,10 @@ if [ "$ACAO" = abrir ] && [ -z "$MODELO_ARG" ] && [ -z "$(ler_config MODELO)" ] 
   fi
   [ -n "$esc" ] && [ -n "$(campo "$esc" 1)" ] && { gravar_config MODELO "$esc"; MODELO_ID="$esc"; }
 fi
-ARQ="$MODELOS/$(campo "$MODELO_ID" 2)"; TAM="$(campo "$MODELO_ID" 3)"; SHA="$(campo "$MODELO_ID" 4)"; URL="$(url_modelo "$(campo "$MODELO_ID" 2)")"
+ARQ="$MODELOS/$(campo "$MODELO_ID" 2)"; TAM="$(campo "$MODELO_ID" 3)"; SHA="$(campo "$MODELO_ID" 4)"; URL="$(campo "$MODELO_ID" 10)"; [ -n "$URL" ] || URL="$(url_modelo "$(campo "$MODELO_ID" 2)")"
 # módulo de visão (ler fotos) do modelo escolhido
-visao_nome() { local a; a="$(campo "$1" 2)"; a="${a#Qwen3.5-}"; echo "mmproj-Qwen3.5-${a%-Q4_K_M.gguf}-F16.gguf"; }
-visao_url() { local a; a="$(campo "$1" 2)"; echo "$URL_BASE/${a%-Q4_K_M.gguf}-GGUF/resolve/main/mmproj-F16.gguf"; }
+visao_nome() { local a; a="$(campo "$1" 11)"; [ -n "$a" ] && { echo "$a"; return; }; a="$(campo "$1" 2)"; a="${a#Qwen3.5-}"; echo "mmproj-Qwen3.5-${a%-Q4_K_M.gguf}-F16.gguf"; }
+visao_url() { local a; a="$(campo "$1" 12)"; [ -n "$a" ] && { echo "$a"; return; }; a="$(campo "$1" 2)"; echo "$URL_BASE/${a%-Q4_K_M.gguf}-GGUF/resolve/main/mmproj-F16.gguf"; }
 vcampo() { local id="$1" n="$2" l; for l in "${VOZES_LISTA[@]}"; do [ "${l%%|*}" = "$id" ] && { echo "$l" | cut -d'|' -f"$n"; return; }; done; }
 VOZ_ID="$(ler_config VOZ)"; [ -n "$(vcampo "$VOZ_ID" 1)" ] || VOZ_ID=""
 VOZ_EXE="$APP_DIR/voz/whisper-server"; VOZ_PORTA=""; VOZ_CAMINHO=""; VOZ_PID=""

@@ -13,11 +13,14 @@ const motor = JSON.parse(fs.readFileSync(path.join(aqui, '..', 'src', 'motor.jso
 const PORTA = 8790, espera = ms => new Promise(r => setTimeout(r, ms));
 const args = ['-m', modelo, '--port', String(PORTA), '-c', '16384', ...motor.args, ...(CPU ? ['-ngl', '0'] : ['-ngl', '999'])];
 console.log('motor:', path.basename(servidor), args.join(' '));
-const p = spawn(servidor, args, { stdio: ['ignore', 'ignore', 'pipe'] });
-let log = ''; p.stderr.on('data', d => { log = (log + d).slice(-4000); });
+// o log do motor vai para dist/motor-placar-<nome>.log (para entender travadas e lentidão)
+fs.mkdirSync(path.join(aqui, '..', 'dist'), { recursive: true });
+const arqLog = fs.openSync(path.join(aqui, '..', 'dist', `motor-placar-${nome}.log`), 'w');
+const p = spawn(servidor, args, { stdio: ['ignore', arqLog, arqLog] });
+const log = () => { try { return fs.readFileSync(path.join(aqui, '..', 'dist', `motor-placar-${nome}.log`), 'utf8').slice(-4000); } catch (e) { return ''; } };
 let pronto = false;
 for (let i = 0; i < 360 && !pronto && p.exitCode === null; i++) { await espera(500); try { pronto = (await fetch(`http://127.0.0.1:${PORTA}/health`)).ok; } catch (e) {} }
-if (!pronto) { console.error('o motor não ligou:\n' + log); p.kill(); process.exit(1); }
+if (!pronto) { console.error('o motor não ligou:\n' + log()); p.kill(); process.exit(1); }
 for (const m of MODOS) {
   const extra = m === 'pensar' ? ['--pensar'] : m === 'auto' ? ['--auto'] : [];
   spawnSync(process.execPath, [path.join(aqui, 'avaliar.mjs'), `http://127.0.0.1:${PORTA}`, '--vezes', VEZES, '--nome', nome, ...extra], { stdio: 'inherit' });

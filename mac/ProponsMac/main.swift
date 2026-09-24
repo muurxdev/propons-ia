@@ -16,7 +16,11 @@ struct Modelo {
     let id, nome, descricao, arquivo, sha256, url: String
     let tamanho: Int64, ramMin: Int
     var visaoTamanho: Int64 = 0, visaoSha = ""
+    var visaoArquivo = "", visaoUrl = ""   // modelo de outra família/repositório: o módulo de visão vem explícito
     func visao() -> Modelo {
+        if !visaoUrl.isEmpty {
+            return Modelo(id: "visao-\(id)", nome: "Visão (\(nome))", descricao: "", arquivo: visaoArquivo, sha256: visaoSha, url: visaoUrl, tamanho: visaoTamanho, ramMin: 0)
+        }
         let base = arquivo.replacingOccurrences(of: "-Q4_K_M.gguf", with: "")
         return Modelo(id: "visao-\(id)", nome: "Visão (\(nome))", descricao: "", arquivo: "mmproj-\(base)-F16.gguf", sha256: visaoSha,
                       url: "https://huggingface.co/unsloth/\(base)-GGUF/resolve/main/mmproj-F16.gguf", tamanho: visaoTamanho, ramMin: 0)

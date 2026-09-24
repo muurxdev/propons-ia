@@ -80,11 +80,13 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Modos de estudo** no "+": **flashcards** (com baralho e revisão espaçada), **quiz** com correção comentada, **resumo** e **correção de redação** pelas 5 competências do ENEM, com nota de 0 a 200 em cada
 - **Memória**: diga "lembre que eu vou fazer o ENEM" e ela passa a considerar isso; a lista fica visível e apagável em Ajustes → Memória
 - **Algoritmos** (bubble sort, selection sort, quick sort, busca binária): passo a passo e resumo **calculados por código** — sempre corretos
-- **Esforço por modelo**: no Alto, a IA **pensa antes de responder** e você pode abrir o raciocínio
+- **Esforço por modelo** (cada um mostra só os níveis que usa de verdade): no Alto, a IA **pensa antes de responder** e você pode abrir o raciocínio; no **Auto**, pensa só quando a pergunta pede (contas, código, "por quê")
+- **Bolinha de contexto** ao lado do microfone: mostra quanto da memória da IA a conversa já ocupa e, tocando, cada parte (instruções, memória, conversa, arquivos, pesquisa) e o botão **Compactar conversa**
 
 **Entrando com o seu material**
 
 - **Botão "+"**: câmera, fotos, arquivos de texto e código, **PDF e DOCX** — o texto é extraído no próprio aparelho
+- **PDF de qualquer tamanho**: a cada pergunta a IA lê os trechos ligados a ela (com o número da página), não só o começo; pedindo "resuma o arquivo", ela lê por partes e junta
 - **Lê fotos e prints** (exercício, conta, gráfico, código) com o módulo de visão, baixado na primeira foto; no Linux: `propons-ia --visao`
 - **Fala vira texto**: grave pelo microfone ou mande um áudio de qualquer tamanho; a transcrição roda no aparelho (voz Base 57 MB ou Small 190 MB; no Linux: `propons-ia --voz`)
 - **Lê as respostas em voz alta** com a voz do aparelho, se quiser enquanto ela ainda está escrevendo
@@ -92,8 +94,8 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 
 **Programando**
 
-- **Área de código**: uma tela com a lógica do chat e o foco em codificar. Você pede em português, ela **lê os arquivos**, propõe criar, alterar ou apagar e mostra **linha a linha o que muda**; nada é gravado sem você tocar em **Aplicar**
-- **Abre uma pasta de verdade** do computador (Windows e Linux) ou do celular (Android, pelo seletor do sistema)
+- **Área de código** (no computador): uma tela com a lógica do chat e o foco em codificar. Você pede em português, ela **lê os arquivos**, propõe criar, alterar ou apagar e mostra **linha a linha o que muda**; nada é gravado sem você tocar em **Aplicar**
+- **Abre uma pasta de verdade** do computador (Windows e Linux)
 - **Histórico próprio**, **moldes de pedido** para colar, **compactação de contexto** (o que já passou vira um resumo curto) e **gravação de áudio** na mesma caixa
 - **Código completo nas respostas**, com **cores** por linguagem, botão copiar, "Guardar" para mandar para a área de código (no computador) e **Continuar** se a resposta for cortada
 

@@ -39,16 +39,21 @@ async function perguntar(q, exato) {
     temperature: exato ? 0.2 : 0.7, top_p: 0.95, top_k: 20, min_p: 0.02, seed: Math.floor(Math.random() * 2147483647), chat_template_kwargs: { enable_thinking: pensar },
     ...(exato ? {} : { dry_multiplier: 0.8, xtc_probability: 0.3, xtc_threshold: 0.1 }) };
   const t0 = Date.now();
-  const r = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: cab, body: JSON.stringify(corpo) });
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
-  const j = await r.json();
+  // nunca espera para sempre: resposta que não chega em 3 min conta como errada (e o placar segue)
+  let j;
+  try {
+    const r = await fetch(url + '/v1/chat/completions', { method: 'POST', headers: cab, body: JSON.stringify(corpo), signal: AbortSignal.timeout(180000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+    j = await r.json();
+  } catch (e) { console.log(`  ! ${q.id}: ${e.name === 'TimeoutError' ? 'sem resposta em 3 min' : e.message}`); return { texto: '', tokens: 0, ms: Date.now() - t0, pensou: pensar }; }
   const texto = String(j.choices[0].message.content || '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
   return { texto, tokens: j.usage ? j.usage.completion_tokens : 0, ms: Date.now() - t0, pensou: pensar };
 }
 // acertou? exato: o número/valor esperado aparece como primeiro "token" da resposta; regex: casa; armadilha: reconheceu que não sabe
 function avaliar(q, texto) {
   const t = norm(texto);
-  if (q.tipo === 'exato') { const m = t.match(/-?\d+(?:[.,]\d+)?/); return !!m && m[0].replace(',', '.') === norm(q.resposta); }
+  // exato: vale o primeiro ou o último número da resposta ("5! = 120", "49 + 9 = 58")
+  if (q.tipo === 'exato') { const ns = (t.match(/-?\d+(?:[.,]\d+)?/g) || []).map(n => n.replace(',', '.')); return ns.length > 0 && (ns[0] === norm(q.resposta) || ns[ns.length - 1] === norm(q.resposta)); }
   const re = new RegExp(norm(q.regex).replace(/\\\\/g, '\\'), 'i');
   return re.test(t);
 }
