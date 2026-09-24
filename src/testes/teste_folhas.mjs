@@ -1,0 +1,71 @@
+// Menus no celular (tela de 390 px): o menu principal decide a altura, o que abre por cima entra pela direita do mesmo
+// tamanho, e puxar para baixo de qualquer ponto (com o conteúdo no topo) fecha. Roda na interface montada (sem motor).
+// Uso: node src/testes/teste_folhas.mjs <porta-cdp de um navegador headless> <pasta-saida>
+import { conectar, espera, relatorio } from './cdp.mjs';
+import path from 'node:path';
+const [porta = 9555, saida = 'dist/teste-folhas'] = process.argv.slice(2);
+const { ok, resumo } = relatorio();
+// o navegador de teste abre já na interface (msedge --headless=new --remote-debugging-port=9555 file:///…/payload/interface/index.html)
+const { js, cdp, foto } = await conectar({ porta, saida, filtro: u => /index.html/.test(u), timeoutMs: 20000 });
+await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+await cdp('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+const pagina = 'file:///' + path.resolve('payload/interface/index.html').replace(/\\/g, '/');
+await cdp('Page.navigate', { url: pagina }); await espera(1500);   // de novo, já com a tela de celular
+for (let i = 0; i < 40 && !(await js(`typeof abrirConfig === 'function'`).catch(() => false)); i++) await espera(250);
+const toque = async (tipo, x, y) => cdp('Input.dispatchTouchEvent', { type: tipo, touchPoints: tipo === 'touchEnd' ? [] : [{ x, y }] });
+async function puxar(x, y, dist) {
+  await toque('touchStart', x, y); await espera(30);
+  for (let d = 10; d <= dist; d += 20) { await toque('touchMove', x, y + d); await espera(16); }
+  await toque('touchEnd'); await espera(450);
+}
+
+// 1) Ajustes: a página do módulo tem a altura do menu principal
+await js(`abrirConfig(); 1`); await espera(700);
+const hMenu = await js(`$('.painel').offsetHeight`);
+await js(`irPara('geral'); 1`); await espera(600);
+const hSub = await js(`$('.painel').offsetHeight`);
+ok('Ajustes: módulo abre do tamanho do menu principal (sem pular para tela cheia)', Math.abs(hSub - hMenu) <= 2 && hMenu < 844 - 60, `${hMenu} → ${hSub} px`);
+ok('Ajustes: módulo entra pela direita', await js(`getComputedStyle($('.p-conteudo')).visibility === 'visible' && $('.painel').classList.contains('sub')`));
+await foto('f1-ajustes-modulo');
+
+// 2) arrastar de qualquer ponto do conteúdo (no topo) fecha os Ajustes
+const r = await js(`(() => { const c = $('#corpoConfig'); c.scrollTop = 0; const b = c.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 60 }; })()`);
+await puxar(r.x, r.y, 320); await espera(300);
+ok('Ajustes: puxar o conteúdo para baixo fecha', await js(`!document.querySelector('.painel-fundo:not(.saindo)')`));
+
+// 3) menu por cima de outro: mesma altura e entra pela direita; o de baixo recua
+await js(`abrirConfig(); 1`); await espera(700);
+const hAj = await js(`$('.painel').offsetHeight`);
+js(`confirmar('Teste', 'Menu aberto por cima dos Ajustes.', 'Ok')`); await espera(600);
+const cima = await js(`(() => { const f = [...document.querySelectorAll('.dlg-fundo')].pop(); return { lado: f.classList.contains('lado'), h: f.firstElementChild.offsetHeight, atras: !!document.querySelector('.painel-fundo.atras') }; })()`);
+ok('menu por cima: entra pela direita com a altura do de baixo', cima.lado && Math.abs(cima.h - hAj) <= 2, JSON.stringify(cima) + ' × ' + hAj);
+ok('menu por cima: o de baixo recua', cima.atras);
+await foto('f2-por-cima');
+await js(`document.querySelectorAll('.dlg-fundo, .painel-fundo').forEach(f => f.remove()); 1`); await espera(200);
+
+// 4) folha comprida (lista que rola): puxar de qualquer ponto, com a lista no topo, fecha; com a lista rolada, rola
+await js(`perguntar('Lista comprida', Array.from({ length: 60 }, (_, i) => '<p>Linha ' + i + '</p>').join(''), [['Ok', 1, 'primario']]); 1`); await espera(600);
+const rola = await js(`document.querySelector('.dlg').classList.contains('rola')`);
+const meio = await js(`(() => { const b = document.querySelector('.dlg').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()`);
+await js(`document.querySelector('.dlg').scrollTop = 200; 1`);
+await puxar(meio.x, meio.y, 150);
+ok('folha comprida: com a lista rolada, o dedo rola e não fecha', rola && (await js(`!!document.querySelector('.dlg-fundo:not(.saindo)')`)));
+await js(`document.querySelector('.dlg').scrollTop = 0; 1`); await espera(100);
+await puxar(meio.x, meio.y, 320);
+ok('folha comprida: com a lista no topo, puxar do meio fecha', await js(`!document.querySelector('.dlg-fundo:not(.saindo)')`));
+// 5) Ajustes → Respostas e a ajuda (!): balão pequeno, dentro da tela, fecha ao tocar fora
+await js(`abrirConfig('respostas'); 1`); await espera(900);
+const resp = await js(`(() => { const c = $('#corpoConfig'); return { secoes: [...c.querySelectorAll('.secao > h4')].map(h => h.textContent.trim()), ajudas: c.querySelectorAll('.ajuda').length, entra: c.querySelectorAll('.entra').length, titulo: !!$('#pTitulo .ajuda') }; })()`);
+ok('Respostas: instruções, tamanho, nível, esforço, compactar e Enter', ['Instruções para a IA', 'Tamanho das respostas', 'Seu nível de estudo', 'Esforço de cada modelo', 'Compactar sozinho', 'Enter envia'].every(t => resp.secoes.includes(t)), resp.secoes.join(' · '));
+ok('(!) em cada seção e no título do módulo', resp.ajudas >= 6 && resp.titulo, `${resp.ajudas} botões`);
+ok('blocos entram um depois do outro', resp.entra >= 3, `${resp.entra} blocos animados`);
+await js(`$('#pTitulo .ajuda').click(); 1`); await espera(350);
+const bal = await js(`(() => { const b = document.querySelector('.balao'); if (!b) return null; const r = b.getBoundingClientRect(); return { dentro: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, largura: Math.round(r.width), texto: b.textContent.slice(0, 60) }; })()`);
+ok('(!) abre um balão pequeno dentro da tela', bal && bal.dentro && bal.largura <= 300, JSON.stringify(bal));
+await foto('f3-ajuda');
+await js(`document.body.click(); 1`); await espera(200);
+ok('balão fecha ao tocar fora', await js(`!document.querySelector('.balao')`));
+await js(`pref('instrucoes', 'Use exemplos de futebol.'); pref('tamanhoResposta', 'curtas'); 1`);
+ok('instruções e tamanho entram no texto de sistema', await js(`/exemplos de futebol/.test(textoPreferencias()) && /curtas/.test(textoPreferencias())`));
+await js(`pref('instrucoes', ''); pref('tamanhoResposta', 'normais'); 1`);
+resumo();

@@ -11,7 +11,7 @@ function registrarUso(conv, uso, blocoWeb) {
 const textoResumo = conv => conv && conv.resumo ? '\n\nResumo do começo desta conversa (as mensagens antigas foram compactadas e saíram da sua memória):\n' + conv.resumo : '';
 function usoAgora() {
   const conv = atual, maxTk = Math.min(1500, Math.floor(nCtx * 0.45));
-  const sistema = SYSTEM + textoMemoria() + textoResumo(conv);
+  const sistema = SYSTEM + textoMemoria() + textoPreferencias() + textoResumo(conv);
   const u = conv ? montarHistorico(conv, maxTk, sistema).uso
     : { total: nCtx, sistema: tokens(sistema), historico: 0, anexos: 0, reserva: maxTk + 300, omitidas: 0 };
   const memoria = textoMemoria() ? tokens(textoMemoria()) : 0, resumo = textoResumo(conv) ? tokens(textoResumo(conv)) : 0;

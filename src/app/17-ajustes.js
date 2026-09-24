@@ -3,7 +3,7 @@ const GB = 1073741824;
 let abaAtual = 'modelo';
 const PAGINAS = [
   [['modelo', 'Modelos de IA', ICO.chip], ['atualizacoes', 'Atualizações', ICO.atualizar]],
-  [['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria], ['permissoes', 'Permissões', ICO.escudo]],
+  [['respostas', 'Respostas', ICO.respostas], ['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria], ['permissoes', 'Permissões', ICO.escudo]],
   [['diagnostico', 'Diagnóstico', ICO.diagnostico], ['sobre', 'Sobre', ICO.sobre]],
 ];
 const TITULOS = Object.fromEntries(PAGINAS.flat().map(([k, t]) => [k, t]));
@@ -32,6 +32,7 @@ function subtitulo(k) {
   const ativo = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual);
   switch (k) {
     case 'modelo': return ativo ? 'Em uso: ' + nomeModelo(ativo) : 'Escolher, baixar e apagar';
+    case 'respostas': return ({ curtas: 'Respostas curtas', normais: 'Respostas normais', detalhadas: 'Respostas detalhadas' })[pref('tamanhoResposta') || 'normais'] + (String(pref('instrucoes') || '').trim() ? ' · com suas instruções' : ' · instruções, nível e esforço');
     case 'atualizacoes': return atualizacao ? `Versão ${atualizacao.versao} disponível` : `Versão ${VERSAO}`;
     case 'geral': return ({ sistema: 'Tema do sistema', claro: 'Tema claro', escuro: 'Tema escuro' })[pref('tema') || 'sistema'] + ' · letra ' + ({ p: 'pequena', m: 'média', g: 'grande' })[pref('fonte') || 'm'] + (PLATAFORMA.temFala ? (pref('lerRespostas') === 'sim' ? ' · lê em voz alta' : ' · voz') : '');
     case 'conversas': return `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · backup e limpeza`;
@@ -54,7 +55,7 @@ function fecharModal(imediato) { document.querySelectorAll('.painel-fundo:not(.s
 function voltarPainel() {
   pausarDesenho(300);
   const p = $('.painel');
-  if (p && estreita() && p.classList.contains('sub')) { p.classList.remove('sub'); desenharNav(); }
+  if (p && estreita() && p.classList.contains('sub')) { p.classList.remove('sub'); desenharNav(); entradaSuave([...$('#pNav').children]); }
   else fecharModal();
 }
 function abrirConfig(aba) {
@@ -68,14 +69,17 @@ function abrirConfig(aba) {
   folhaArrastavel(f, f.firstChild, () => fecharModal());
   $('#pVoltar').onclick = voltarPainel;
   pausarDesenho(420);
-  if (aba || !estreita()) irPara(aba || abaAtual, true); else desenharNav();
-  setTimeout(() => lerSistema().then(() => { if (!document.querySelector('.painel-fundo.saindo')) desenharNav(); }), 360);
+  if (aba || !estreita()) irPara(aba || abaAtual, true); else { desenharNav(); entradaSuave([...$('#pNav').children]); }
+  // os subtítulos (modelo em uso…) chegam depois da entrada suave, sem refazer a lista no meio dela
+  setTimeout(() => lerSistema().then(() => { if (!document.querySelector('.painel-fundo.saindo')) desenharNav(); }), 560);
 }
 function irPara(aba, abrindo) {
   if (!TITULOS[aba]) aba = 'modelo';
   abaAtual = aba; desenharNav();
   const p = $('.painel'); if (!p) return;
-  p.classList.add('sub'); $('#pTitulo').textContent = TITULOS[aba];
+  // celular: a página do módulo fica do tamanho do menu principal (nada de pular para a tela cheia)
+  if (estreita() && !p.style.height) p.style.height = Math.max(p.offsetHeight, Math.min(innerHeight * 0.6, 420)) + 'px';
+  p.classList.add('sub'); $('#pTitulo').innerHTML = esc(TITULOS[aba]) + botaoAjuda('m:' + aba);
   $('#corpoConfig').scrollTop = 0;
   pausarDesenho(300);
   // abrindo a folha: mostra a página só depois da animação (o conteúdo pesado não disputa o quadro com ela)
@@ -86,7 +90,9 @@ $('#abrirConfig').onclick = () => abrirConfig();
 
 function desenharAba() {
   const c = $('#corpoConfig'); if (!c) return;
-  ({ geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, permissoes: abaPermissoes, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
+  const pagina = abaAtual, r = ({ respostas: abaRespostas, geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, permissoes: abaPermissoes, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
+  // (!) nas seções e entrada suave dos blocos só na primeira vez que a página aparece (redesenhos não piscam)
+  Promise.resolve(r).then(() => { if ($('#corpoConfig') !== c || abaAtual !== pagina) return; const nova = c.dataset.pagina !== pagina; c.dataset.pagina = pagina; enfeitarPagina(c, nova); });
 }
 function seg(nome, opcoes, atualV) {
   return `<div class="seg" data-seg="${nome}" role="radiogroup">${opcoes.map(([v, r]) => `<button data-v="${v}" role="radio" aria-checked="${v === atualV}" class="${v === atualV ? 'on' : ''}">${r}</button>`).join('')}</div>`;
@@ -128,7 +134,7 @@ function cartaoModelo(m, ram, rec) {
   if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
   const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? `<span class="selo cinza">${esc(m.bloqueado)}</span>` : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
-    <div class="mtopo"><div class="pt"><b>${esc(nomeModelo(m))}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
+    <div class="mtopo"><div class="pt"><b>${esc(nomeModelo(m))}${botaoAjuda('modelo:' + m.id)}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
     <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${ramNecessaria(m)} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;

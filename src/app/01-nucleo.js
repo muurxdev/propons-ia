@@ -134,9 +134,51 @@ function folhaArrastavel(fundo, folha, fechar) {
     y0 = null; direcao = 0;
   };
   folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
+
+  // menu comprido (ou com lista que rola, como os Ajustes): o dedo rola o conteúdo; com o conteúdo já no topo, puxar
+  // para baixo arrasta o menu inteiro de qualquer ponto, como uma folha do sistema
+  const rolador = el => {
+    for (let n = el; n && n !== fundo; n = n.parentElement)
+      if (n.scrollHeight - n.clientHeight > 4 && /auto|scroll/.test(getComputedStyle(n).overflowY)) return n;
+    return null;
+  };
+  let tY = null, tDy = 0, tT0 = 0, tDir = 0, tRol = null;
+  folha.addEventListener('touchstart', e => {
+    tY = null;
+    if (!estreita() || e.touches.length !== 1 || y0 !== null) return;   // o arraste de cima (pointerdown vem antes) já pegou
+    if (e.target.closest('.dlg-topo, .p-arrastar, .alca, .p-topo, .p-nav-topo, input, textarea, select, [contenteditable]')) return;   // esses o arraste de cima já cuida
+    tRol = rolador(e.target); if (!tRol) return;   // sem rolagem: o arraste de cima já pega qualquer ponto
+    tY = e.touches[0].clientY; tDy = 0; tT0 = performance.now(); tDir = 0;
+  }, { passive: true });
+  folha.addEventListener('touchmove', e => {
+    if (tY === null) return;
+    const bruto = e.touches[0].clientY - tY;
+    if (!tDir) {
+      if (Math.abs(bruto) < 6) return;
+      if (bruto < 0 || tRol.scrollTop > 0) { tY = null; return; }   // o dedo está rolando o conteúdo
+      tDir = 1; folha.style.transition = 'none'; fundo.style.transition = 'none';
+    }
+    e.preventDefault();
+    tDy = Math.max(0, bruto);
+    pausarDesenho(200);
+    folha.style.transform = `translateY(${tDy}px)`;
+    fundo.style.opacity = String(Math.max(0, 1 - tDy / Math.max(1, folha.offsetHeight)).toFixed(3));
+  }, { passive: false });
+  const soltarToque = () => {
+    if (tY === null || !tDir) { tY = null; return; }
+    const v = tDy / Math.max(1, performance.now() - tT0);
+    tY = null; tDir = 0;
+    const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
+    folha.addEventListener('click', engolir, { capture: true, once: true });
+    setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
+    if (tDy > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); return; }
+    folha.style.transition = 'transform .24s cubic-bezier(.05,.7,.1,1)'; folha.style.transform = '';
+    fundo.style.transition = 'opacity .24s linear'; fundo.style.opacity = '';
+  };
+  folha.addEventListener('touchend', soltarToque); folha.addEventListener('touchcancel', soltarToque);
 }
 // folha aberta por cima de outra volta (seta) em vez de fechar (X); sozinha, fecha
-const sobreOutraFolha = () => !!document.querySelector('.dlg-fundo:not(.saindo)');
+const sobreOutraFolha = () => !!document.querySelector('.dlg-fundo:not(.saindo), .painel-fundo:not(.saindo)');
 const topoCentro = (titulo, voltar) => {
   const v = voltar === undefined ? sobreOutraFolha() : voltar;
   return `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="${v ? 'Voltar' : 'Fechar'}">${v ? ICO.voltar : ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
@@ -147,7 +189,7 @@ const topoFolha = topoCentro;
 function perguntar(titulo, html, botoes, opcoes) {
   return new Promise(ok => {
     const f = document.createElement('div'); f.className = 'dlg-fundo';
-    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}">${topoFolha(titulo, !!(opcoes && opcoes.voltar))}${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
+    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}">${topoFolha(titulo, opcoes && 'voltar' in opcoes ? !!opcoes.voltar : sobreOutraFolha())}${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
     let resolvido = false;
     const fim = v => { if (resolvido) return; resolvido = true; ok(v); animarSaida(f, f.firstChild); };
     f.querySelector('[data-x]').onclick = () => fim(null);
@@ -171,14 +213,20 @@ function perguntarTexto(titulo, valor) {
 /* toda folha/diálogo/painel que entra: aria-modal, foco dentro (e de volta ao sair); a folha de trás fica escondida */
 const FOCAVEL = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 new MutationObserver(muts => {
-  const abertos = [...document.querySelectorAll('.dlg-fundo:not(.saindo)')];
+  const abertos = [...document.querySelectorAll('.dlg-fundo:not(.saindo), .painel-fundo:not(.saindo)')];
   abertos.forEach((f, i) => f.classList.toggle('atras', i < abertos.length - 1));
   for (const m of muts) {
     for (const n of m.addedNodes) {
       if (!(n instanceof Element) || !/\b(dlg-fundo|painel-fundo)\b/.test(n.className)) continue;
       const caixa = n.firstElementChild; if (!caixa) continue;
-      // abriu por cima de outra folha: entra pela direita, como uma tela de dentro
-      if ([...document.querySelectorAll('.dlg-fundo')].some(x => x !== n)) n.classList.add('lado');   // inclui a que está saindo: é a mesma navegação
+      // abriu por cima de outra folha: entra pela direita, como uma tela de dentro (inclui a que está saindo: é a mesma
+      // navegação). No celular fica da mesma altura do menu de baixo: só o menu principal decide o tamanho.
+      const baixo = [...document.querySelectorAll('.dlg-fundo, .painel-fundo')].filter(x => x !== n).pop();
+      if (baixo && !/\bpainel-fundo\b/.test(n.className)) {
+        n.classList.add('lado');
+        const h = baixo.firstElementChild ? baixo.firstElementChild.offsetHeight : 0;
+        if (estreita() && h > 160) { caixa.style.height = h + 'px'; caixa.style.maxHeight = h + 'px'; }
+      }
       caixa.setAttribute('role', caixa.getAttribute('role') || 'dialog'); caixa.setAttribute('aria-modal', 'true');
       if (!caixa.hasAttribute('tabindex')) caixa.tabIndex = -1;
       n._focoAntes = document.activeElement;   // guarda antes de tirar o foco, para devolver ao fechar

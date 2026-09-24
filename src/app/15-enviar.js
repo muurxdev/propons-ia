@@ -215,10 +215,12 @@ async function responder(conv, continuacao) {
     return;
   }
 
+  // conversa que já enche a memória da IA: o começo vira um resumo antes de responder (Ajustes → Respostas)
+  if (!continuacao && !comEsquema) await compactarSeCheia(conv);
   const nivel = escolhido === 'auto' ? (pensar ? 'alto' : 'medio') : escolhido;
   // pensar gasta tokens do raciocínio; a reserva nunca passa de 45 % da memória da IA (no celular ela é menor)
   const maxTokens = Math.min(pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500, Math.floor(nCtx * 0.45));
-  let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
+  let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + textoPreferencias() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
     : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '')
     + textoResumo(conv);
   let fontes = null, blocoWeb = '';   // a busca em si roda depois de a resposta aparecer na conversa

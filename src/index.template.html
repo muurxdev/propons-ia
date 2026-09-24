@@ -438,7 +438,23 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .p-corpo{flex:1;min-height:0;overflow-y:auto;padding:18px 22px 26px;overscroll-behavior:contain}
 .secao{margin-bottom:22px}
 .secao h4{font-size:var(--t-sm);font-weight:600;color:var(--muted);margin:0 0 8px}
-.seg{display:inline-flex;background:var(--hover);border-radius:var(--r1);padding:3px;gap:2px;max-width:100%}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--hover);border-radius:var(--r1);padding:3px;gap:2px;max-width:100%}
+/* entrada suave dos blocos (Ajustes): cada um sobe 6 px e aparece um pouquinho depois do anterior */
+.entra{animation:entraBloco .26s var(--entra) both;animation-delay:calc(var(--i, 0) * 32ms + 40ms)}
+@keyframes entraBloco{from{opacity:0;transform:translateY(6px)}}
+/* (!) ajuda: balão pequeno explicando o módulo, a seção ou o modelo */
+.ajuda{display:inline-grid;place-items:center;width:24px;height:24px;margin-left:6px;vertical-align:-6px;border-radius:50%;color:var(--muted);transition:background var(--t1),color var(--t1)}
+.ajuda svg{width:16px;height:16px}
+.ajuda:hover,.ajuda[aria-expanded="true"]{background:var(--hover);color:var(--accent)}
+.balao{position:fixed;z-index:90;padding:12px 14px;border-radius:var(--r2);background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 12px 32px rgba(0,0,0,.22);font-size:var(--t-sm);line-height:1.5;opacity:0;transform:translateY(-4px) scale(.98);transform-origin:top center;transition:opacity var(--t2) var(--entra),transform var(--t2) var(--entra)}
+.balao.cima{transform-origin:bottom center;transform:translateY(4px) scale(.98)}
+.balao.visivel{opacity:1;transform:none}
+.balao b{display:block;font-size:var(--t-md);font-weight:600;margin-bottom:4px}
+.balao p{margin:0;color:var(--muted)}
+.linha-esforco{display:flex;align-items:center;justify-content:space-between;gap:8px 10px;flex-wrap:wrap;margin:0 0 10px}
+.linha-esforco b{font-weight:500;font-size:var(--t-md)}
+textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--sans)}
+@media (prefers-reduced-motion:reduce){.entra{animation:none}.balao{transition:none}}
 .seg button{padding:7px 14px;border-radius:var(--r1);font-size:var(--t-md);color:var(--muted)}
 .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);font-weight:500}
 .botoes{display:flex;flex-wrap:wrap;gap:8px}
@@ -516,6 +532,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .dlg .dlg-txt p{margin:.4em 0}
 .dlg .botoes{justify-content:flex-end}
 .folha{padding:0 8px calc(var(--sb) + 10px)}
+.dlg:focus,.painel:focus{outline:none}   /* a folha recebe o foco só para o teclado entrar nela: sem contorno */
 .dlg{touch-action:none}                 /* menu curto: o dedo arrasta a folha de qualquer ponto */
 .dlg.rola{touch-action:pan-y}           /* menu comprido: o dedo rola o conteúdo; a alça arrasta a folha */
 .folha .dlg-topo{padding:22px 12px 6px}
@@ -685,7 +702,11 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .rodape{display:none}
 
   .painel{width:100%;height:auto;max-height:calc(100% - var(--st) - 8px);border-left:0;border-right:0}   /* só o tamanho do conteúdo */
-  .painel.sub{height:calc(100% - var(--st) - 8px)}
+  /* o menu principal decide a altura: a página de dentro entra pela direita do mesmo tamanho (irPara congela a altura) */
+  .painel.sub{height:auto}
+  /* menu que abriu por cima: o de baixo recua para a esquerda, como numa pilha de telas */
+  .painel-fundo.atras{pointer-events:none}
+  .painel-fundo.atras .painel{transform:translateX(-16%) scale(.97);opacity:.35;transition:transform var(--t3) var(--entra),opacity var(--t3)}
   .p-nav{min-height:0}
   .p-nav{width:100%;border:0;background:var(--side);padding:22px 14px calc(var(--sb) + 20px)}
   .p-nav{padding:14px 12px calc(var(--sb) + 16px)}
