@@ -1,3 +1,19 @@
+## Novidades da 1.22.0
+
+- **PDF de qualquer tamanho.** A cada pergunta a IA lê os trechos do arquivo ligados a ela, com o número da página, e não mais só o começo. Pedindo "resuma o arquivo", ela lê por partes e junta. O arquivo continua consultável nas perguntas seguintes da conversa.
+- **Bolinha de contexto** ao lado do microfone: mostra quanto da memória da IA a conversa já ocupa. Tocando, aparece cada parte (instruções, memória, conversa, arquivos, pesquisa) e o botão **Compactar conversa**, que troca as mensagens antigas por um resumo (elas continuam na tela). Com a conversa cheia, ela compacta sozinha antes de responder.
+- **Memória maior e medida de verdade:** no PC a IA passa a lembrar 16 mil tokens (32 mil com 8 GB de RAM ou mais), no celular 4 a 8 mil, gastando só uns 100 MB a mais. O tamanho de cada mensagem é contado pelo próprio modelo, sem estimativa.
+- **Esforço Auto, agora o padrão:** a IA raciocina só quando a pergunta pede (contas, código, "por quê") e responde direto no resto. No placar novo, de 145 perguntas, o Auto acerta entre o Médio e o Alto em metade do tempo do Alto.
+- **Ajustes → Respostas:** instruções fixas para a IA, tamanho das respostas, seu nível de estudo, esforço de cada modelo, compactar sozinho e Enter envia.
+- **Botão (!)** em cada módulo, seção e modelo dos Ajustes: um balão pequeno explica o que é.
+- **Menus do celular:** arrastar para fechar de qualquer ponto, em todos os menus. O menu principal decide a altura, e o que abre por cima entra pela direita do mesmo tamanho (os Ajustes não pulam mais para a tela cheia).
+- **No PC, os menus da caixa de mensagem abrem no meio dela**, e não mais colados à esquerda.
+- **Rede que bloqueia o download** (escola, empresa): em vez de "NaN de NaN MB", aparece "Conectando…" e, se nada passar, a explicação de como trazer o modelo no pendrive (pasta `modelos` ao lado do app).
+- **Área de código só no computador**; no celular ela sai do menu.
+- **Mais legível e acessível:** cores com contraste AA nos dois temas, foco visível para quem usa o teclado, seis tamanhos de letra no app inteiro e palavras em português enquanto a IA pensa ("Pensando", "Conferindo"…). Mensagens de erro dizem o que houve e o que fazer.
+- **Mais leve:** a página do app caiu de 2,7 MB para 0,4 MB. No Android, "Respondendo…" em segundo plano ganhou um serviço próprio, fora do limite diário do Android 15. No Linux ARM64, a transcrição de áudio passa a funcionar.
+- **Por dentro:** uma configuração só do motor para os 5 sistemas, o código da interface dividido por assunto, lint e shellcheck no CI, e o concurso de modelos registrado (os três Qwen3.5 venceram todos os candidatos, inclusive um de 9B).
+
 ## Novidades da 1.21.6
 
 - **O menu curto arrasta de qualquer ponto.** Antes só a linha de cima respondia e, no meio, o dedo disputava com a rolagem — dava aquele tranco e a folha voltava. Menu comprido continua rolando o conteúdo, e aí quem arrasta é a alça.

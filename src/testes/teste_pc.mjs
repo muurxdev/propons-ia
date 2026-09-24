@@ -317,7 +317,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
     const a = p.getBoundingClientRect(), b = n.getBoundingClientRect();
     return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) <= 1.5 && a.left >= b.right - 1 })()`), await js(`$('#nomeModelo').textContent + ' · ' + $('#pillEsforco').textContent`));
   await js(`pref('esforco:leve',''); pref('esforco:normal',''); pref('esforco:avancado',''); 1`);
-  ok('cada modelo já vem com um esforço padrão', (await js(`esforcoDe('leve') + '/' + esforcoDe('normal') + '/' + esforcoDe('avancado')`)) === 'baixo/medio/alto');
+  ok('cada modelo já vem com um esforço padrão', (await js(`esforcoDe('leve') + '/' + esforcoDe('normal') + '/' + esforcoDe('avancado')`)) === 'auto/auto/auto');
   await js(`definirEsforco('leve', 'baixo'); definirEsforco('normal', 'alto'); 1`);
   ok('dá para mudar o esforço de cada modelo', (await js(`esforcoDe('leve') + '/' + esforcoDe('normal')`)) === 'baixo/alto');
   await js(`definirEsforco('normal', 'medio'); atualizarSeletorModelo(); 1`);

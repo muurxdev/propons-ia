@@ -40,7 +40,13 @@ app). Desvio entre rodadas de ±0,7 a ±2,8 pontos: diferenças maiores que isso
 | Lume | Llama 3.2 1B | 40 % | 48 % | 91 t/s | fica o Qwen (acerta menos; licença Llama) |
 | Lume | DeepSeek-R1-Distill-Qwen 1.5B (sempre pensa) | 41 % | 22 % | 91 t/s | fica o Qwen (inventa muito) |
 | Aurora | Ministral 3 3B | 76 % | 71 % | 38 t/s (−26 %) | fica o Qwen: mais lento que a regra permite, 2,2 GB × 1,3 GB, e o Aurora no Auto (74 %/72 %) ou pensando (83 %/79 %) já passa dele |
-<!-- CANDIDATOS -->
+| Ápice | Nemotron 3 Nano 4B | 75 % (pensando: 62 %) | 62 % | 22 t/s | fica o Qwen (88 %/82 % sem pensar) |
+| Ápice | Ministral 3 8B (só PC) | — | — | — | não coube numa GPU de 6 GB (5,2 GB); o dobro do tamanho do Ápice para passar de 93 % |
+| Ápice+ (nova, só PC) | Qwen3.5 9B destilado do DeepSeek V4 Flash | 81 % | 50 % | 21 t/s · 10,8 s por resposta | **não entra**: pior que o Ápice em acerto e armadilhas, 32 % de respostas repetidas, com o dobro do tamanho |
+
+**Resultado do concurso: os três Qwen3.5 continuam.** Nenhum candidato passou na regra; o Ápice (4B) ganhou até do
+9B. A infraestrutura para modelos de outra família (URL e visão explícitas nos hosts) ficou pronta para uma próxima
+rodada.
 
 Conclusões: **pensar é o maior ganho em todos os tamanhos** (inclusive no Lume, +19 pontos); o **Auto** fica entre o
 Médio e o Alto em metade do tempo do Alto e virou o esforço padrão dos três.

@@ -187,6 +187,7 @@ function cancelarEdicao() { editando = false; editandoIdx = -1; $('#editando').h
 $('#cancelarEdicao').onclick = () => { cancelarEdicao(); $('#entrada').value = ''; anexos = []; desenharChips(); };
 
 async function responder(conv, continuacao) {
+  janelaEscondida = document.hidden;   // antes de qualquer espera (compactar, pesquisar, ler o arquivo): sair da janela conta
   const ultima = conv.msgs[conv.msgs.length - 1];
   const pergunta = continuacao ? conv.msgs[ultimoIndice(conv, 'user')] : ultima;
   const texto = pergunta ? pergunta.texto : '';
@@ -250,7 +251,6 @@ async function responder(conv, continuacao) {
   // a partir daqui a resposta está em andamento (o botão vira "parar"): pesquisa e leitura do arquivo também param
   const ctrl = new AbortController();
   geracao = { conv, ctrl, el: alvo };
-  janelaEscondida = document.hidden;   // antes de qualquer espera: trocar de janela durante a pesquisa ou a leitura também conta
   PLATAFORMA.ocupado(true);
   $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
   // a conversa mostra o passo (pesquisa, leitura do arquivo) no lugar da palavra animada
