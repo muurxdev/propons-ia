@@ -9,9 +9,13 @@
 <style>
 :root{--folha:64vh;
   /* movimento: três tempos e duas curvas para o app inteiro */
-  --t1:.14s; --t2:.2s; --t3:.26s; --entra:cubic-bezier(.2,.8,.2,1); --sai:cubic-bezier(.4,0,1,1);
+  --t1:.15s; --t2:.2s; --t3:.3s;                       /* Material 3: short3, short4, medium2 */
+  --entra:cubic-bezier(.05,.7,.1,1);                   /* "emphasized decelerate": chegar */
+  --sai:cubic-bezier(.3,0,.8,.15);                     /* "emphasized accelerate": sair */
+  --padrao:cubic-bezier(.2,0,0,1);                     /* "standard": cor, fundo, estados */
   /* forma: quatro raios (controle pequeno, cartão, folha, pílula) */
-  --r1:10px; --r2:14px; --r3:20px; --r4:99px;
+  --r1:8px; --r2:12px; --r3:16px; --r4:99px;           /* raios do sistema do Claude: controle, cartão, container, pílula */
+  --rf:28px;                                           /* folha (Material 3) */
   --canvas:#eef0f5; --elev:0 4px 16px -4px rgba(19,29,43,.12); --bg:#ffffff; --side:#ffffff; --surface:#ffffff; --hover:#efeff3; --ink:#111114; --muted:#6b6b76; --faint:#7c7c88; --line:#e6e6eb;
   --accent:#7c5cff; --accent-hover:#6a48f5; --accent-ink:#ffffff; --accent-soft:#f1edff;
   --user:#f1f1f4; --code:#f6f6f8; --ok:#1f8a4c; --ok-soft:#e7f5ec; --warn:#b7791f; --warn-soft:#fdf3e1; --danger:#d93f3f; --danger-soft:#fdecec;
@@ -253,7 +257,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .pensa-linha{display:inline-flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;border-radius:var(--r4);border:1px solid var(--line);background:var(--surface);cursor:pointer;transition:background var(--t1),border-color var(--t1)}
 .pensa-linha:hover{background:var(--hover);border-color:var(--faint)}
 .pensa-rotulo{font-size:13px;color:var(--muted)}
-.pensa-seta{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:transparent;transition:background var(--t2),color var(--t2),transform var(--t3) var(--entra)}
+.pensa-seta{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:transparent;transition:background var(--t2),color var(--t2),transform var(--t3) var(--padrao)}
 .pensa-seta svg{width:15px;height:15px}
 .pensa-linha:hover .pensa-seta{background:var(--hover)}
 .pensa-seta[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent);transform:rotate(180deg)}
@@ -303,7 +307,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 
 /* ---------- caixa de mensagem ---------- */
 .compor{flex:none;padding:4px 16px calc(12px + var(--sb))}
-.caixa{max-width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r3);padding:8px 10px 8px 12px;box-shadow:var(--shadow);transition:border-color var(--t1)}
+.caixa{max-width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--rf);padding:8px 10px 8px 12px;box-shadow:var(--shadow);transition:border-color var(--t1)}
 .caixa:focus-within{border-color:var(--faint)}
 .caixa.soltar{border-color:var(--accent);background:var(--accent-soft)}
 #chips{display:flex;flex-wrap:wrap;gap:6px;padding:4px 4px 2px}
@@ -375,9 +379,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* ---------- ajustes (painel) ---------- */
 .painel-fundo{position:fixed;inset:0;z-index:50;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0;animation:aparece var(--t2) ease}
 @keyframes aparece{from{opacity:0}}
-.painel{width:min(900px,100%);height:min(700px,calc(100% - var(--st) - 16px));display:flex;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:var(--r3) var(--r3) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.3);overflow:hidden;position:relative;animation:sobe .32s var(--entra);will-change:transform}
+.painel{width:min(900px,100%);height:min(700px,calc(100% - var(--st) - 16px));display:flex;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:var(--rf) var(--rf) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.3);overflow:hidden;position:relative;animation:sobe .32s var(--entra);will-change:transform}
 .p-arrastar{position:absolute;top:0;left:0;right:0;height:20px;z-index:6;touch-action:none;cursor:grab}
-.alca{display:block;width:40px;height:5px;border-radius:8px;background:var(--faint);opacity:.45;margin:0 auto}
+.alca{display:block;width:32px;height:4px;border-radius:var(--r4);background:var(--faint);opacity:.4;margin:0 auto}
 .p-arrastar .alca{margin-top:7px}
 .p-nav-topo,.p-topo,.dlg-topo{touch-action:none}
 .p-nav{width:250px;flex:none;border-right:1px solid var(--line);background:var(--side);display:flex;flex-direction:column;padding:18px 8px 12px;overflow-y:auto}
@@ -470,9 +474,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 
 /* diálogos e folhas (no celular sobem de baixo) */
 .dlg-fundo{position:fixed;inset:0;z-index:80;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0;animation:aparece var(--t2) ease}
-.dlg{width:min(480px,100%);min-width:0;max-height:88vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:var(--r3) var(--r3) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.28);padding:0 20px calc(var(--sb) + 18px);animation:sobe var(--t3) var(--entra);will-change:transform}
+.dlg{width:min(480px,100%);min-width:0;max-height:88vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:var(--rf) var(--rf) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.28);padding:0 20px calc(var(--sb) + 18px);animation:sobe var(--t3) var(--entra);will-change:transform}
 .dlg-topo{position:sticky;top:0;z-index:1;background:var(--bg);display:flex;align-items:center;gap:8px;padding:22px 0 8px;margin-bottom:2px;cursor:grab}
-.dlg-topo .alca{position:absolute;top:8px;left:50%;transform:translateX(-50%)}
+.dlg-topo .alca{position:absolute;top:10px;left:50%;transform:translateX(-50%)}
 .dlg-topo h3{flex:1;min-width:0}
 .dlg-topo .icone{margin:-6px -8px -6px 0}
 .dlg h3{margin:0;font-size:17px;font-weight:600}
@@ -620,7 +624,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 
 /* janela estreita / celular: histórico vira gaveta, ajustes viram tela cheia */
 @media (max-width:760px){
-  #lateral{position:fixed;left:calc(12px + var(--sl));top:calc(12px + var(--st));bottom:calc(12px + var(--sb));z-index:20;margin-left:0;padding:0;transform:translateX(0);transition:transform var(--t3) var(--entra);width:min(300px,84vw);border:1px solid var(--line);border-radius:var(--r3);box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}
+  #lateral{position:fixed;left:calc(12px + var(--sl));top:calc(12px + var(--st));bottom:calc(12px + var(--sb));z-index:20;margin-left:0;padding:0;transform:translateX(0);transition:transform var(--t3) var(--entra);width:min(300px,84vw);border:1px solid var(--line);border-radius:var(--rf);box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}
   #lateral.fechada{margin-left:0;transform:translateX(calc(-100% - 16px - var(--sl)))}
   #lateral .lat-pe{padding-bottom:8px}
   #lateral.arrastando{transition:none}
@@ -713,7 +717,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* PC e tablet: diálogos no centro, menus flutuando ao lado do botão, ajustes numa janela; nada sobe de baixo */
 @media (min-width:761px){
   header{padding:0 14px 0 18px}
-  #lateral{margin:12px 0 12px 12px;border-radius:var(--r3);border:1px solid var(--line);box-shadow:var(--elev);background:var(--side);padding-top:0;overflow:hidden;contain:layout paint;transition:margin-left var(--t3) ease,opacity var(--t3) ease}
+  #lateral{margin:12px 0 12px 12px;border-radius:var(--rf);border:1px solid var(--line);box-shadow:var(--elev);background:var(--side);padding-top:0;overflow:hidden;contain:layout paint;transition:margin-left var(--t3) ease,opacity var(--t3) ease}
   #lateral.fechada{margin-left:-284px;opacity:0}
   .alca{display:none}
   .dlg-fundo{place-items:center}

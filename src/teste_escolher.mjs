@@ -47,7 +47,7 @@ ok('a IA respondeu a mensagem pendente', !!(ult && ult.role === 'assistant' && (
   `${((Date.now() - t1) / 1000).toFixed(0)} s · gerando=${await c.js('!!geracao')} · ${(ult && ult.texto) || '(sem resposta)'}`);
 ok('pendente some do histórico', await c.js('!atual.msgs.some(m => m.pendente)'));
 const nome = await c.js(`$('#nomeModelo').textContent`);
-ok('seletor mostra o nome do modelo', nome === 'Própons ' + NOMES[idModelo], nome);
+ok('seletor mostra o nome do modelo', nome === NOMES[idModelo] || nome === 'Própons ' + NOMES[idModelo], nome);   // na tela estreita o nome é curto
 await c.foto('e4-respondeu');
 await c.js(`$('#seletorModelo').click(); 1`); await espera(900);
 ok('seletor abre a lista com o ✓ no modelo em uso', (await c.js(`document.querySelectorAll('.dlg.modelos .lm').length`)) === 3 && (await c.js(`!!document.querySelector('.dlg.modelos .lm.on .check')`)));

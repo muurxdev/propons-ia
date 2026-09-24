@@ -1,3 +1,9 @@
+## Novidades da 1.21.5
+
+- **Um sistema de desenho só, no app inteiro.** Os tempos e as curvas de animação viraram três e duas (os mesmos valores que o Material 3 recomenda para chegar e sair), e os cantos arredondados viraram quatro degraus, na mesma escala do sistema de desenho público do Claude. Antes eram oito tempos, duas curvas soltas e dez raios diferentes espalhados.
+- **Folha com a alça no padrão** (32 × 4, canto de 28) e caixa de mensagem no mesmo arredondamento.
+- **Na tela estreita o modelo aparece pelo nome curto** (Lume, Aurora, Ápice): o "Própons" era redundante dentro do próprio app e roubava espaço da caixa.
+
 ## Novidades da 1.21.4
 
 - **Arrastar a folha para baixo fecha sempre**, acompanhando o dedo. Antes o primeiro gesto para baixo era gasto para encolher a folha e parecia que ela travava.

@@ -2106,6 +2106,7 @@ function posicionarPop(f, folha, ancora, lado) {
   else { folha.style.top = (r.bottom + 6) + 'px'; folha.style.transformOrigin = 'top left'; }
 }
 // janela redimensionada ou tablet girado: os menus flutuantes acompanham o botão
+addEventListener('resize', () => { try { atualizarSeletorModelo(); } catch (e) {} });   // o nome do modelo é curto na tela estreita
 addEventListener('resize', () => document.querySelectorAll('.dlg-fundo.pop:not(.saindo)').forEach(f => { if (f._pop) posicionarPop(f, f._pop.folha, f._pop.ancora, f._pop.lado); }));
 
 /* ---------------- nomes dos modelos ----------------
@@ -2133,7 +2134,9 @@ function abrirEsforco(depois) {
 }
 const DESC_MODELO = { leve: 'Leve e rápido', normal: 'Equilibrado, para o dia a dia', avancado: 'Para as tarefas mais difíceis' };
 ICO.check = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-const nomeModelo = m => 'Própons ' + (NOME_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1'));
+// dentro do app o "Própons" é redundante: na caixa estreita fica só Lume, Aurora ou Ápice
+const nomeCurtoModelo = m => NOME_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1');
+const nomeModelo = m => 'Própons ' + nomeCurtoModelo(m);
 // bolinha com a porcentagem do download
 const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, Math.floor(pct * 100)))}"><b>${Math.floor(pct * 100)}%</b></span>`;
 
@@ -2181,7 +2184,8 @@ async function responderPendente() {
 /* ---------------- seletor de modelo (ao lado do "+", como no Claude) ---------------- */
 function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
-  $('#nomeModelo').textContent = ESCOLHER ? (MODELO_INICIAL ? nomeModelo(MODELO_INICIAL) : 'Escolher modelo') : a ? nomeModelo(a) : 'Modelo';
+  const curto = m => estreita() ? nomeCurtoModelo(m) : nomeModelo(m);
+  $('#nomeModelo').textContent = ESCOLHER ? (MODELO_INICIAL ? curto(MODELO_INICIAL) : 'Escolher modelo') : a ? curto(a) : 'Modelo';
   // o nível aparece sempre (inclusive "Médio"): todo modelo tem o seu
   const p = $('#pillEsforco'); if (p) { p.textContent = ESFORCO[esforco()][0]; p.hidden = ESCOLHER; }
 }
