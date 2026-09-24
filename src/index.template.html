@@ -473,7 +473,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .notas table{font-size:12.5px}
 
 /* diálogos e folhas (no celular sobem de baixo) */
-.dlg-fundo{position:fixed;inset:0;z-index:80;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0;animation:aparece var(--t2) ease}
+.dlg-fundo{position:fixed;inset:0;z-index:80;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0;animation:aparece var(--t2) ease;will-change:opacity}
 .dlg{width:min(480px,100%);min-width:0;max-height:88vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:var(--rf) var(--rf) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.28);padding:0 20px calc(var(--sb) + 18px);animation:sobe var(--t3) var(--entra);will-change:transform}
 .dlg-topo{position:sticky;top:0;z-index:1;background:var(--bg);display:flex;align-items:center;gap:8px;padding:22px 0 8px;margin-bottom:2px;cursor:grab}
 .dlg-topo .alca{position:absolute;top:10px;left:50%;transform:translateX(-50%)}
@@ -483,7 +483,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .dlg .dlg-txt{font-size:14px;color:var(--muted);margin:0 0 16px}
 .dlg .dlg-txt p{margin:.4em 0}
 .dlg .botoes{justify-content:flex-end}
-.folha{padding:0 8px calc(var(--sb) + 10px);touch-action:pan-y}   /* rola; o arraste para fechar é pelo topo/alça */
+.folha{padding:0 8px calc(var(--sb) + 10px)}
+.dlg{touch-action:none}                 /* menu curto: o dedo arrasta a folha de qualquer ponto */
+.dlg.rola{touch-action:pan-y}           /* menu comprido: o dedo rola o conteúdo; a alça arrasta a folha */
 .folha .dlg-topo{padding:22px 12px 6px}
 .folha h3{font-size:13px;color:var(--muted);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .folha button.op{display:flex;align-items:center;gap:14px;width:100%;padding:12px;border-radius:var(--r2);font-size:15px;text-align:left}

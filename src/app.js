@@ -71,16 +71,17 @@ function animarSaida(fundo, folha, depois) {
   pausarDesenho(240);
   if (!estreita()) {   // PC e tablet: some com um fade curto
     folha.style.transition = 'opacity .14s ease,transform .14s ease'; folha.style.opacity = '0'; folha.style.transform = 'translateY(4px) scale(.985)';
-    fundo.style.transition = 'background-color .14s'; fundo.style.backgroundColor = 'rgba(0,0,0,0)';
+    fundo.style.transition = 'opacity .14s linear'; fundo.style.opacity = '0';
     setTimeout(() => { fundo.remove(); if (depois) depois(); }, 140);
     return;
   }
   // folha que entrou pela direita sai pela direita; as outras descem
   const paraLado = fundo.classList.contains('lado');
   folha.style.animation = 'none';
-  folha.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)';
+  folha.style.boxShadow = 'none';                         // sombra grande em movimento pesa no celular
+  folha.style.transition = 'transform .2s cubic-bezier(.4,0,.8,.15)';
   folha.style.transform = paraLado ? 'translateX(100%)' : 'translateY(105%)';
-  fundo.style.transition = 'background-color .2s'; fundo.style.backgroundColor = 'rgba(0,0,0,0)';
+  fundo.style.transition = 'opacity .2s linear'; fundo.style.opacity = '0';   // opacidade é resolvida na placa
   setTimeout(() => { fundo.remove(); if (depois) depois(); }, 200);
 }
 /* arrastar a folha: para baixo sempre fecha (com ela acompanhando o dedo); para cima ela cresce até o fim,
@@ -88,12 +89,16 @@ function animarSaida(fundo, folha, depois) {
 function folhaArrastavel(fundo, folha, fechar) {
   let y0 = null, dy = 0, t0 = 0, id = null, moveu = false, direcao = 0;
   const temMais = () => folha.scrollHeight - folha.clientHeight > 8;
+  const marcarRolagem = () => folha.classList.toggle('rola', temMais());
+  marcarRolagem(); setTimeout(marcarRolagem, 60);
   folha.addEventListener('pointerdown', e => {
     if (e.button > 0 || !estreita()) return;
     const zona = e.target.closest('.p-arrastar, .dlg-topo, .p-topo, .p-nav-topo, .folha');
     if (!zona) return;
     if (!e.target.closest('.folha') && e.target.closest('button, input, textarea, select, a')) return;
-    if (folha.scrollTop > 2) return;                 // rolando o conteúdo: não é arraste da folha
+    // folha comprida: o dedo rola o conteúdo e só a alça arrasta; folha curta: qualquer ponto arrasta
+    if (temMais() && !e.target.closest('.dlg-topo, .p-arrastar, .alca')) return;
+    if (folha.scrollTop > 2) return;
     y0 = e.clientY; dy = 0; t0 = performance.now(); id = e.pointerId; moveu = false; direcao = 0;
   });
   folha.addEventListener('pointermove', e => {
@@ -102,7 +107,7 @@ function folhaArrastavel(fundo, folha, fechar) {
     if (!direcao) {
       if (Math.abs(bruto) < 7) return;
       direcao = bruto < 0 ? -1 : 1;
-      if (direcao === -1) { if (temMais()) folha.classList.add('cheia'); y0 = null; return; }   // para cima: cresce e acabou
+      if (direcao === -1) { if (temMais()) { folha.classList.add('cheia'); marcarRolagem(); } y0 = null; return; }   // para cima: cresce e acabou
       moveu = true;
       try { folha.setPointerCapture(id); } catch (er) {}
       folha.style.transition = 'none'; fundo.style.transition = 'none';
@@ -110,7 +115,7 @@ function folhaArrastavel(fundo, folha, fechar) {
     dy = Math.max(0, bruto);
     pausarDesenho(200);
     folha.style.transform = `translateY(${dy}px)`;
-    fundo.style.backgroundColor = `rgba(10,10,14,${(0.45 * Math.max(0, 1 - dy / Math.max(1, folha.offsetHeight))).toFixed(3)})`;
+    fundo.style.opacity = String(Math.max(0, 1 - dy / Math.max(1, folha.offsetHeight)).toFixed(3));
   });
   const soltar = () => {
     if (y0 === null) { direcao = 0; return; }
@@ -121,8 +126,8 @@ function folhaArrastavel(fundo, folha, fechar) {
       folha.addEventListener('click', engolir, { capture: true, once: true });
       setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
       if (dy > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); y0 = null; direcao = 0; return; }
-      folha.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1)'; folha.style.transform = '';
-      fundo.style.transition = 'background-color .24s'; fundo.style.backgroundColor = '';
+      folha.style.transition = 'transform .24s cubic-bezier(.05,.7,.1,1)'; folha.style.transform = '';
+      fundo.style.transition = 'opacity .24s linear'; fundo.style.opacity = '';
     }
     y0 = null; direcao = 0;
   };
@@ -1971,7 +1976,7 @@ function definirPesquisa(sim) {
 function atualizarBotaoPesquisa() {
   const b = $('#btPesquisa'); if (!b) return;
   const on = pesquisaLigada();
-  b.hidden = ESCOLHER || !on;                 // liga no "+"; aqui só aparece quando está ligada, e some ao tocar
+  b.hidden = !on;                             // liga no "+"; aqui aparece quando está ligada e some ao tocar
   b.classList.toggle('on', on);
   b.setAttribute('aria-pressed', on ? 'true' : 'false');
   b.title = 'Pesquisa na internet ligada — toque para desligar';
@@ -2185,7 +2190,7 @@ async function responderPendente() {
 function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
   const curto = m => estreita() ? nomeCurtoModelo(m) : nomeModelo(m);
-  $('#nomeModelo').textContent = ESCOLHER ? (MODELO_INICIAL ? curto(MODELO_INICIAL) : 'Escolher modelo') : a ? curto(a) : 'Modelo';
+  $('#nomeModelo').textContent = ESCOLHER ? 'Selecionar modelo' : a ? curto(a) : 'Modelo';   // sem motor ligado, não mostra o modelo da vez passada
   // o nível aparece sempre (inclusive "Médio"): todo modelo tem o seu
   const p = $('#pillEsforco'); if (p) { p.textContent = ESFORCO[esforco()][0]; p.hidden = ESCOLHER; }
 }

@@ -1,3 +1,9 @@
+## Novidades da 1.21.6
+
+- **O menu curto arrasta de qualquer ponto.** Antes só a linha de cima respondia e, no meio, o dedo disputava com a rolagem — dava aquele tranco e a folha voltava. Menu comprido continua rolando o conteúdo, e aí quem arrasta é a alça.
+- **Fechar ficou leve:** a folha some sem carregar a sombra grande e o fundo clareia por opacidade, que o aparelho resolve na placa de vídeo.
+- **O botão da pesquisa aparece assim que você liga**, mesmo antes de escolher o modelo.
+- **Sem modelo ligado, a caixa diz "Selecionar modelo"** em vez de mostrar o modelo da vez passada.
 ## Novidades da 1.21.5
 
 - **Um sistema de desenho só, no app inteiro.** Os tempos e as curvas de animação viraram três e duas (os mesmos valores que o Material 3 recomenda para chegar e sair), e os cantos arredondados viraram quatro degraus, na mesma escala do sistema de desenho público do Claude. Antes eram oito tempos, duas curvas soltas e dez raios diferentes espalhados.

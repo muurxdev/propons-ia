@@ -13,8 +13,8 @@ for (let i = 0; i < 60 && !(await p.js(`typeof ESCOLHER !== 'undefined' && !!$('
 await espera(800);
 ok('abre no chat normal (sem tela de baixar)', await p.js(`ESCOLHER && !document.querySelector('#escolher') && !!$('#entrada')`));
 // o nome ao lado do "+" é preenchido logo depois de a página abrir (lerSistema); espera até 3 s
-let nomeSel = ''; for (let i = 0; i < 12 && (nomeSel = await p.js(`$('#nomeModelo').textContent`)) !== 'Escolher modelo'; i++) await espera(250);
-ok('seletor diz "Escolher modelo"', nomeSel === 'Escolher modelo', nomeSel);
+let nomeSel = ''; for (let i = 0; i < 12 && (nomeSel = await p.js(`$('#nomeModelo').textContent`)) !== 'Selecionar modelo'; i++) await espera(250);
+ok('seletor pede para escolher o modelo', nomeSel === 'Selecionar modelo', nomeSel);
 ok('saudação com frase', /^(Boa madrugada|Bom dia|Boa tarde|Boa noite), .+/.test(await p.js(`$('#boasvindas').innerText.trim()`)), await p.js(`$('#boasvindas').innerText.trim()`));
 await p.foto('e1-chat-vazio');
 // 2) manda a primeira mensagem: sobe a lista de modelos
