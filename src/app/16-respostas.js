@@ -90,7 +90,7 @@ const AJUDA = {
   'Flashcards': ['Flashcards', 'Peça pelo "+" → Modos de estudo → Flashcards, sobre um assunto ou um arquivo.'],
   'Quizzes': ['Quizzes', 'Perguntas de múltipla escolha com correção comentada.'],
   // modelos
-  'modelo:leve': ['Própons Lume', 'O mais leve (Qwen3.5 0.8B, ~0,5 GB). Roda em quase qualquer aparelho e responde em menos de 1 s. Pensando, acerta 65 % do placar; bom para dúvidas rápidas.'],
+  'modelo:leve': ['Própons Lume', 'O mais leve (Qwen3.5 0.8B, ~0,5 GB). Roda em quase qualquer aparelho e responde em menos de 1 s. Sem pensar acerta 46 % do placar; no Auto, 55 %; pensando, 65 %. Bom para dúvidas rápidas.'],
   'modelo:normal': ['Própons Aurora', 'O equilibrado (Qwen3.5 2B, ~1,3 GB). Acerta 65 % sem pensar e 83 % pensando. Bom para o dia a dia de estudo.'],
   'modelo:avancado': ['Própons Ápice', 'O mais inteligente dos três (Qwen3.5 4B, ~2,7 GB): acerta 88 % mesmo sem pensar e inventa menos. Pede 8 GB de RAM no PC e 12 GB no celular.'],
 };

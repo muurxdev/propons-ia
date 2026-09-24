@@ -16,6 +16,35 @@ o modelo tem que dizer que não sabe/não existe). Cada pergunta roda N vezes co
 Métricas: acerto, armadilhas reconhecidas, respostas repetidas (Jaccard ≥ 0,8 entre amostras), loops, velocidade.
 Resultado em `avaliacao/resultado-<nome>-<data>.md`.
 
+### Placar de 24/09/2026 — 145 perguntas × 3 rodadas (RTX 3050, Vulkan, `rodar_placar.mjs`)
+
+Banco ampliado: 30 armadilhas e a categoria "documento longo" (apostila de 120 páginas pela mesma busca por trechos do
+app). Desvio entre rodadas de ±0,7 a ±2,8 pontos: diferenças maiores que isso são reais.
+
+| modelo | modo | acerto | armadilhas | por resposta |
+|---|---|---|---|---|
+| Lume (Qwen3.5 0.8B) | sem pensar | 46 % | 42 % | 0,6 s |
+| Lume | Auto (pensou em 43 %) | 55 % | 50 % | 2,0 s |
+| Lume | pensando | 65 % | 67 % | 4,2 s |
+| Aurora (Qwen3.5 2B) | sem pensar | 65 % | 60 % | 0,6 s |
+| Aurora | Auto | 74 % | 72 % | 3,3 s |
+| Aurora | pensando | 83 % | 79 % | 7,1 s |
+| Ápice (Qwen3.5 4B) | sem pensar | 88 % | 82 % | 0,8 s |
+| Ápice | Auto | 90 % | 88 % | 7,5 s |
+| Ápice | pensando | **97 %** | **89 %** | 15,4 s |
+
+**Concurso por faixa** (regra: ≥ 5 pontos acima em acerto ou armadilhas, no máximo 20 % mais lento, sem perder visão):
+
+| faixa | candidato | acerto | armadilhas | velocidade | decisão |
+|---|---|---|---|---|---|
+| Lume | Llama 3.2 1B | 40 % | 48 % | 91 t/s | fica o Qwen (acerta menos; licença Llama) |
+| Lume | DeepSeek-R1-Distill-Qwen 1.5B (sempre pensa) | 41 % | 22 % | 91 t/s | fica o Qwen (inventa muito) |
+| Aurora | Ministral 3 3B | 76 % | 71 % | 38 t/s (−26 %) | fica o Qwen: mais lento que a regra permite, 2,2 GB × 1,3 GB, e o Aurora no Auto (74 %/72 %) ou pensando (83 %/79 %) já passa dele |
+<!-- CANDIDATOS -->
+
+Conclusões: **pensar é o maior ganho em todos os tamanhos** (inclusive no Lume, +19 pontos); o **Auto** fica entre o
+Médio e o Alto em metade do tempo do Alto e virou o esforço padrão dos três.
+
 ### Linha de base (22–23/09/2026, RTX 3050, Vulkan)
 
 | modelo | acerto | armadilhas | repetidas | loops |

@@ -3,9 +3,10 @@
 const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
 const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
 const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], auto: ['Auto', 'Raciocina só quando a pergunta pede (contas, código, "por quê"); nas outras responde direto.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
-/* o esforço é por modelo (cada um tem o seu; o Lume costuma pedir Baixo, o Ápice aguenta Alto) */
+/* o esforço é por modelo (cada um guarda o seu) */
 const idModeloAtual = () => (ESCOLHER ? MODELO_INICIAL : ((sistemaCache && (sistemaCache.modelos || []).find(m => m.atual) || {}).id)) || 'normal';
-const PADRAO_ESFORCO = { leve: 'baixo', normal: 'medio', avancado: 'alto' };
+// padrão Auto nos três (placar de 24/09/2026: acerto entre o Médio e o Alto em metade do tempo do Alto)
+const PADRAO_ESFORCO = { leve: 'auto', normal: 'auto', avancado: 'auto' };
 // níveis que cada modelo usa de verdade (medidos no placar, treino/README.md): um nível só aparece se muda algo
 // mensurável (tempo, tamanho ou acerto). No iPhone o motor não raciocina: sem Alto e sem Auto.
 const ESFORCOS_MODELO = { leve: ['baixo', 'medio', 'auto', 'alto'], normal: ['baixo', 'medio', 'auto', 'alto'], avancado: ['baixo', 'medio', 'auto', 'alto'] };
@@ -18,7 +19,7 @@ function abrirEsforco(depois) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha esforco">${topoCentro('Nível de esforço · ' + nomeModelo(idModeloAtual()), true)}<div class="lista-modelos">${esforcosDe(idModeloAtual()).map(k => [k, ESFORCO[k]]).map(([k, [r, d]]) =>
     `<button class="lm${k === esforco() ? ' on' : ''}" data-e="${k}"><span class="pt"><b>${r}</b><small>${d}</small></span><span class="st">${k === esforco() ? `<span class="check">${ICO.check}</span>` : ''}</span></button>`).join('')}</div>
-    <p class="info" style="margin:10px 12px 2px">Cada modelo guarda o seu nível: o Lume costuma render mais no Baixo; o Ápice aproveita o Alto.</p></div>`;
+    <p class="info" style="margin:10px 12px 2px">Cada modelo guarda o seu nível. No Alto a IA raciocina sempre (acerta mais, demora mais); no Auto, só quando a pergunta pede.</p></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
