@@ -25,12 +25,12 @@ await js('abrirLateral(); 1'); await espera(350);
 ok('só o menu lateral flutua: cartão de 24 px com 12 px de margem; o chat continua reto', await js(`(() => { const l = getComputedStyle($('#lateral')), m = getComputedStyle(document.querySelector('main')); const r = $('#lateral').getBoundingClientRect(); return parseInt(l.borderRadius) >= 20 && parseInt(m.borderRadius) === 0 && r.left >= 10 && r.top >= 10 && /rgba\\(0, 0, 0, 0\\)|transparent/.test(m.backgroundColor) })()`));
 ok('botão de apagar todas as conversas no rodapé do menu', await js(`!!$('#apagarConversas')`));
 await js(`nova(); $('#lateral').classList.remove('fechada'); 1`); await espera(400);
-// "+" vira menu flutuante ancorado
+// "+" vira menu flutuante, no meio da caixa de mensagem
 await js(`$('#anexar').click(); 1`); await espera(400);
 ok('"+" abre menu flutuante (pop) no PC', await js(`!!document.querySelector('.dlg-fundo.pop .dlg')`));
 ok('"+" no estilo Claude: 3 cartões + 3 linhas (Áudio, Pesquisa e Modos), X à esquerda e título no centro', await js(`document.querySelectorAll('.opcoes.cartoes button').length === 3 && document.querySelectorAll('.opcoes.linhas button').length === 3 && !!document.querySelector('.dlg.mais .dlg-topo.centro')`));
-const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, x: Math.abs(r.left-b.left) < 40}})()`);
-ok('menu abre para cima, alinhado ao botão', rp.acima && rp.x, JSON.stringify(rp));
+const rp = await js(`(()=>{const r=document.querySelector('.dlg-fundo.pop .dlg').getBoundingClientRect(), b=$('#anexar').getBoundingClientRect(), c=$('#caixa').getBoundingClientRect(); return {acima: r.bottom <= b.top + 2, centro: Math.abs((r.left+r.right)/2-(c.left+c.right)/2) < 4}})()`);
+ok('menu abre para cima, no meio da caixa de mensagem', rp.acima && rp.centro, JSON.stringify(rp));
 await foto('p1-mais');
 await js('fecharDialogo(); 1'); await espera(300);
 await js(`$('#seletorModelo').click(); 1`); await espera(700);
@@ -110,8 +110,8 @@ await js(`fecharDialogo(); 1`); await espera(400);
 ok('diálogo: foco volta para a caixa ao fechar', (await js(`document.activeElement === $('#entrada')`)));
 // 1.16: menu flutuante acompanha o botão depois de "resize"
 await js(`abrirEsforco(); 1`); await espera(250);
-const rr = await js(`(()=>{const f=document.querySelector('.dlg-fundo.pop:not(.saindo)'); const d=f.querySelector('.dlg'); d.style.left='0px'; dispatchEvent(new Event('resize')); const r=d.getBoundingClientRect(), b=$('#seletorModelo').getBoundingClientRect(); return { dx: Math.min(Math.abs(r.left-b.left), Math.abs(r.right-b.right)), pop: !!f._pop }})()`);
-ok('menu flutuante reposicionado no resize', rr.pop && rr.dx < 40, JSON.stringify(rr));
+const rr = await js(`(()=>{const f=document.querySelector('.dlg-fundo.pop:not(.saindo)'); const d=f.querySelector('.dlg'); d.style.left='0px'; dispatchEvent(new Event('resize')); const r=d.getBoundingClientRect(), c=$('#caixa').getBoundingClientRect(); return { pop: !!f, dx: Math.abs((r.left+r.right)/2-(c.left+c.right)/2) }})()`);
+ok('menu flutuante reposicionado no resize (volta para o meio da caixa)', rr.pop && rr.dx < 4, JSON.stringify(rr));
 await js(`fecharDialogo(); 1`); await espera(300);
 // 1.16: rascunho por conversa
 await js(`conversas.unshift({ id: 'testeB', titulo: 'B', criada: Date.now(), atualizada: Date.now(), msgs: [] }, { id: 'testeA', titulo: 'A', criada: Date.now(), atualizada: Date.now(), msgs: [] }); abrir('testeA'); $('#entrada').value = 'rascunho da A'; abrir('testeB'); 1`);

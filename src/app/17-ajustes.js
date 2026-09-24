@@ -117,7 +117,11 @@ function abaGeral(c) {
 const PERFIL_MODELO = { leve: 'Mais rápido', normal: 'Equilibrado', avancado: 'Mais inteligente' };
 let baixando = {};          // id → { pct, feito, total, fase }
 let trocandoPara = null;    // id do modelo que está sendo ligado
-const textoDownload = b => b.fase === 'verificando' ? 'Conferindo o arquivo…' : `Baixando ${Math.floor(b.pct * 100)}% · ${Math.round(b.feito / 1048576)} de ${Math.round(b.total / 1048576)} MB`;
+// antes do primeiro byte não há tamanho para mostrar (era o "NaN de NaN MB"); rede que bloqueia o download ganha texto próprio
+const textoDownload = b => b.fase === 'verificando' ? 'Conferindo o arquivo…'
+  : b.fase === 'bloqueado' ? 'A rede não está deixando baixar · tentando de novo…'
+  : !(b.total > 0) || !(b.feito > 0) ? 'Conectando ao servidor…'
+  : `Baixando ${Math.floor((b.pct || 0) * 100)}% · ${Math.round(b.feito / 1048576)} de ${Math.round(b.total / 1048576)} MB`;
 
 function cartaoModelo(m, ram, rec) {
   const perfil = PERFIL_MODELO[m.id] || '';
@@ -298,7 +302,7 @@ PLATAFORMA.ao('download-fim', d => {
   if (esperaVoz && d.id === esperaVoz.id) { const r = esperaVoz.res; esperaVoz = null; r(!!d.ok); }
   if (d.ok && !String(d.id).startsWith('gpu-')) toast('Download concluído. O modelo já pode ser usado.', 3000);
   else if (d.erro === 'cancelado') toast('Download cancelado.');
-  else if (d.erro) toast(d.erro, 5000);
+  else if (d.erro) avisarErroDownload(d.erro);
   if (abaAtual === 'modelo') desenharAba();
   lerSistema().then(desenharNav);
 });
@@ -315,7 +319,7 @@ PLATAFORMA.ao('motor', d => {
   }
   if (d.estado === 'erro') {
     baixando = {}; trocandoPara = null; fimEsperaVisao(false);
-    estado('erro', true); toast(d.mensagem || 'Erro no motor da IA.', 5000);
+    estado('erro', true); avisarErroDownload(d.mensagem || 'Erro no motor da IA.');
     if (abaAtual === 'modelo') desenharAba(); redesenharSeletor();
   }
 });

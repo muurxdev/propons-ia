@@ -506,6 +506,13 @@ class Janela : Form
         if (f == "cancelado") return "Download cancelado.";
         if (f == "sem espaço") return "A IA precisa de cerca de " + (((m ?? modelo).Tamanho >> 20) + 400) + " MB livres no disco deste PC.";
         if (f == "corrompido") return "O arquivo baixado veio com defeito e foi descartado. Tente de novo.";
+        if (f == "bloqueado")
+        {
+            Modelo b = m ?? modelo;
+            return "A rede deste PC não deixou baixar o modelo (é comum em escolas e empresas, que bloqueiam o site dos modelos, huggingface.co).\n" +
+                "Dá para trazer no pendrive: em outro computador, baixe o arquivo " + b.Arquivo + " (" + (b.Tamanho >> 20) + " MB) em " + b.Url + "\n" +
+                "e coloque numa pasta chamada modelos, ao lado da Própons IA no pendrive (" + Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "modelos") + "). Na próxima abertura ela já usa o modelo, sem baixar.";
+        }
         return "Na primeira vez em cada PC é preciso internet. Verifique a conexão e tente de novo.";
     }
 
@@ -610,9 +617,16 @@ class Janela : Form
                 else Evento("download", Dic("id", m.Id, "pct", v, "feito", ja, "total", m.Tamanho, "nome", m.Nome));
             });
         };
+        // antes do primeiro byte: "conectando"; se a rede não deixa passar nada (filtro de escola ou empresa), "bloqueado"
+        Action<string> fase = delegate (string f)
+        {
+            long ja0 = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
+            if (!naSplash) BeginInvoke((Action)delegate { Evento("download", Dic("id", m.Id, "pct", (double)ja0 / m.Tamanho, "feito", ja0, "total", m.Tamanho, "nome", m.Nome, "fase", f)); });
+        };
+        fase("conectando");
         await Task.Run(delegate
         {
-            int falhasSeguidas = 0;
+            int falhasSeguidas = 0; long baixouAgora = 0;
             while (true)
             {
                 long ja = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
@@ -634,7 +648,7 @@ class Janela : Form
                         while ((n = s.Read(buf, 0, buf.Length)) > 0)
                         {
                             if (cancelarBaixar) throw new OperationCanceledException("cancelado");
-                            f.Write(buf, 0, n); ja += n;
+                            f.Write(buf, 0, n); ja += n; baixouAgora += n;
                             if ((DateTime.Now - ultimo).TotalMilliseconds > 250) { ultimo = DateTime.Now; progresso(ja); }
                         }
                     }
@@ -646,8 +660,11 @@ class Janela : Form
                     if (ex is IOException) { try { if (new DriveInfo(Path.GetPathRoot(dir)).AvailableFreeSpace < (64L << 20)) throw new IOException("sem espaço"); } catch (IOException) { throw; } catch { } }
                     long agora = File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
                     if (agora > antes) falhasSeguidas = 0; else falhasSeguidas++;     // houve progresso: continua tentando
+                    Program.Log("download " + m.Arquivo + ": " + ex.GetType().Name + " " + ex.Message);
+                    // nenhum byte passou nesta vez: a rede provavelmente bloqueia o site (avisa logo, e continua tentando)
+                    if (baixouAgora == 0 && falhasSeguidas == 2) fase("bloqueado");
                     // rede caiu ou mudou: espera voltar (até ~4 min sem nenhum progresso)
-                    if (falhasSeguidas >= 9) throw new WebException("sem conexão");
+                    if (falhasSeguidas >= 9) throw new WebException(baixouAgora == 0 ? "bloqueado" : "sem conexão");
                     for (int i = 0; i < Math.Min(30, 3 * (falhasSeguidas + 1)); i++) { if (cancelarBaixar) throw new OperationCanceledException("cancelado"); Thread.Sleep(1000); }
                 }
             }

@@ -53,19 +53,30 @@ PLATAFORMA.ao('download', d => {
   const id = d.id;
   const linha = document.querySelector(`.lista-modelos [data-m="${id}"] .st`);
   if (linha) linha.innerHTML = d.fase === 'verificando' ? '<span class="anel girando"><b>✓</b></span>' : anel(d.pct || 0);
-  if (ESCOLHER && id === escolhendoId) estado(d.fase === 'verificando' ? 'conferindo o download' : `baixando ${Math.floor((d.pct || 0) * 100)}%`);
+  // o texto embaixo do nome acompanha o anel (antes ficava parado no primeiro valor)
+  const texto = document.querySelector(`.lista-modelos [data-m="${id}"] small`); if (texto) texto.textContent = textoDownload(d);
+  if (ESCOLHER && id === escolhendoId) estado(d.fase === 'verificando' ? 'conferindo o download' : d.fase === 'bloqueado' ? 'a rede não deixa baixar' : !(d.feito > 0) ? 'conectando' : `baixando ${Math.floor((d.pct || 0) * 100)}%`);
 });
+// erro de download: rede que bloqueia (escola, empresa) ganha a explicação com o caminho do pendrive numa folha, em vez
+// de um aviso que some; os dois ouvintes de download-fim avisam uma vez só
+let ultimoErroDl = { msg: '', quando: 0 };
+function avisarErroDownload(msg) {
+  if (msg === ultimoErroDl.msg && Date.now() - ultimoErroDl.quando < 3000) return;
+  ultimoErroDl = { msg, quando: Date.now() };
+  if (/pendrive/i.test(msg)) perguntar('A rede não deixou baixar', `<p>${esc(msg).replace(/\n/g, '</p><p>')}</p>`, [['Entendi', true, 'primario']]);
+  else toast(msg, 5000);
+}
 PLATAFORMA.ao('download-fim', d => {
   if (!ESCOLHER || d.id !== escolhendoId || d.ok) return;
   escolhendoId = null; estado('', false, 'download');
-  toast(d.erro === 'cancelado' ? 'Download cancelado.' : (d.erro || 'Não foi possível baixar. Verifique a internet e tente de novo.'), 5000);
+  avisarErroDownload(d.erro === 'cancelado' ? 'Download cancelado.' : (d.erro || 'Não foi possível baixar. Verifique a internet e tente de novo.'));
   const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f);
 });
 PLATAFORMA.ao('motor', d => {
   if (!ESCOLHER) return;
   if (d.estado === 'ligando') document.querySelectorAll('.lista-modelos .st .anel').forEach(a => a.outerHTML = '<span class="anel girando"><b></b></span>');
   if (d.estado === 'pronto') escolhendoId = null;
-  if (d.estado === 'erro') { escolhendoId = null; document.querySelectorAll('.msg.ia .txt.digitando').forEach(t => t.parentNode.remove()); toast(d.mensagem || 'Não foi possível ligar a IA.', 5000); const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f); }
+  if (d.estado === 'erro') { escolhendoId = null; document.querySelectorAll('.msg.ia .txt.digitando').forEach(t => t.parentNode.remove()); avisarErroDownload(d.mensagem || 'Não foi possível ligar a IA.', 5000); const f = document.querySelector('.dlg.modelos'); if (f) desenharListaModelos(f); }
 });
 // depois que a IA liga, responde a mensagem que ficou esperando o download
 async function responderPendente() {
@@ -108,7 +119,7 @@ function desenharListaModelos(folha) {
   const ram = sis.ramTotal || 0, rec = ram && ram < 5.5 * GB ? 'leve' : 'normal';
   lm.innerHTML = sis.modelos.map(m => {
     // só mostra porcentagem quando está realmente baixando; modelo já baixado que foi clicado mostra "ativando"
-    const b = baixando[m.id] || (escolhendoId === m.id && !m.baixado ? { pct: 0 } : null);
+    const b = baixando[m.id] || (escolhendoId === m.id && !m.baixado ? { pct: 0, feito: 0, total: m.tamanho, fase: 'conectando' } : null);
     const emUso = !ESCOLHER && m.atual && !trocandoPara;
     const ligando = !b && (trocandoPara === m.id || (escolhendoId === m.id && m.baixado));
     const st = b ? anel(b.pct || 0) : ligando ? '<span class="anel girando"><b></b></span>' : m.bloqueado ? '' : emUso ? `<span class="check">${ICO.check}</span>`

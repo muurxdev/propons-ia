@@ -41,10 +41,13 @@ function posicionarPop(f, folha, ancora, lado) {
   folha.style.top = folha.style.bottom = '';
   const r = ancora.getBoundingClientRect(), w = folha.offsetWidth, h = folha.offsetHeight;
   const abaixo = innerHeight - r.bottom - 8, acima = r.top - 8, paraCima = abaixo < Math.min(h, 240) && acima > abaixo;
-  const x = lado === 'fim' ? r.right - w : r.left;
+  // menus da caixa de mensagem (+, modelos, esforço, contexto): no meio da caixa, não colados no botão da esquerda
+  const caixa = ancora.closest('.caixa'), c = caixa && caixa.getBoundingClientRect();
+  const x = c ? c.left + (c.width - w) / 2 : lado === 'fim' ? r.right - w : r.left;
+  const origem = c ? 'center' : 'left';
   folha.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px';
-  if (paraCima) { folha.style.bottom = (innerHeight - r.top + 6) + 'px'; folha.style.transformOrigin = 'bottom left'; }
-  else { folha.style.top = (r.bottom + 6) + 'px'; folha.style.transformOrigin = 'top left'; }
+  if (paraCima) { folha.style.bottom = (innerHeight - r.top + 6) + 'px'; folha.style.transformOrigin = 'bottom ' + origem; }
+  else { folha.style.top = (r.bottom + 6) + 'px'; folha.style.transformOrigin = 'top ' + origem; }
 }
 // janela redimensionada ou tablet girado: os menus flutuantes acompanham o botão
 addEventListener('resize', () => { try { atualizarSeletorModelo(); } catch (e) {} });   // o nome do modelo é curto na tela estreita
