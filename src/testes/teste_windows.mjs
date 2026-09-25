@@ -17,6 +17,8 @@ const js = async e => { const r = await cdp('Runtime.evaluate', { expression: e,
 const foto = async n => { const r = await cdp('Page.captureScreenshot', { format: 'png' }); if (r.result) fs.writeFileSync(`${saida}/${n}.png`, Buffer.from(r.result.data, 'base64')); };
 const espera = ms => new Promise(r => setTimeout(r, ms));
 const res = []; const ok = (n, c, d = '') => { res.push([c, n, d]); console.log(c ? '  ✔' : '  ✘', n, d ? '— ' + String(d).slice(0, 150) : ''); };
+// a página pode estar ainda carregando os scripts quando o endereço já aparece: espera o app existir (até 60 s)
+for (let i = 0; i < 120; i++) { try { if (await js("typeof PLATAFORMA === 'object' && typeof online !== 'undefined'")) break; } catch (e) {} await espera(500); }
 const pronto = async (s = 300) => { for (let i = 0; i < s * 2; i++) { if (await js('online && $("#estado").hidden')) return true; await espera(500); } return false; };
 const pergunta = async t => { await js(`(()=>{const e=$('#entrada'); e.value=${JSON.stringify(t)}; ajustar(); $('#enviar').click(); return 1})()`); for (let i = 0; i < 60 && !(await js('!!geracao')); i++) await espera(250); for (let i = 0; i < 600 && await js('!!geracao'); i++) await espera(500); return js('atual.msgs[atual.msgs.length-1]'); };
 const motorPid = () => { try { return execSync('powershell -NoProfile -Command "(Get-Process llama-server).Id"').toString().trim(); } catch (e) { return ''; } };
