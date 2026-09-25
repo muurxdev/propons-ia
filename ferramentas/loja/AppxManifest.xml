@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pacote da Microsoft Store (MSIX). {NOME}, {PUBLISHER} e {PUBLISHERNOME} vêm de identidade.json (Partner Center →
+     Identidade do produto); {VERSAO} vem de VERSAO (a Store exige o 4º número = 0). A Store assina o pacote na publicação. -->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap rescap">
+  <Identity Name="{NOME}" Publisher="{PUBLISHER}" Version="{VERSAO}" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Própons IA</DisplayName>
+    <PublisherDisplayName>{PUBLISHERNOME}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>IA de estudos que roda no seu computador: sem conta, sem mensalidade e funcionando sem internet.</Description>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="pt-BR" />
+  </Resources>
+  <Applications>
+    <Application Id="ProponsIA" Executable="Propons IA.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Própons IA" Description="IA de estudos no seu computador"
+                          BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+    <DeviceCapability Name="microphone" />
+    <DeviceCapability Name="webcam" />
+    <DeviceCapability Name="location" />
+  </Capabilities>
+</Package>

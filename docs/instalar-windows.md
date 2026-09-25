@@ -13,6 +13,16 @@
    **Mais informações → Executar assim mesmo**. É um aviso, não um bloqueio.
 4. Escreva sua primeira mensagem, escolha o modelo e toque em **Baixar**. Quando terminar, a IA responde.
 
+### "Parte deste aplicativo foi bloqueada" (Controle Inteligente de Aplicativos)
+
+No Windows 11 com o **Controle Inteligente de Aplicativos** ligado, o `.exe` do site é bloqueado sem opção de
+"Executar assim mesmo". Isso acontece porque o arquivo não tem assinatura digital; não é vírus. Há dois caminhos:
+
+- **Microsoft Store** (em breve): a versão da Store é assinada pela Microsoft e abre com o controle ligado.
+- **Desligar o controle:** Segurança do Windows → Controle de aplicativos e do navegador → Configurações do Controle
+  Inteligente de Aplicativos → Desativado. Nas versões do Windows 11 atualizadas a partir de março de 2026, dá para
+  ligar de novo pela mesma tela.
+
 ## Onde ficam as coisas
 
 | O quê | Onde |

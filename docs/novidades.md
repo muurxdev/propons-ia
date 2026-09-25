@@ -1,3 +1,9 @@
+## Novidades da 1.25.1
+
+- **Versão para a Microsoft Store:** no Windows 11 com o Controle Inteligente de Aplicativos ligado, programas sem assinatura digital são bloqueados. A release agora traz o pacote `Propons-IA-Windows.msix`, que roda o app, o motor da IA e a transcrição direto da pasta do pacote, e a Microsoft assina tudo na publicação da Store. Na versão da Store, as atualizações chegam pela própria Store, e o módulo de GPU baixável fica de fora.
+- **Política de privacidade** publicada em `docs/privacidade.md` e guia de publicação em `docs/loja-microsoft.md`.
+- **Instalar no Windows:** explica o bloqueio do Controle Inteligente e como resolver.
+
 ## Novidades da 1.25.0
 
 Esta versão vem de uma auditoria completa: pesquisa do que ChatGPT, Claude, Gemini, NotebookLM, Khanmigo, Quizlet, Anki, Duolingo e os apps de IA local fazem, revisão do código inteiro e revisão visual de 36 telas no celular e no PC, nos dois temas. O relatório e o plano estão em `docs/auditoria-2026-09.md`.

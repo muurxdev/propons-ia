@@ -77,6 +77,18 @@ jobs:
           # sem --leve: forçar o modelo pula justamente a abertura fria que queremos testar
           $p = Start-Process -FilePath "dist\Propons-IA-Windows.exe" -PassThru
           try { node src/testes/teste_frio.mjs 9333 dist/teste-frio } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
+      # Microsoft Store: o app roda direto da pasta do pacote (sem extrair em %LOCALAPPDATA%), assinado pela Store —
+      # assim passa pelo Controle Inteligente de Aplicativos do Windows 11
+      - name: Pacote da Microsoft Store (MSIX)
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File ferramentas\loja\pacote.ps1
+      - name: A versão da Store abre e responde (pasta do pacote, sem extrair)
+        shell: powershell
+        run: |
+          $env:PROPONS_DEPURAR = '1'
+          $env:PROPONS_FRIO = '1'
+          $p = Start-Process -FilePath "dist\loja\layout\Propons IA.exe" -PassThru
+          try { node src/testes/teste_frio.mjs 9333 dist/teste-loja } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue; Get-Process llama-server -ErrorAction SilentlyContinue | Stop-Process -Force }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -84,8 +96,13 @@ jobs:
           path: |
             dist/teste-windows/
             dist/teste-frio/
+            dist/teste-loja/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with: { name: windows, path: dist/Propons-IA-Windows.exe }
+        with:
+          name: windows
+          path: |
+            dist/Propons-IA-Windows.exe
+            dist/Propons-IA-Windows.msix
 
   linux:
     name: Linux (.deb/.rpm/.tar.gz) + 4 distros
@@ -230,7 +247,7 @@ jobs:
       - name: Conferir e somar
         run: |
           cd arte && ls -la
-          for f in Propons-IA-Windows.exe Propons-IA-Android.apk Propons-IA-iOS.ipa Propons-IA-Mac.zip altstore-source.json propons-ia_amd64.deb propons-ia.x86_64.rpm propons-ia-linux-x86_64.tar.gz; do test -s "$f" || { echo "faltando: $f"; exit 1; }; done
+          for f in Propons-IA-Windows.exe Propons-IA-Windows.msix Propons-IA-Android.apk Propons-IA-iOS.ipa Propons-IA-Mac.zip altstore-source.json propons-ia_amd64.deb propons-ia.x86_64.rpm propons-ia-linux-x86_64.tar.gz; do test -s "$f" || { echo "faltando: $f"; exit 1; }; done
           # APK também dentro de um .zip: alguns navegadores (Chrome) seguram o .apk esperando confirmação
           zip -0 -j Propons-IA-Android.zip Propons-IA-Android.apk
           rm -f SHA256SUMS && sha256sum Propons-IA-* propons-ia* > SHA256SUMS

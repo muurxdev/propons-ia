@@ -27,7 +27,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.25.0";
+    public const string Versao = "1.25.1";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -116,6 +116,19 @@ static class Vozes
         Url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin", Sha256 = "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb" };
     public static readonly Modelo[] Todas = { Base, Small };
     public static Modelo PorId(string id) { foreach (Modelo m in Todas) if (m.Id == id) return m; return null; }
+}
+
+// ---------- Microsoft Store: instalado como pacote MSIX (a Store assina tudo e cuida das atualizações) ----------
+static class Loja
+{
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern int GetCurrentPackageFullName(ref int tamanho, StringBuilder nome);
+    static int estado = -1;
+    // sem pacote o Windows responde APPMODEL_ERROR_NO_PACKAGE (15700); com pacote, pede um buffer maior (122)
+    public static bool Empacotado()
+    {
+        if (estado < 0) { try { int t = 0; estado = GetCurrentPackageFullName(ref t, null) == 15700 ? 0 : 1; } catch { estado = 0; } }
+        return estado == 1;
+    }
 }
 
 // ---------- aceleração por GPU: backend Vulkan do llama.cpp (a build "vulkan" da release é a de CPU + este dll), baixada sob demanda ----------
@@ -1097,7 +1110,10 @@ class Janela : Form
                         try { if (File.Exists(a)) File.Delete(a); } catch { }
                     dados = true; break;
                 case "verificarModelos": dados = await Task.Run(delegate { return VerificarModelos(); }); break;
-                case "atualizar": dados = await Atualizar(Arg(args, "versao")); break;
+                case "atualizar":
+                    if (Loja.Empacotado()) { AbrirLoja(); dados = Dic("loja", true); break; }
+                    dados = await Atualizar(Arg(args, "versao")); break;
+                case "abrirLoja": AbrirLoja(); dados = true; break;
                 default: throw new Exception("ação desconhecida: " + acao);
             }
         }
@@ -1144,7 +1160,8 @@ class Janela : Form
         return Dic("ramTotal", (long)ms.total, "ramLivre", (long)ms.avail, "cpu", cpu, "nucleos", Environment.ProcessorCount, "discoLivre", disco,
             "pastaDados", PastaDados(), "pastaModelos", Path.Combine(Raiz(), "modelos"), "so", so + " · WebView2 " + wv, "modelos", ms2, "versao", Program.Versao, "motorLog", Path.Combine(Raiz(), "motor.log"), "visaoLigada", VisaoLigada(), "visaoAtiva", visaoAtiva, "temVisao", true,
             "temTranscricao", File.Exists(Path.Combine(pasta, @"voz\whisper-cli.exe")), "vozes", ListaVozes(),
-            "gpu", Dic("baixada", GpuBaixada(), "ligada", GpuLigada(), "ativa", gpuAtiva, "dispositivo", gpuNome ?? "", "tamanho", Gpu.Zip.Tamanho, "falhou", gpuFalhou),
+            "loja", Loja.Empacotado(),
+            "gpu", Loja.Empacotado() ? null : Dic("baixada", GpuBaixada(), "ligada", GpuLigada(), "ativa", gpuAtiva, "dispositivo", gpuNome ?? "", "tamanho", Gpu.Zip.Tamanho, "falhou", gpuFalhou),
             "api", Dic("suporte", true, "ligada", ApiLigada(), "porta", porta, "enderecos", EnderecosLan()));
     }
 
@@ -1291,6 +1308,10 @@ class Janela : Form
 
     // ---------- atualização do programa ----------
     // baixa o .exe novo da release, confere com o SHA256SUMS dela e deixa um script trocar o arquivo quando este fechar
+    static void AbrirLoja()
+    {
+        try { Process.Start(new ProcessStartInfo("ms-windows-store://downloadsandupdates") { UseShellExecute = true }); } catch (Exception ex) { Program.Log("loja: " + ex.Message); }
+    }
     async Task<object> Atualizar(string versao)
     {
         if (versao == null || !Regex.IsMatch(versao, @"^\d{1,3}\.\d{1,3}\.\d{1,3}$")) throw new Exception("versão inválida");

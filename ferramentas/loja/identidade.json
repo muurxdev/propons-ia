@@ -1,0 +1,6 @@
+{
+  "_comentario": "Trocar pelos valores do Partner Center (Produto > Gerenciamento do produto > Identidade do produto): Package/Identity/Name, Package/Identity/Publisher e Package/Properties/PublisherDisplayName. Enquanto for o provisório, o pacote serve só para conferir o empacotamento.",
+  "nome": "ProponsIA.Provisorio",
+  "publisher": "CN=00000000-0000-0000-0000-000000000000",
+  "publisherNome": "Murilo Rodrigues"
+}

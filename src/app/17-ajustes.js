@@ -535,7 +535,9 @@ function limparNotas(s) {
   const outra = CELULAR ? /^\s*-\s*\*\*(PC|Windows|Mac|Linux|Computador)\b/i : /^\s*-\s*\*\*(Celular|Android|iPhone|iOS|Mobile)\b/i;
   return linhas.filter(l => !outra.test(l)).join('\n').trim().slice(0, 8000);
 }
+const daLoja = () => !!(sistemaCache && sistemaCache.loja);   // Windows instalado pela Microsoft Store
 function rotuloAtualizar() {
+  if (daLoja()) return 'Atualizar pela Microsoft Store';
   return ({ ios: 'Atualizar pelo SideStore/AltStore', web: 'Como atualizar', windows: 'Atualizar agora', android: 'Atualizar agora', mac: 'Atualizar agora' })[PLATAFORMA.tipo];
 }
 function textoAtualizando() {
@@ -546,7 +548,7 @@ function textoAtualizando() {
 }
 function instrucoesAtualizacao() {
   switch (PLATAFORMA.tipo) {
-    case 'windows': return 'A Própons IA baixa a versão nova, confere o arquivo (SHA-256), troca o programa (também no pendrive) e abre de novo. Conversas e modelos continuam.';
+    case 'windows': return daLoja() ? 'Instalada pela Microsoft Store: as versões novas chegam pela própria Store (assinadas pela Microsoft). Conversas e modelos continuam.' : 'A Própons IA baixa a versão nova, confere o arquivo (SHA-256), troca o programa (também no pendrive) e abre de novo. Conversas e modelos continuam.';
     case 'android': return 'A Própons IA baixa a versão nova, confere o arquivo (SHA-256) e abre o instalador do Android. Conversas e modelos continuam.';
     case 'mac': return 'A Própons IA baixa a versão nova, confere o arquivo (SHA-256), troca o app e abre de novo. Conversas e modelos continuam.';
     case 'ios': return 'No iPhone, a atualização é feita pelo SideStore ou AltStore: abra o app, vá em <b>Meus apps</b> e toque em <b>Atualizar</b> na Própons IA. Conversas e modelos continuam.';
@@ -593,6 +595,7 @@ async function iniciarAtualizacao() {
     if (!ok) PLATAFORMA.abrirLink(`https://github.com/${REPO}/blob/main/docs/instalar-ios.md`);
     return;
   }
+  if (daLoja()) { PLATAFORMA.abrirLoja().catch(() => {}); return; }   // a Store atualiza (e assina) o app
   if (!PLATAFORMA.podeAtualizarSozinho) { PLATAFORMA.abrirLink('https://muurxdev.github.io/propons-ia/'); return; }
   if (geracao) { if (!await confirmar('Parar a resposta?', 'A IA está respondendo agora. Atualizar interrompe a resposta.', 'Atualizar')) return; geracao.ctrl.abort(); }
   atualizando = { pct: 0, fase: 'baixando' }; desenharAtualizando();
