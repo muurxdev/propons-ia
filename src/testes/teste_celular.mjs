@@ -55,7 +55,7 @@ ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto
 ok('ponte aceita notificar', (await js(`PLATAFORMA.notificar('Própons IA', 'teste').then(() => 'ok', e => 'erro: ' + e.message)`)) === 'ok');
 // ler em voz alta pela ponte (TextToSpeech do Android): botão presente e o sintetizador responde (fim ou erro sem travar)
 ok('resposta tem o botão de ouvir', await js(`!!document.querySelector('.msg.ia .acao.ler')`));
-const fala = await js(`new Promise(res => { let fim = false; PLATAFORMA.ao('fala', d => { if (d.id === 'tcel' && !fim) { fim = true; res(d); } }); PLATAFORMA.falar('Teste de voz.', 'tcel').catch(e => res({ estado: 'erro', erro: e.message })); setTimeout(() => !fim && res({ estado: 'sem resposta' }), 15000); })`);
+const fala = await js(`new Promise(res => { let fim = false; PLATAFORMA.ao('fala', d => { if (d.id === 'tcel' && !fim && (d.estado === 'fim' || d.estado === 'erro')) { fim = true; res(d); } }); PLATAFORMA.falar('Teste de voz.', 'tcel').catch(e => res({ estado: 'erro', erro: e.message })); setTimeout(() => !fim && res({ estado: 'sem resposta' }), 15000); })`);
 ok('sintetizador de voz responde pela ponte', fala && (fala.estado === 'fim' || fala.estado === 'erro'), JSON.stringify(fala));
 ok('histórico salvo (ponte Android)', (await js(`PLATAFORMA.carregar().then(s => JSON.parse(s).length)`)) >= 1);
 const sis = await js(`PLATAFORMA.sistema()`);
