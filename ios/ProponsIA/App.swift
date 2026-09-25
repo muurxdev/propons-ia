@@ -459,7 +459,7 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
     }
 
     private func paginaDaWeb(_ endereco: String) async throws -> String {
-        guard let u = URL(string: endereco), ["http", "https"].contains(u.scheme ?? "") else { throw erro("endereço inválido") }
+        guard let u = URL(string: endereco), ["http", "https"].contains(u.scheme ?? "") else { throw NSError(domain: "propons", code: 4, userInfo: [NSLocalizedDescriptionKey: "endereço inválido"]) }
         var req = URLRequest(url: u, timeoutInterval: 15)
         req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) ProponsIA", forHTTPHeaderField: "User-Agent")
         req.setValue("pt-BR,pt;q=0.9,en;q=0.6", forHTTPHeaderField: "Accept-Language")

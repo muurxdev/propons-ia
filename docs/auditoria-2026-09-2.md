@@ -139,8 +139,8 @@ A pasta de verdade da pessoa nunca é usada para rodar, e nada é gravado sem ap
 | 1 menus e limites | 1.26.0 | feito |
 | 2 ordem da resposta | 1.26.0 | feito |
 | 3 limpeza | 1.26.0 | feito (a junção dos dois visualizadores de anexo ficou de fora: servem a contextos diferentes) |
-| 4 velocidade | 1.27.0 | feito. Faltam o MTP (ver o placar) e `-tb`/Q4_0 no Android, que precisam de medição num celular de verdade |
+| 4 velocidade | 1.27.0 / 1.29.0 | feito. O Android mede e escolhe `-t`/`-tb` no próprio celular (Diagnóstico). O MTP está no motor b11070, mas o Qwen3.5 não tem o arquivo MTP publicado (o Gemma 4 tem) |
 | 5 modelos | placar no CI | a disputa roda no `placar.yml`; troca de modelo só se ganhar |
-| 6 API | 1.28.0 | celular usa a IA do PC. Falta ligar a API no Android e no Mac |
-| 7 comunidade | 1.27.0 | feito o principal. Ficam para depois: resumo em áudio com 2 vozes, .apkg de verdade, cadernos por matéria e gravação de aula longa |
+| 6 API | 1.28.0 / 1.29.0 | celular usa a IA do PC; a API na rede local funciona no Windows, Android e Mac |
+| 7 comunidade | 1.27.0 a 1.29.0 | feito: resumo em áudio com 2 vozes (1.28.1), .apkg de verdade, cadernos por matéria e gravação de aula longa (1.29.0) |
 | 8 área de código | 1.28.0 | feito |

@@ -211,6 +211,7 @@ jobs:
           cd ios/TesteMotor && swift run -c release TesteMotor /tmp/modelo.gguf
       - name: Compilar o app (sem assinatura; o AltStore/SideStore assina no iPhone)
         run: |
+          set -o pipefail   # o "| tail" não pode esconder um BUILD FAILED (o .ipa saía incompleto)
           cd ios && xcodegen generate
           xcodebuild -project ProponsIA.xcodeproj -scheme ProponsIA -configuration Release -sdk iphoneos \
             -destination 'generic/platform=iOS' -derivedDataPath build \
