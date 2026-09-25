@@ -59,19 +59,22 @@ const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3, MAX_FOTOS = 3, TOKENS_FOTO = CEL
 const eFoto = f => (f.type && /^image\//.test(f.type)) || /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(f.name || '');
 
 /* ---------------- utilidades ---------------- */
-/* teclado e rotação: --vh é a altura que sobra visível (no iPhone o teclado cobre a página sem encolhê-la, e ele
-   vira --kb); --sobre-caixa é a distância do pé da tela até o topo da caixa de mensagem (os avisos ficam acima dela) */
-const alturaVisivel = () => window.visualViewport ? visualViewport.height : innerHeight;
+/* teclado e rotação: --vh é a altura que sobra visível; --sobre-caixa é a distância do pé da tela até o topo da caixa
+   de mensagem (os avisos ficam acima dela). Só no iPhone o teclado cobre a página sem encolhê-la: lá a altura vem do
+   visualViewport e o teclado vira --kb. No Android e no PC a página já encolhe com o teclado, e o visualViewport oscila
+   por alguns quadros enquanto o teclado some (a folha subia além do limite e depois voltava): lá vale a janela. */
+const TECLADO_COBRE = PLATAFORMA.tipo === 'ios' && !!window.visualViewport;
+const alturaVisivel = () => TECLADO_COBRE ? visualViewport.height : innerHeight;
 function medirTela() {
   const r = document.documentElement.style, vv = window.visualViewport;
   r.setProperty('--vh', alturaVisivel() + 'px');
-  r.setProperty('--kb', (vv ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0) + 'px');
+  r.setProperty('--kb', (TECLADO_COBRE ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0) + 'px');
   const c = document.getElementById('caixa');
   if (c && c.offsetParent) r.setProperty('--sobre-caixa', Math.max(24, Math.round(innerHeight - c.getBoundingClientRect().top)) + 'px');
 }
 medirTela();
 addEventListener('resize', medirTela); addEventListener('orientationchange', () => setTimeout(medirTela, 200));
-if (window.visualViewport) { visualViewport.addEventListener('resize', medirTela); visualViewport.addEventListener('scroll', medirTela); }
+if (TECLADO_COBRE) { visualViewport.addEventListener('resize', medirTela); visualViewport.addEventListener('scroll', medirTela); }
 addEventListener('DOMContentLoaded', () => { const c = document.getElementById('caixa'); if (c) try { new ResizeObserver(medirTela).observe(c); } catch (e) {} medirTela(); });
 function toast(t, ms = 2200) { const d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
 /* enquanto uma folha ou a gaveta anima, o texto da resposta espera (a animação tem prioridade) */

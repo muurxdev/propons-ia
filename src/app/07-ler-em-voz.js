@@ -170,7 +170,7 @@ function acoes(d, m, ultima) {
     const bc = document.createElement('button'); bc.className = 'acao'; bc.title = 'Copiar resposta'; bc.setAttribute('aria-label', 'Copiar resposta'); bc.innerHTML = ICO.copiar;
     bc.onclick = () => copiarTexto(m.texto).then(() => { bc.innerHTML = ICO.ok; bc.classList.add('feito'); setTimeout(() => { bc.innerHTML = ICO.copiar; bc.classList.remove('feito'); }, 1400); });
     a.appendChild(bc);
-    if (!m.cartoes && !m.quiz && !m.redacao && !m.mapa && !m.plano && m.texto.length > 120) {   // transformar a resposta em flashcards, quiz ou resumo
+    if (!m.cartoes && !m.quiz && !m.redacao && !m.mapa && !m.plano && !m.podcast && m.texto.length > 120) {   // transformar a resposta em flashcards, quiz ou resumo
       const be = document.createElement('button'); be.className = 'acao'; be.title = 'Estudar isto'; be.setAttribute('aria-label', 'Estudar isto: flashcards, quiz ou resumo'); be.innerHTML = ICO.tutor;
       be.onclick = e => { e.stopPropagation(); estudarIsto(m, be); }; a.appendChild(be);
     }

@@ -557,6 +557,8 @@ async function responder(conv, continuacao) {
     const cc = CALC.conferirContas(novo);
     if (cc.correcoes.length) novo = cc.texto.trimEnd() + '\n\n*Conta conferida pelo app: ' + cc.correcoes.map(c => `${c.expr} = ${c.certo} (estava ${c.dado})`).join('; ') + '.*';
   }
+  // com a pesquisa, o app já mostra as fontes: a lista "Fontes:" que o modelo às vezes escreve no fim sai do texto
+  if (fontes && fontes.length) novo = novo.replace(/\n+[#*\s]*(?:fontes|refer[êe]ncias)(?: consultadas| usadas)?[*\s]*:?[*\s]*\n(?:[ \t]*(?:[-*•]|\d+[.)]|\[\d+\])[^\n]*(?:\n|$))+\s*$/i, '');
   msg.texto = (inicio + novo).trim(); msg.llm = msg.texto;
   if (pensTxt.trim()) msg.pensou = pensTxt.trim().slice(0, 6000); else if (!continuacao) delete msg.pensou;   // o raciocínio fica gravado, recolhido
   if (comEsquema && !erro) {   // o JSON vira o widget; se não deu (cortado/abortado), avisa

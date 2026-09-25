@@ -98,5 +98,5 @@ async function buscaSimples(q) {
 const N = String.fromCharCode(10);
 const blocoPesquisa = r => 'RESULTADOS DA PESQUISA (' + new Date().toLocaleDateString('pt-BR') + '):' + N
   + r.fontes.slice(0, CELULAR ? 6 : 10).map((f, k) => '[' + (k + 1) + '] ' + f.titulo + ' — ' + f.url + N + (r.trechos[k] || '')).join(N + N)
-  + N + N + 'Responda com base nestes resultados, citando as fontes usadas como [1], [2]…, e diga quando eles não responderem à pergunta. Não invente nada que não esteja aí.';
+  + N + N + 'Responda com base nestes resultados, citando as fontes usadas como [1], [2]…, e diga quando eles não responderem à pergunta. Não invente nada que não esteja aí. Não escreva uma lista de fontes ou referências no fim: o app já mostra as fontes.';
 

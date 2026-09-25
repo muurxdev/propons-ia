@@ -32,6 +32,7 @@ function validar(lista) {
       ...(m.redacao && normalizarModo('redacao', m.redacao) ? { redacao: normalizarModo('redacao', m.redacao) } : {}),
       ...(m.mapa && normalizarModo('mapa', m.mapa) ? { mapa: normalizarModo('mapa', m.mapa) } : {}),
       ...(m.plano && normalizarModo('plano', m.plano) ? { plano: normalizarModo('plano', m.plano) } : {}),
+      ...(m.podcast && normalizarModo('podcast', m.podcast) ? { podcast: normalizarModo('podcast', m.podcast) } : {}),
     })),
   }));
 }
@@ -376,7 +377,7 @@ const htmlUsouConh = ks => `<div class="usou-conh">${ICO.conhecimento}<span>Conh
 function addIa(m, ultima, trocar) {
   const d = document.createElement('div'); d.className = 'msg ia' + (trocar ? ' sem-entrada' : ''); d._msg = m;
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
-  const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : m.mapa ? htmlMapa(m) : m.plano ? htmlPlano(m) : '';
+  const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : m.mapa ? htmlMapa(m) : m.plano ? htmlPlano(m) : m.podcast ? htmlPodcast(m) : '';
   const pensou = m.pensou ? (m.tempo ? 'Pensou por ' + tempoBonito(m.tempo) : 'Raciocínio') : '';
   d.innerHTML = htmlStatusIa(pensou, m.conhecimentos) +
     (m.lugar ? htmlPainelLugar(m.lugar) : '') +

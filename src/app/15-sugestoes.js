@@ -12,10 +12,10 @@ function limparSugestoes(t) {
   try { l = JSON.parse(t).sugestoes || []; } catch (e) { l = String(t || '').split('\n'); }
   const vistas = new Set();
   return l.map(x => String(x || '').replace(/^\s*[-*\d.)"“]+\s*|["”]\s*$/g, '').trim())
-    .filter(x => x.length >= 6 && x.length <= 90 && !vistas.has(x.toLowerCase()) && vistas.add(x.toLowerCase())).slice(0, 3);
+    .filter(x => x.length >= 6 && x.length <= 90 && !/[\u3000-\u9fff\uac00-\ud7af\u0400-\u04ff]/.test(x) && !vistas.has(x.toLowerCase()) && vistas.add(x.toLowerCase())).slice(0, 3);
 }
 async function sugerirSeguintes(conv, msg) {
-  if (!querSugestoes() || !online || !msg || !msg.texto || msg.interno || msg.erro || msg.cartoes || msg.quiz || msg.redacao || msg.mapa || msg.plano) return;
+  if (!querSugestoes() || !online || !msg || !msg.texto || msg.interno || msg.erro || msg.cartoes || msg.quiz || msg.redacao || msg.mapa || msg.plano || msg.podcast) return;
   pararSugestoes();
   const ctrl = new AbortController(); sugCtrl = ctrl;
   // o lugar delas já fica reservado (três pílulas apagadas): quando chegam, nada embaixo da resposta pula

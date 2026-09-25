@@ -88,6 +88,25 @@ for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
 await espera(600);
 r.prefixo = await js(`(() => { const p = window.__pedidos.filter(x => !x.esquema); const a = p[0].msgs, b = p[p.length - 1].msgs; return JSON.stringify({ n: p.length, sistemaIgual: a[0].content === b[0].content, perguntaIgual: a[1].content === b[1].content, temContexto: /^<contexto>/.test(b[b.length - 1].content), curtaGuardada: /direta e curta/.test(a[1].content) }); })()`);
 await js(`definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// pesquisa ligada: o botão aparece na caixa assim que o ajuste chega (antes só depois de desligar e ligar no "+")
+r.pesquisa = await js(`(() => { const antes = pref('pesquisaWeb'); localStorage.removeItem('pesquisaWeb'); atualizarBotaoPesquisa(); const esc = $('#btPesquisa').hidden;
+  aplicarPrefsDoArquivo({ pesquisaWeb: 'sim' }); const apareceu = !$('#btPesquisa').hidden;
+  if (antes) localStorage.setItem('pesquisaWeb', antes); else localStorage.removeItem('pesquisaWeb'); atualizarBotaoPesquisa();
+  return JSON.stringify({ esc, apareceu }); })()`);
+// resumo em áudio: as falas tocam em ordem, alternando as duas vozes, com a fala de agora em destaque
+r.podcast = await js(`(async () => {
+  const esperar = ms => new Promise(r => setTimeout(r, ms));
+  const tf = PLATAFORMA.temFala, f0 = PLATAFORMA.falar, vozes = [], destaques = [];
+  PLATAFORMA.temFala = true;
+  PLATAFORMA.falar = (t, id, op) => { vozes.push(op ? op.voz : null); destaques.push(document.querySelector('.pd-fala.agora') && document.querySelector('.pd-fala.agora').dataset.i); setTimeout(() => window.__proponsMsg({ t: 'evento', nome: 'fala', dados: { id, estado: 'fim' } }), 30); return Promise.resolve(true); };
+  const d = { titulo: 'Fotossíntese', falas: [{ quem: 'A', texto: 'Oi.' }, { quem: 'B', texto: 'E aí?' }, { quem: 'A', texto: 'Vamos lá.' }] };
+  const c = { id: 'pd', titulo: 'Pod', criada: Date.now(), atualizada: Date.now(), msgs: [{ role: 'user', texto: 'x', llm: 'x', modo: 'podcast' }, { role: 'assistant', texto: markdownDoModo('podcast', d), llm: 'x', podcast: d }] };
+  conversas.unshift(c); abrir('pd'); await esperar(300);
+  document.querySelector('.podcast [data-pd]').click(); await esperar(1200);
+  const fim = !document.querySelector('.pd-fala.agora');
+  PLATAFORMA.temFala = tf; PLATAFORMA.falar = f0; conversas = conversas.filter(x => x.id !== 'pd'); nova();
+  return JSON.stringify({ vozes, destaques, fim });
+})()`);
 // raciocínio que vaza para o texto ("… </think> Resposta") vai para a folha do raciocínio, não para a resposta
 r.vazou = await js(`(async () => {
   const esperar = ms => new Promise(r => setTimeout(r, ms));
@@ -175,6 +194,8 @@ await espera(400);
 r.continuou = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1], d = [...document.querySelectorAll('.msg.ia')].pop(); return JSON.stringify({ pensou: !!m.pensou, tempo: m.tempo, linha: !!d.querySelector('.ia-status .pensa-linha'), texto: m.texto.slice(-20), giroSolto: !!document.querySelector('.giro') }); })()`);
 await js(`PLATAFORMA.gerar = window.__g0; definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
 const J = x => JSON.parse(x);
+ok('pesquisa ligada: o botão aparece na caixa quando o ajuste chega', (o => o.esc && o.apareceu)(J(r.pesquisa)), r.pesquisa);
+ok('resumo em áudio: falas em ordem, alternando as vozes, com destaque', (o => JSON.stringify(o.vozes) === '[0,1,0]' && JSON.stringify(o.destaques) === '["0","1","2"]' && o.fim)(J(r.podcast)), r.podcast);
 ok('raciocínio vazado ("… </think>") sai da resposta e vai para o raciocínio', (o => o.texto === 'Resposta: 42.' && /conta simples/.test(o.pensou) && !/think|contexto/.test(o.tela))(J(r.vazou)), r.vazou);
 ok('Área de código: JavaScript roda isolado (saída, erro, laço parado, teclado, sem rede)', (o => o.ok1.saida === 'soma 5\n[1,2]' && o.ok1.codigo === 0 && o.erro === 1 && o.laco && o.tecl === 'oi Ana' && o.semRede === 'undefined')(J(r.codigo)), r.codigo.slice(0, 300));
 ok('Área de código: o agente busca e depois edita só o trecho (a mudança espera para aplicar)', (o => o.vezes === 2 && o.pend.length === 1 && o.pend[0].tipo === 'escrever' && /return a \+ b;/.test(o.pend[0].novo) && /main\.js:2/.test(o.busca))(J(r.codigo)), JSON.stringify(J(r.codigo).pend) + ' ' + J(r.codigo).busca);

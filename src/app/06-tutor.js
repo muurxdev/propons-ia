@@ -21,6 +21,7 @@ function estudarIsto(m, botao) {
     [ICO.quiz, 'Criar um quiz disto', () => mandar('quiz')],
     [ICO.resumo, 'Resumir para estudar', () => mandar('resumo')],
     [ICO.mapa, 'Fazer um mapa mental disto', () => mandar('mapa')],
+    ...(PLATAFORMA.temFala ? [[ICO.podcast, 'Ouvir como podcast', () => mandar('podcast')]] : []),
     [ICO.tutor, 'Me ensinar isto passo a passo', () => mandar('tutor')],
   ], 'Estudar isto');
 }

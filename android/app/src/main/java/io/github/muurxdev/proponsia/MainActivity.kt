@@ -597,7 +597,7 @@ class MainActivity : Activity() {
                             "ocupado" -> { ocupado(args.optBoolean("sim")); true }
                             "compartilhar" -> { val t = args.optString("texto"); ui.post { compartilhar(t) }; true }
                             "notificar" -> { if (!emPrimeiroPlano) ServicoDownload.avisar(this@MainActivity, args.optString("titulo", "Própons IA"), args.optString("texto")); true }
-                            "falar" -> { val tx = args.optString("texto"); val i = args.optString("id"); ui.post { falar(tx, i) }; true }
+                            "falar" -> { val tx = args.optString("texto"); val i = args.optString("id"); val tom = args.optDouble("tom", 1.0).toFloat(); ui.post { tts?.setPitch(tom); falar(tx, i) }; true }   // tom: a segunda voz do resumo em áudio
                             "pararFala" -> { ui.post { pararFala() }; true }
                             "pedirPermissao" -> pedirPermissaoSistema(args.optString("recurso"))
                             "abrirConfig" -> { val r = args.optString("recurso"); ui.post { abrirConfigApp(r) }; true }

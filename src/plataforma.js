@@ -33,11 +33,13 @@ const PLATAFORMA = (() => {
      o TextToSpeech pela ponte (o WebView do Android não tem sintetizador). Cada frase é uma fala com id;
      o evento 'fala' {id, estado: 'fim'|'erro'} avisa quando termina. */
   const temFala = tipo === 'android' ? true : !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
-  let vozPt = null;
-  const acharVozPt = () => { try { const v = speechSynthesis.getVoices(); vozPt = v.find(x => /^pt[-_]BR/i.test(x.lang)) || v.find(x => /^pt/i.test(x.lang)) || null; } catch (e) {} };
+  let vozPt = null, vozesPt = [];
+  const acharVozPt = () => { try { const v = speechSynthesis.getVoices(); vozesPt = v.filter(x => /^pt[-_]BR/i.test(x.lang)).concat(v.filter(x => /^pt/i.test(x.lang) && !/^pt[-_]BR/i.test(x.lang))); vozPt = vozesPt[0] || null; } catch (e) {} };
   if (temFala && tipo !== 'android') { acharVozPt(); try { speechSynthesis.onvoiceschanged = acharVozPt; } catch (e) {} }
-  function falarWeb(texto, id) {
+  function falarWeb(texto, id, op) {
     const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; u.rate = 1.05; if (vozPt) u.voice = vozPt;
+    // segunda voz (resumo em áudio): outra voz em português, ou a mesma num tom mais grave
+    if (op && op.voz === 1) { if (vozesPt[1]) u.voice = vozesPt[1]; else u.pitch = 0.75; }
     u.onstart = () => emitir('fala', { id, estado: 'inicio' });
     // a palavra dita agora (quando a voz informa): a página pinta de roxo no ritmo da fala
     u.onboundary = e => { if (e.name === 'word' || e.name === undefined) emitir('fala', { id, estado: 'palavra', ini: e.charIndex, fim: e.charIndex + (e.charLength || (texto.slice(e.charIndex).match(/^\S+/) || [''])[0].length) }); };
@@ -273,7 +275,7 @@ const baseLocal = (location.protocol.startsWith('http') && location.hostname !==
     },
     // ler em voz alta
     temFala,
-    falar(texto, id) { if (tipo === 'android') return pedir('falar', { texto, id }, 5000); try { falarWeb(texto, id); } catch (e) { emitir('fala', { id, estado: 'erro', erro: e.message }); } return Promise.resolve(true); },
+    falar(texto, id, op) { if (tipo === 'android') return pedir('falar', { texto, id, tom: op && op.voz === 1 ? 0.8 : 1 }, 5000); try { falarWeb(texto, id, op); } catch (e) { emitir('fala', { id, estado: 'erro', erro: e.message }); } return Promise.resolve(true); },
     pararFala() { if (tipo === 'android') return pedir('pararFala', {}, 5000).catch(() => {}); try { speechSynthesis.cancel(); } catch (e) {} return Promise.resolve(true); },
     // permissão negada: abre as configurações do app no sistema (Android, iPhone, Mac, Windows)
     podeAbrirConfig: tipo !== 'web',

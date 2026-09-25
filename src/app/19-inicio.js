@@ -41,7 +41,9 @@ if (!estreita()) abrirLateral();
   if (!ESCOLHER) { try { SYSTEM = await PLATAFORMA.textoSistema(); separarSistema(); } catch (e) {} }
   if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
   travarSePreciso(true);   // cadeado: a tela do PIN antes das conversas aparecerem
+  atualizarBotaoPesquisa();   // pesquisa ligada: o botão já aparece na caixa ao abrir
   await carregarHistorico();
+  atualizarBotaoPesquisa();   // (e também quando o ajuste chegou no arquivo de conversas, vindo da outra página)
   travarSePreciso(true);   // (o cadeado pode ter vindo no arquivo de conversas, ligado na outra página)
   receberCompartilhado();   // abriu pelo "compartilhar" de outro app
   // volta para a conversa que estava aberta (sair do app, ou a IA ligar e a página recarregar, não joga numa nova)

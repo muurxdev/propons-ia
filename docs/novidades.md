@@ -1,3 +1,12 @@
+## Novidades da 1.28.1
+
+- **Botão da pesquisa na caixa:** com a pesquisa na internet ligada, o botão aparece desde que o app abre. Antes, só aparecia depois de desligar e ligar de novo no "+".
+- **Menus que subiam além do limite e depois voltavam:** no Android e no PC, a altura da tela voltou a ser a da própria janela. A medida nova da 1.26 oscilava por alguns quadros enquanto o teclado sumia, e a folha passava do ponto. Ela agora só vale no iPhone, onde o teclado cobre a página sem encolhê-la.
+- **"Falar agora"** do chip da conversa por voz ficou numa linha só, sem passar por cima do X.
+- **Sugestões** com caracteres de outra língua (o modelo pequeno às vezes solta ideogramas) não aparecem mais.
+- **Com a pesquisa ligada, a IA não escreve mais a lista "Fontes:" no fim da resposta:** as fontes ficam só no botão "Fontes".
+- **Novo modo "Resumo em áudio":** Ana e Léo conversam sobre o tema, como um podcast, e a voz do aparelho lê alternando duas vozes (ou dois tons), com a fala do momento em destaque. Também está em "Estudar isto" → "Ouvir como podcast".
+
 ## Novidades da 1.28.0
 
 - **Usar a IA do PC no celular:** no PC, ligue Ajustes → Modelos de IA → **API na rede local**. No celular, em Ajustes → Modelos de IA → **Usar a IA de outro aparelho**, cole o endereço e a chave e toque em "Testar e usar". O celular passa a usar o modelo do PC (maior e mais rápido), pela rede da casa, sem baixar nada. Dá para voltar aos modelos do celular no mesmo lugar.

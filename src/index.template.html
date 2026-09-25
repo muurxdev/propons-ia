@@ -169,7 +169,17 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .gf-ctl span{font:600 var(--t-sm) var(--mono);color:var(--accent);width:12px}
 .gf-ctl input{flex:1;accent-color:var(--accent);min-width:0}
 .gf-ctl output{font:var(--t-sm) var(--mono);color:var(--ink);min-width:42px;text-align:right}
-.chip .chip-acao{font-size:var(--t-xs);font-weight:600;color:var(--accent);padding:2px 8px;border-radius:var(--r4);background:var(--accent-soft)}
+.chip .chip-acao{font-size:var(--t-xs);font-weight:600;color:var(--accent);padding:2px 8px;border-radius:var(--r4);background:var(--accent-soft);white-space:nowrap;flex:none;margin-right:2px}
+/* resumo em áudio: o roteiro com a fala de agora em destaque */
+.podcast{max-width:620px}
+.pd-topo{display:flex;align-items:center;gap:10px;margin-bottom:10px}.pd-topo b{flex:1;font-size:var(--t-lg)}
+.pd-ico{width:34px;height:34px;border-radius:var(--r2);display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}.pd-ico svg{width:18px;height:18px}
+.pd-tocar{display:inline-flex;align-items:center;gap:6px}.pd-tocar svg{width:14px;height:14px}
+.pd-falas{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pd-fala{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:var(--r2);border:1px solid var(--line);background:var(--surface);transition:background var(--t1),border-color var(--t1)}
+.pd-fala b{font-size:var(--t-sm)}.pd-fala.a b{color:var(--accent)}.pd-fala.b b{color:#22a6b3}
+.pd-fala.b{margin-left:18px}.pd-fala.a{margin-right:18px}
+.pd-fala.agora{border-color:var(--accent);background:var(--accent-soft)}
 /* Área de código → Rodar: a saída do programa como um terminal */
 .cod-saida{border:1px solid var(--line);border-radius:var(--r2);background:var(--code);overflow:hidden;max-width:100%}
 .cod-saida.erro{border-color:color-mix(in srgb,var(--danger) 45%,var(--line))}

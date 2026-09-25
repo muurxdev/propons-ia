@@ -94,6 +94,7 @@ function prefsCompartilhadas() {
 function aplicarPrefsDoArquivo(o) {
   if (!o || typeof o !== 'object') return;
   try { for (const [k, v] of Object.entries(o)) if (typeof v === 'string' && !PREF_LOCAL.test(k) && v.length < 3000000) localStorage.setItem(k, v); } catch (e) {}
+  try { atualizarBotaoPesquisa(); aplicarTema(); aplicarFonte(); } catch (e) {}   // o que aparece na tela segue os ajustes que chegaram
 }
 function aplicarTema() {
   const t = pref('tema') || 'sistema';

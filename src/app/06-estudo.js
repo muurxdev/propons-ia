@@ -89,6 +89,7 @@ function normalizarModo(id, d) {
     return { questoes: q, respostas: q.map((_, i) => r[i] === undefined ? null : r[i]) };
   }
   if (id === 'mapa' || id === 'plano') return normalizarMapaPlano(id, d);
+  if (id === 'podcast') return normalizarPodcast(d);
   if (id === 'redacao') {
     if (!Array.isArray(d.notas) || d.notas.length !== 5) return null;
     return { notas: d.notas.map(v => clampN(v, 0, 200)), comentarios: (Array.isArray(d.comentarios) ? d.comentarios : []).map(s).concat(['', '', '', '', '']).slice(0, 5), pontos_fortes: s(d.pontos_fortes), melhorias: (Array.isArray(d.melhorias) ? d.melhorias : []).map(s).filter(Boolean).slice(0, 8), versao_melhorada: s(d.versao_melhorada).slice(0, 12000) };
@@ -99,6 +100,7 @@ const LETRAS = ['a', 'b', 'c', 'd'];
 // versão em Markdown do resultado (copiar, exportar, ler em voz alta e o que o modelo "lembra" nas próximas mensagens)
 function markdownDoModo(id, d) {
   if (id === 'mapa' || id === 'plano') return markdownMapaPlano(id, d);
+  if (id === 'podcast') return markdownPodcast(d);
   if (id === 'flashcards') return `**Flashcards (${d.length})**\n\n` + d.map((c, i) => `${i + 1}. **${c.frente}**\n   ${c.verso}`).join('\n');
   if (id === 'quiz') return `**Quiz (${d.questoes.length} questões)**\n\n` + d.questoes.map((q, i) => `**${i + 1}. ${q.pergunta}**\n${q.alternativas.map((a, k) => `${LETRAS[k]}) ${a}`).join('\n')}\n\nResposta: **${LETRAS[q.correta]})** — ${q.explicacao}`).join('\n\n');
   if (id === 'redacao') { const total = d.notas.reduce((a, b) => a + b, 0); return `**Correção da redação — ${total}/1000**\n\n${d.notas.map((n, i) => `- **Competência ${i + 1} (${COMPETENCIAS[i]}): ${n}** — ${d.comentarios[i]}`).join('\n')}\n\n**Pontos fortes:** ${d.pontos_fortes}\n\n**O que melhorar:**\n${d.melhorias.map(m => `- ${m}`).join('\n')}\n\n**Versão melhorada:**\n\n${d.versao_melhorada}`; }
@@ -122,6 +124,7 @@ function htmlRedacao(m) {
 }
 function ligarWidgets(d, m) {
   if (m.mapa || m.plano) ligarMapaPlano(d, m);
+  if (m.podcast) ligarPodcast(d, m);
   d.querySelectorAll('.fc').forEach(b => b.onclick = () => b.classList.toggle('virado'));
   const bs = d.querySelector('[data-fc="salvar"]'); if (bs) bs.onclick = () => guardarNoBaralho(m.cartoes, atual ? atual.titulo : '');
   const ba = d.querySelector('[data-fc="anki"]'); if (ba) ba.onclick = () => exportarAnki(m.cartoes);
