@@ -93,6 +93,17 @@ function folhaArrastavel(fundo, folha, fechar) {
   const temMais = () => folha.scrollHeight - folha.clientHeight > 8;
   const marcarRolagem = () => folha.classList.toggle('rola', temMais());
   marcarRolagem(); setTimeout(marcarRolagem, 60);
+  // para cima: a folha cresce junto com o dedo até cobrir a tela; soltando depois de um pouco, fica cheia
+  let h0 = 0;
+  const alturaMax = () => window.innerHeight - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--st')) || 0) - 10;
+  const crescer = d => { folha.style.maxHeight = 'none'; folha.style.height = Math.min(alturaMax(), h0 - Math.min(0, d)) + 'px'; };
+  const soltarCrescer = (d, v) => {
+    const cheia = -d > 48 || v < -0.35;
+    folha.style.transition = 'height .28s cubic-bezier(.05,.7,.1,1)';
+    folha.style.height = (cheia ? alturaMax() : h0) + 'px';
+    folha.classList.toggle('cheia', cheia);
+    setTimeout(() => { folha.style.transition = ''; if (!cheia) { folha.style.height = ''; folha.style.maxHeight = ''; } marcarRolagem(); }, 300);
+  };
   folha.addEventListener('pointerdown', e => {
     if (e.button > 0 || !estreita()) return;
     if (e.pointerType === 'touch' && rolador(e.target)) return;   // dedo sobre algo que rola: o arraste por toque (abaixo) decide
@@ -110,11 +121,15 @@ function folhaArrastavel(fundo, folha, fechar) {
     if (!direcao) {
       if (Math.abs(bruto) < 7) return;
       direcao = bruto < 0 ? -1 : 1;
-      if (direcao === -1) { if (temMais()) { folha.classList.add('cheia'); marcarRolagem(); } y0 = null; return; }   // para cima: cresce e acabou
+      if (direcao === -1) {
+        if (folha.classList.contains('cheia')) { y0 = null; direcao = 0; return; }   // já cobre a tela
+        h0 = folha.offsetHeight; folha.style.transition = 'none';
+      }
       moveu = true;
       try { folha.setPointerCapture(id); } catch (er) {}
       folha.style.transition = 'none'; fundo.style.transition = 'none';
     }
+    if (direcao === -1) { dy = bruto; pausarDesenho(200); crescer(bruto); return; }
     dy = Math.max(0, bruto);
     pausarDesenho(200);
     folha.style.transform = `translateY(${dy}px)`;
@@ -128,6 +143,7 @@ function folhaArrastavel(fundo, folha, fechar) {
       const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
       folha.addEventListener('click', engolir, { capture: true, once: true });
       setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
+      if (direcao === -1) { soltarCrescer(dy, dy / Math.max(1, performance.now() - t0)); y0 = null; direcao = 0; return; }
       if (dy > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); y0 = null; direcao = 0; return; }
       folha.style.transition = 'transform .24s cubic-bezier(.05,.7,.1,1)'; folha.style.transform = '';
       fundo.style.transition = 'opacity .24s linear'; fundo.style.opacity = '';
@@ -156,10 +172,16 @@ function folhaArrastavel(fundo, folha, fechar) {
     const bruto = e.touches[0].clientY - tY;
     if (!tDir) {
       if (Math.abs(bruto) < 6) return;
-      if (bruto < 0 || tRol.scrollTop > 0) { tY = null; return; }   // o dedo está rolando o conteúdo
-      tDir = 1; folha.style.transition = 'none'; fundo.style.transition = 'none';
+      if (bruto < 0) {   // para cima: a folha cresce até cobrir a tela; já cheia, o dedo rola o conteúdo
+        if (folha.classList.contains('cheia') || (tRol !== folha && tRol.scrollTop > 0)) { tY = null; return; }
+        tDir = -1; h0 = folha.offsetHeight; folha.style.transition = 'none';
+      } else {
+        if (tRol.scrollTop > 0) { tY = null; return; }   // o dedo está rolando o conteúdo
+        tDir = 1; folha.style.transition = 'none'; fundo.style.transition = 'none';
+      }
     }
     e.preventDefault();
+    if (tDir === -1) { tDy = bruto; pausarDesenho(200); crescer(bruto); return; }
     tDy = Math.max(0, bruto);
     pausarDesenho(200);
     folha.style.transform = `translateY(${tDy}px)`;
@@ -168,6 +190,7 @@ function folhaArrastavel(fundo, folha, fechar) {
   const soltarToque = () => {
     if (tY === null || !tDir) { tY = null; return; }
     const v = tDy / Math.max(1, performance.now() - tT0);
+    if (tDir === -1) { tY = null; tDir = 0; soltarCrescer(tDy, v); return; }
     tY = null; tDir = 0;
     const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
     folha.addEventListener('click', engolir, { capture: true, once: true });

@@ -83,8 +83,11 @@ async function extrairDocx(f) {
   const t = String(r.value || '').replace(/\n{3,}/g, '\n\n').trim();
   return { texto: t.slice(0, MAX_TEXTO_DOC), paginas: 0, cortado: t.length > MAX_TEXTO_DOC };
 }
+const eAudio = f => /^audio\//.test(f.type || '') || /\.(mp3|m4a|wav|ogg|opus|webm|aac|flac)$/i.test(f.name || '');
 async function adicionarArquivos(lista) {
   for (const f of lista) {
+    // áudio pelo "Arquivos": vira texto na caixa (a transcrição do próprio aparelho)
+    if (eAudio(f)) { if (PLATAFORMA.temTranscricao) { if (await garantirVoz()) transcreverAudio(f); } else toast('Neste aparelho a transcrição de áudio ainda não está disponível.', 3500); continue; }
     if (eFoto(f)) {
       if (!PLATAFORMA.temVisao) { toast('Neste aparelho a IA ainda não lê fotos.', 3500); continue; }
       if (anexos.filter(a => a.tipo === 'imagem').length >= MAX_FOTOS) { toast(`Até ${MAX_FOTOS} fotos por mensagem.`); continue; }

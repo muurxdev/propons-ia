@@ -1,11 +1,17 @@
 ## Novidades da 1.24.0
 
-- **Peça e o app faz.** Escreva "grave um áudio", "tire uma foto", "leia a resposta", "me avise quando terminar" ou "ative minha localização": o app responde na hora e logo em seguida faz, e é aí que aparece a janelinha de permissão do próprio sistema (microfone, câmera, notificações, localização). Funciona até com a IA desligada. Perguntas como "como gravar um áudio no celular?" continuam indo para a IA.
-- **"Quantos graus agora?" na primeira vez:** a resposta avisa que vai usar a sua localização e a janela do sistema aparece logo depois; permitindo, os números chegam na mesma resposta.
-- **Fontes no fim da resposta, todas elas.** Primeiro vem a resposta inteira; embaixo, as fontes, com os ícones dos sites empilhados e "N sites", que abre a lista completa (não só 5). Enquanto a IA pesquisa, os ícones dos sites encontrados aparecem ao lado da palavra animada, como no ChatGPT.
-- **Mesmo desenho em todo o app.** Todas as páginas dos Ajustes ganharam o visual de cartões de Modelos (Respostas, Aparência, Conversas, Estudo, Diagnóstico, Sobre), com escolhas na largura toda e botões inteiros no celular. O popup da fonte, a confirmação de apagar, a Memória e o raciocínio ficaram mais legíveis, e a sombra do menu lateral não vaza mais na borda da tela.
-- **Seletor de modelo sem a setinha**, mais limpo ao lado do "+".
-- **Novidades da versão:** cada item mostra 3 linhas e abre ao tocar.
+- **Conhecimento (no "+").** Ensine a Própons do seu jeito, como as skills do Claude: cada conhecimento tem nome, "quando usar", instruções e, se quiser, arquivos de referência (.txt, .md, .pdf, .docx). A IA escolhe sozinha os que combinam com a pergunta (ou você chama com /nome, ou marca "usar em toda resposta"), usa só os trechos dos arquivos ligados à pergunta e a resposta mostra qual conhecimento foi usado. Vem com três modelos prontos: Redação nota 1000, Matemática passo a passo e Revisão para prova.
+- **Sugestões no fim da resposta:** três perguntas curtas para continuar o assunto; tocar manda. Dá para desligar em Ajustes → Respostas.
+- **Mande outra mensagem enquanto a IA responde:** ela entra na fila (aparece embaixo, "na fila") e vai sozinha quando a resposta terminar. Dá para gravar e transcrever áudio nesse meio tempo também.
+- **Editar a pergunta na própria bolha:** o lápis abre o texto ali mesmo, com Cancelar e Reenviar; reenviando, ela vira a pergunta atualizada e a resposta é refeita.
+- **Gravando áudio, a caixa vira só a barra de áudio**, menor e sem distrações.
+- **Ouvir:** o botão é ▶ e, enquanto lê, vira ■ para parar (o texto continua ficando roxo no ritmo da voz).
+- **Topo da conversa com ⋯:** nova conversa, renomear, fixar, pasta, exportar e apagar num menu só (sai o lápis).
+- **Peça e o app faz.** "grave um áudio", "tire uma foto", "leia a resposta", "me avise quando terminar" ou "ative minha localização": o app responde na hora e logo em seguida aparece a janelinha de permissão do próprio sistema. Funciona até com a IA desligada. Arquivos de áudio agora vão pelo "Arquivos" (o botão Áudio saiu do "+").
+- **"Quantos graus agora?" na primeira vez:** a resposta avisa que vai usar a sua localização e a janela do sistema aparece logo depois.
+- **Fontes no fim, todas elas:** um botão com os ícones dos sites e "N sites →" que abre a lista completa. Enquanto a IA pesquisa, os ícones aparecem ao lado da palavra animada.
+- **Menus que sobem até cobrir a tela:** puxe qualquer menu para cima e ele cresce junto com o dedo até ocupar a tela inteira; puxando para baixo, fecha.
+- **Design mais limpo em tudo:** sem barras de rolagem, sem a bolinha de contexto na caixa (a compactação continua sozinha), sem o botão de compartilhar embaixo das respostas, seletor de modelo sem a setinha, Ajustes em cartões com espaçamento de verdade (no PC o painel ficou maior), confirmação de apagar em vermelho e o popup da fonte mais organizado.
 
 ## Novidades da 1.23.0
 

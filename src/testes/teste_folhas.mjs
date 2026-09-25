@@ -95,4 +95,14 @@ await espera(1200);
 const cards = await js(`[...document.querySelectorAll('.mcard')].map(c => ({ selo: !!c.querySelector('.logo-modelo svg'), medidas: c.querySelectorAll('.mmed').length, desc: (c.querySelector('.mdesc') || {}).textContent || '' }))`);
 ok('Modelos: cada cartão com a logo do modelo, 3 medidas e para que serve', cards.length === 3 && cards.every(c => c.selo && c.medidas === 3 && c.desc.length > 10), JSON.stringify(cards.map(c => c.medidas)));
 await foto('f4-modelos');
+
+// 9) puxar para cima: a folha cresce com o dedo e, soltando, cobre a tela inteira
+await js(`document.querySelectorAll('.dlg-fundo, .painel-fundo').forEach(f => f.remove()); abrirMais(); 1`); await espera(700);
+const alca = await js(`(() => { const b = document.querySelector('.dlg.mais .dlg-topo').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 12, h: document.querySelector('.dlg.mais').offsetHeight }; })()`);
+await toque('touchStart', alca.x, alca.y); await espera(30);
+for (let d = 10; d <= 260; d += 20) { await toque('touchMove', alca.x, alca.y - d); await espera(16); }
+await toque('touchEnd'); await espera(500);
+const cheia = await js(`(() => { const f = document.querySelector('.dlg.mais'); return { h: f.offsetHeight, cheia: f.classList.contains('cheia'), tela: innerHeight }; })()`);
+ok('puxar a folha para cima faz ela cobrir a tela', cheia.cheia && cheia.h > cheia.tela * 0.9 && cheia.h > alca.h, JSON.stringify([alca.h, cheia]));
+await foto('f5-cheia');
 resumo();

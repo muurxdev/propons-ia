@@ -9,7 +9,7 @@ function abrirMais() {
       <button data-op="arquivos"><span class="oi">${ICO.arquivo}</span>Arquivos</button>
     </div>
     <div class="opcoes linhas">
-      <button data-op="audio"${PLATAFORMA.temTranscricao ? '' : ' disabled'}><span class="oi">${ICO.microfone}</span><span class="pt"><b>Áudio</b><small>${PLATAFORMA.temTranscricao ? 'Transcrever uma gravação' : 'Indisponível neste aparelho'}</small></span>${ICO.seta}</button>
+      <button data-op="conhecimento"><span class="oi">${ICO.conhecimento}</span><span class="pt"><b>Conhecimento</b><small>${(n => n ? n + (n === 1 ? ' ligado' : ' ligados') + ' · a IA usa quando combina' : 'Ensine a IA a responder do seu jeito')(lerConhecimentos().filter(k => k.ativo !== false).length)}</small></span>${ICO.seta}</button>
       <button data-op="pesquisa"><span class="oi">${ICO.globo}</span><span class="pt"><b>Pesquisar na internet</b><small>${pesquisaLigada() ? 'Ligada · suas perguntas vão para a busca pública' : 'Desligada · tudo continua no aparelho'}</small></span><span class="chave${pesquisaLigada() ? ' on' : ''}"></span></button>
       <button data-modos><span class="oi">${ICO.estudo}</span><span class="pt"><b>Modos de estudo</b><small>${modoAtivo ? 'Ativo: ' + MODOS[modoAtivo].nome : 'Flashcards, quiz, redação, resumo e revisão'}</small></span>${ICO.seta}</button>
     </div>
@@ -29,7 +29,7 @@ function abrirMais() {
     else if (op === 'fotos') $('#fotos').click();
     else if (op === 'arquivos') $('#arquivo').click();
     else if (op === 'pesquisa') definirPesquisa(!pesquisaLigada());
-    else if (op === 'audio') garantirVoz().then(ok => ok && $('#audio').click());
+    else if (op === 'conhecimento') setTimeout(abrirConhecimentos, 160);
     else abrirConfig('modelo');
   });
   pausarDesenho();

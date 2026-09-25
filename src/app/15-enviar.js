@@ -115,21 +115,49 @@ function textoParaModelo(texto, lista) {
   return (texto || 'Analise o(s) arquivo(s) anexado(s).') + '\n\n' + blocos;
 }
 
-async function enviar(texto) {
-  texto = texto.trim();
-  if ((!texto && !anexos.length) || geracao) return;
+/* fila: mandar outra mensagem enquanto a IA ainda responde — ela aparece embaixo, "na fila", e vai sozinha quando a
+   resposta atual terminar (dá para tirar da fila antes) */
+let filaEnvio = [];
+function enfileirar(texto, lista) {
+  const conv = atual; if (!conv) return;
+  const el = document.createElement('div'); el.className = 'msg eu na-fila';
+  el.innerHTML = (texto ? `<div class="txt">${esc(texto)}</div>` : '') + (lista.length ? `<div class="anexos-msg">${lista.map(a => chipHTML(a)).join('')}</div>` : '')
+    + '<div class="fila-tag"><span>Na fila · vai quando esta resposta terminar</span><button type="button">Tirar da fila</button></div>';
+  const item = { conv, texto, lista, el };
+  el.querySelector('.fila-tag button').onclick = () => { filaEnvio = filaEnvio.filter(x => x !== item); el.remove(); };
+  filaEnvio.push(item); coluna().appendChild(el); rolar(true);
+}
+async function andarFila() {
+  if (geracao) return;
+  const item = filaEnvio.shift(); if (!item) return;
+  item.el.remove();
+  if (!conversas.includes(item.conv)) return andarFila();   // a conversa foi apagada nesse meio tempo
+  if (atual !== item.conv) abrir(item.conv.id);
+  await enviar(item.texto, item.lista);
+}
+// lista: anexos que não vêm da caixa (pergunta editada na própria bolha, item da fila); aí a caixa fica como está
+async function enviar(texto, origem) {
+  texto = String(texto || '').trim();
+  const daCaixa = !origem; origem = origem || anexos;
+  if (!texto && !origem.length) return;
+  if (geracao) {   // a IA ainda responde: vai para a fila
+    enfileirar(texto, origem.slice());
+    if (daCaixa) { $('#entrada').value = ''; anexos = []; desenharChips(); ajustar(); }
+    return;
+  }
   if (ESCOLHER && escolhendoId) { toast('Espere a IA ligar para mandar outra mensagem.'); return; }
   // mensagem que ficou esperando de uma vez anterior (o app fechou antes de a IA ligar) não trava mais nada: a nova vale
   if (ESCOLHER) conversas.forEach(c => c.msgs.forEach(x => { delete x.pendente; }));
-  if (!ESCOLHER && anexos.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
+  if (!ESCOLHER && origem.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
   if (geracao) return;
   if (editando && atual) {
     // substitui a pergunta em edição (e tudo o que veio depois dela)
     const iu = editandoIdx >= 0 && editandoIdx < atual.msgs.length ? editandoIdx : ultimoIndice(atual, 'user'); if (iu >= 0) atual.msgs.splice(iu);
     cancelarEdicao(); abrir(atual.id);
   }
-  $('#entrada').value = '';
-  const todos = anexos; anexos = []; desenharChips(); ajustar();
+  const todos = origem;
+  if (daCaixa) { $('#entrada').value = ''; anexos = []; desenharChips(); }
+  ajustar();
   const fotos = todos.filter(a => a.tipo === 'imagem'), lista = todos.filter(a => a.tipo !== 'imagem');
   if (!atual) {
     const base = (texto || (fotos.length ? (fotos.length === 1 ? 'Foto' : fotos.length + ' fotos') : lista.map(a => a.nome).join(', '))).replace(/\s+/g, ' ').trim();
@@ -184,6 +212,8 @@ let editandoIdx = -1;   // índice da pergunta em edição (-1 = a última)
 function editarUltima() { if (atual) editarMensagem(atual.msgs[ultimoIndice(atual, 'user')]); }
 function editarMensagem(m) {
   if (!atual || geracao || !m) return;
+  const bolha = [...document.querySelectorAll('.msg.eu')].find(x => x._msg === m);
+  if (bolha && !bolha.querySelector('.editor-msg')) { editarNaBolha(bolha, m); return; }
   const iu = atual.msgs.indexOf(m); if (iu < 0) return;
   editandoIdx = iu;
   editando = true; $('#editando').hidden = false;
@@ -191,6 +221,25 @@ function editarMensagem(m) {
   anexos = (m.anexos || []).slice().concat((m.imagens || []).map((x, i) => ({ tipo: "imagem", nome: x.nome, tam: 0, miniatura: x.miniatura, dataUrl: m._envio && m._envio[i] })).filter(a => a.dataUrl));
   desenharChips();
   ajustar(); $('#entrada').focus();
+}
+function editarNaBolha(bolha, m) {
+  const ed = document.createElement('div'); ed.className = 'editor-msg';
+  ed.innerHTML = '<textarea rows="2" aria-label="Editar a pergunta"></textarea><div class="ed-acoes"><button type="button" class="btn" data-cancelar>Cancelar</button><button type="button" class="btn primario" data-reenviar>' + ICO.seguir + 'Reenviar</button></div>';
+  const ta = ed.querySelector('textarea'); ta.value = m.texto || '';
+  const medir = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 320) + 'px'; };
+  bolha.classList.add('editando'); bolha.appendChild(ed); medir(); ta.addEventListener('input', medir);
+  ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  const fechar = () => { ed.remove(); bolha.classList.remove('editando'); };
+  const reenviar = () => {
+    const t = ta.value.trim(); if (!t || geracao) return;
+    const iu = atual.msgs.indexOf(m); if (iu < 0) { fechar(); return; }
+    const lista = (m.anexos || []).slice().concat((m.imagens || []).map((x, i) => ({ tipo: 'imagem', nome: x.nome, tam: 0, miniatura: x.miniatura, dataUrl: m._envio && m._envio[i] })).filter(a => a.dataUrl));
+    editando = true; editandoIdx = iu;
+    enviar(t, lista);
+  };
+  ed.querySelector('[data-cancelar]').onclick = fechar;
+  ed.querySelector('[data-reenviar]').onclick = reenviar;
+  ta.onkeydown = e => { if (e.key === 'Escape') { e.preventDefault(); fechar(); } else if (e.key === 'Enter' && !e.shiftKey && !estreita()) { e.preventDefault(); reenviar(); } };
 }
 function cancelarEdicao() { editando = false; editandoIdx = -1; $('#editando').hidden = true; }
 $('#cancelarEdicao').onclick = () => { cancelarEdicao(); $('#entrada').value = ''; anexos = []; desenharChips(); };
@@ -270,6 +319,11 @@ async function responder(conv, continuacao) {
   // já está em andamento, então o passo aparece na conversa e o botão de parar vale
   if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) ) voltarAoGiro();
   SISTEMA += textoResumo(conv);
+  // Conhecimento (13-conhecimento.js): os pacotes que combinam com a pergunta entram com as instruções e os trechos
+  if (!comEsquema && texto.trim()) {
+    const ks = conhecimentosPara(texto);
+    if (ks.length) { SISTEMA += '\n\n' + blocoConhecimento(ks, texto); msg.conhecimentos = ks.map(k => k.nome); mostrarPasso('Usando ' + ks.map(k => k.nome).join(' e ')); setTimeout(voltarAoGiro, 900); }
+  }
   // lugar, hora de outra cidade e clima: dados reais pegos agora (12-lugar.js), com o cartão na conversa
   let dl = null;
   if (!comEsquema && !continuacao && texto.trim()) {
@@ -322,6 +376,7 @@ async function responder(conv, continuacao) {
   const aoPensar = pensar ? p => { pensTxt += p; atualizarFolhaPensa(pensTxt); } : undefined;
   // leitura em voz alta enquanto a resposta chega (Aparência → Ler em voz alta: toda resposta)
   if (!continuacao) pararLeitura();
+  pararSugestoes();
   const narrador = !continuacao && PLATAFORMA.temFala && pref('lerRespostas') === 'sim' ? novoNarrador(msg, alvo) : null;
 
   const inicio = msg.texto || '';
@@ -386,6 +441,8 @@ async function responder(conv, continuacao) {
     // temperatura livre (0,6–0,7, a recomendada para o Qwen3.5) para a mesma pergunta não cair sempre no mesmo texto;
     // baixa em código e contas. A semente, o DRY e o XTC ficam em plataforma.js.
     // pergunta só de hora/clima/lugar: as linhas do app já são a resposta inteira (sem o modelo, sem chance de errar)
+    // as sugestões do fim começam pelo mesmo texto de sistema e o mesmo histórico: o motor reaproveita o que já leu
+    Object.defineProperty(conv, '_prompt', { value: { sistema: SISTEMA, max: maxTokens }, writable: true, configurable: true, enumerable: false });
     const r = dl && dl.completo && msg.texto ? { fim: 'stop' } : await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
       { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : dl && dl.inicio ? 400 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
@@ -426,7 +483,10 @@ async function responder(conv, continuacao) {
   if (!continuacao) conv.msgs.push(msg);
   conv.atualizada = Date.now();
   if (atual === conv && alvo) { alvo.parentNode.remove(); addIa(msg, true); }
+  document.querySelectorAll('.msg.na-fila').forEach(e => coluna().appendChild(e));   // a fila continua embaixo da resposta
   salvar(); desenharLista(); registrarResposta(conv, msg);
+  if (filaEnvio.length) setTimeout(andarFila, 80);
+  else if (!erro && !ctrl.signal.aborted && !comEsquema) setTimeout(() => sugerirSeguintes(conv, msg), 250);   // três perguntas para seguir
   if (!erro && !ctrl.signal.aborted) avisarPronto(msg);   // janela em segundo plano: notificação do sistema
 }
 

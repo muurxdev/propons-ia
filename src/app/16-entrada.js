@@ -1,12 +1,19 @@
 /* ---------------- entrada e atalhos ---------------- */
-function ajustar() { const t = $('#entrada'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 200) + 'px'; if (!geracao) $('#enviar').disabled = !t.value.trim() && !anexos.length; }
+function ajustar() {
+  const t = $('#entrada'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 200) + 'px';
+  const tem = !!(t.value.trim() || anexos.length), b = $('#enviar');
+  if (!geracao) { b.disabled = !tem; return; }
+  // respondendo: com texto na caixa o botão manda para a fila; vazia, para a resposta
+  b.disabled = false; b.classList.toggle('gerando', !tem); b.title = tem ? 'Mandar quando esta resposta terminar' : 'Parar'; b.setAttribute('aria-label', b.title);
+}
 $('#entrada').addEventListener('input', ajustar);
 $('#entrada').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229 && enterEnvia()) { e.preventDefault(); enviar($('#entrada').value); }
   if (e.key === 'ArrowUp' && !$('#entrada').value && atual) { e.preventDefault(); editarUltima(); }
 });
-$('#enviar').onclick = () => { if (geracao) geracao.ctrl.abort(); else enviar($('#entrada').value); };
-$('#nova').onclick = nova; $('#novaLat').onclick = () => { nova(); if (estreita()) fecharLateral(); };
+$('#enviar').onclick = () => { if (geracao && !$('#entrada').value.trim() && !anexos.length) geracao.ctrl.abort(); else enviar($('#entrada').value); };
+// ⋯ no topo: nova conversa e o que dá para fazer com a conversa aberta (renomear, fixar, pasta, exportar, apagar)
+$('#menuTopo').onclick = e => { e.stopPropagation(); if (atual) menuConversa($('#menuTopo'), atual.id, true); else menuFlutuante($('#menuTopo'), [[ICO.editar, 'Nova conversa', nova]], 'Própons IA'); }; $('#novaLat').onclick = () => { nova(); if (estreita()) fecharLateral(); };
 const estreita = () => innerWidth <= 760;
 function abrirLateral() { pausarDesenho(260); $('#lateral').classList.remove('fechada'); }
 function fecharLateral() { if (!$('#lateral').classList.contains('fechada')) pausarDesenho(260); $('#lateral').classList.add('fechada'); }

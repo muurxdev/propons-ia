@@ -89,9 +89,10 @@ function abrirFolhaContexto() {
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   desenharFolhaContexto(folha);
   folhaArrastavel(f, folha, sair);
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#medidorCtx'));
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#medidorCtx') || $('#falar'));
 }
-$('#medidorCtx').onclick = abrirFolhaContexto;
+// a bolinha saiu da caixa (a compactação continua sozinha); o painel ainda abre por Ajustes/testes
+if ($('#medidorCtx')) $('#medidorCtx').onclick = abrirFolhaContexto;
 
 // compactar: as mensagens antigas (todas menos as 4 últimas) viram um resumo que entra no texto de sistema
 async function compactarConversa(conv, dentroDaResposta) {

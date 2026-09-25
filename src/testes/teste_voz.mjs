@@ -54,9 +54,9 @@ if (wavCurto) {
   const curto = await js(`$('#entrada').value`);
   ok('áudio curtinho (' + ((fs.statSync(wavCurto).size - 44) / 32000).toFixed(2) + ' s) vira texto', /\boi\b/i.test(curto), `"${curto}"`);
 }
-// 4) "+" tem Áudio
+// 4) "+" tem Conhecimento (o áudio em arquivo vai pelo "Arquivos")
 await js(`$('#anexar').click(); 1`); await espera(600);
-ok('"+" tem a opção Áudio', await js(`!!document.querySelector('[data-op="audio"]:not([disabled])')`));
+ok('"+" tem Conhecimento e não tem mais Áudio', await js(`!!document.querySelector('[data-op="conhecimento"]') && !document.querySelector('[data-op="audio"]')`));
 await foto('v4-mais'); await js('fecharDialogo(); 1');
 fechar();
 resumo();

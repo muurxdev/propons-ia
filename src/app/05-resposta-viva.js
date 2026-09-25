@@ -6,18 +6,12 @@ const dominioDe = u => { try { return new URL(u).hostname.replace(/^www\./, '');
 const iconeSite = d => d ? '<img src="https://icons.duckduckgo.com/ip3/' + esc(d) + '.ico" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' : '';
 // ícones empilhados (como no ChatGPT): até 4 sites diferentes
 const pilhaIcones = fontes => [...new Set(fontes.map(f => dominioDe(f.url)).filter(Boolean))].slice(0, 4).map(d => '<i>' + iconeSite(d) + '</i>').join('');
+/* fontes no fim da resposta: um botão só, com os ícones dos sites empilhados e "N sites →"; tocar abre a lista com
+   todas (cada uma abre o popup da fonte). As fontes vão no próprio botão, para a lista abrir igual depois de recarregar. */
 function htmlFontes(fontes) {
-  const cartao = (f, i) => {
-    const d = dominioDe(f.url);
-    return '<a class="fonte" href="' + esc(f.url) + '" data-link title="' + esc(f.titulo) + '">'
-      + '<span class="fn"><i>' + (i + 1) + '</i>'
-      + (d ? '<img src="https://icons.duckduckgo.com/ip3/' + esc(d) + '.ico" alt="" loading="lazy" onerror="this.remove()">' : '')
-      + '<b>' + esc(d || 'fonte') + '</b></span>'
-      + '<span class="ft">' + esc(f.titulo) + '</span></a>';
-  };
-  return '<div class="fontes"><button class="fontes-t" data-fontes type="button"><span class="pilha">' + pilhaIcones(fontes) + '</span><b>Fontes</b><small>'
-    + fontes.length + (fontes.length === 1 ? ' site' : ' sites') + '</small>' + ICO.seguir + '</button>'
-    + '<div class="fonte-cards">' + fontes.map(cartao).join('') + '</div></div>';
+  const dados = esc(JSON.stringify(fontes.map(f => ({ url: f.url, titulo: f.titulo || '' }))));
+  return '<div class="fontes"><button class="fontes-t" data-fontes="' + dados + '" type="button"><span class="pilha">' + pilhaIcones(fontes) + '</span><b>Fontes</b><small>'
+    + fontes.length + (fontes.length === 1 ? ' site' : ' sites') + '</small>' + ICO.seguir + '</button></div>';
 }
 // todas as fontes numa folha: ícone, domínio, título; tocar abre o popup da fonte
 function abrirListaFontes(fontes) {
@@ -53,7 +47,7 @@ ICO.link = '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19
 // liga o popup em todos os links de um pedaço da conversa (cartões, citações e links do texto)
 const ligarLinks = el => {
   el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); abrirFonte(a.href, a.getAttribute('title') || (a.classList.contains('cit') ? '' : a.textContent.trim())); });
-  el.querySelectorAll('[data-fontes]').forEach(b => b.onclick = () => abrirListaFontes([...b.parentNode.querySelectorAll('.fonte')].map(a => ({ url: a.getAttribute('href'), titulo: a.getAttribute('title') || '' }))));
+  el.querySelectorAll('[data-fontes]').forEach(b => b.onclick = () => { let l = []; try { l = JSON.parse(b.dataset.fontes); } catch (e) {} if (l.length) abrirListaFontes(l); });
 };
 // [1] no meio do texto vira um selo clicável para a fonte (não mexe em blocos de código)
 function comCitacoes(html, fontes) {

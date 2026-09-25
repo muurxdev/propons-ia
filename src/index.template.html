@@ -47,8 +47,9 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;paddin
 input,textarea,select{font:inherit;color:inherit}
 svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 ::selection{background:var(--accent-soft)}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:var(--line);border-radius:var(--r1);border:3px solid var(--bg)}
+/* sem barra de rolagem em lugar nenhum (menus, conversa, listas): o conteúdo rola igual, sem a faixa do lado */
+*{scrollbar-width:none}
+::-webkit-scrollbar{display:none;width:0;height:0}
 [hidden]{display:none!important}
 .icone{width:34px;height:34px;display:grid;place-items:center;border-radius:var(--r1);color:var(--muted);transition:background var(--t1),color var(--t1)}
 .icone:hover{background:var(--hover);color:var(--ink)}
@@ -118,6 +119,64 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .msg.eu{display:flex;flex-direction:column;align-items:flex-end}
 .msg.eu .txt{background:var(--user);padding:9px 15px;border-radius:var(--r2);max-width:85%;white-space:pre-wrap;overflow-wrap:anywhere}
 .msg.eu .editar{margin-top:4px}
+/* pergunta editada na própria bolha: campo do tamanho da bolha, Cancelar e Reenviar */
+.msg.eu.editando>.txt,.msg.eu.editando>.acoes{display:none}
+.editor-msg{width:min(560px,92%);background:var(--user);border:1px solid var(--accent);border-radius:var(--r3);padding:10px;box-shadow:0 0 0 3px var(--accent-soft);animation:aparece var(--t1) ease}
+.editor-msg textarea{width:100%;border:0;background:none;resize:none;font:inherit;font-size:var(--fs);line-height:1.5;color:var(--ink);outline:none;padding:4px 6px}
+.ed-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.ed-acoes .btn{min-height:38px;border-radius:var(--r4)}
+.ed-acoes .btn svg{width:15px;height:15px}
+/* mensagem na fila: espera a resposta atual terminar */
+.msg.eu.na-fila .txt{opacity:.72;border:1px dashed var(--line);background:none}
+.fila-tag{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:var(--t-xs);color:var(--faint)}
+.fila-tag button{color:var(--accent);font-size:var(--t-xs);font-weight:600}
+/* sugestões no fim da resposta */
+.sugestoes{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:14px 0 4px}
+.sugestoes button{display:inline-flex;align-items:center;gap:10px;max-width:100%;padding:9px 14px;border:1px solid var(--line);border-radius:var(--r4);background:var(--surface);color:var(--ink);font-size:var(--t-sm);text-align:left;transition:background var(--t1),border-color var(--t1);animation:sugEntra .3s cubic-bezier(.2,.8,.2,1) both}
+.sugestoes button:nth-child(2){animation-delay:60ms} .sugestoes button:nth-child(3){animation-delay:120ms}
+.sugestoes button:hover{background:var(--hover);border-color:var(--accent)}
+.sugestoes button svg{width:14px;height:14px;color:var(--accent);flex:none}
+@keyframes sugEntra{from{opacity:0;transform:translateY(6px)}}
+/* conhecimento usado na resposta */
+.usou-conh{display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;padding:4px 10px;border-radius:var(--r4);background:var(--accent-soft);color:var(--accent);font-size:var(--t-xs);font-weight:500}
+.usou-conh svg{width:13px;height:13px}
+/* Conhecimento: lista, modelos prontos e editor */
+.conh-intro{color:var(--muted);font-size:var(--t-sm);line-height:1.55;margin:2px 4px 16px}
+.conh-lista{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r3);background:var(--surface);overflow:hidden;margin-bottom:14px}
+.conh-item{display:flex;align-items:center;gap:8px;padding:0 14px 0 0;border-top:1px solid var(--line)}
+.conh-item:first-child{border-top:0}
+.conh-item.off .conh-abrir{opacity:.55}
+.conh-abrir{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:14px;text-align:left}
+.conh-abrir .pt{min-width:0} .conh-abrir b{display:block;font-weight:600} .conh-abrir small{display:block;color:var(--muted);font-size:var(--t-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conh-ico{width:38px;height:38px;flex:none;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.conh-ico svg{width:20px;height:20px}
+.conh-ico.grande{width:52px;height:52px;border-radius:16px} .conh-ico.grande svg{width:26px;height:26px}
+.interruptor.so-chave{width:auto;padding:6px 0}
+.conh-vazio{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:22px 12px;margin-bottom:14px;border:1px dashed var(--line);border-radius:var(--r3)}
+.conh-vazio small{color:var(--muted);font-size:var(--t-sm)}
+.conh-novo{width:100%;min-height:46px}
+.conh-sub{margin:22px 4px 10px;font-size:var(--t-sm);color:var(--muted);font-weight:600}
+.conh-modelos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding-bottom:8px}
+.conh-modelo{display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px;border:1px solid var(--line);border-radius:var(--r3);background:var(--surface);transition:border-color var(--t1)}
+.conh-modelo:hover:not(:disabled){border-color:var(--accent)}
+.conh-modelo b{font-weight:600} .conh-modelo small{color:var(--muted);font-size:var(--t-xs);line-height:1.45}
+.conh-modelo span{margin-top:auto;color:var(--accent);font-size:var(--t-sm);font-weight:600}
+.conh-modelo:disabled span{color:var(--faint)}
+.conh-ed .campo{display:flex;flex-direction:column;gap:6px;margin:0 2px 16px}
+.conh-ed .campo>span{font-size:var(--t-sm);font-weight:600;color:var(--ink)}
+.conh-ed .campo small{color:var(--muted);font-size:var(--t-xs)}
+.conh-ed textarea.campo-texto{resize:vertical;min-height:120px;font-size:var(--t-md);line-height:1.5}
+.conh-refs{display:flex;flex-direction:column;gap:6px}
+.conh-ref{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface)}
+.conh-ref>svg{width:18px;height:18px;color:var(--muted);flex:none}
+.conh-ref span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--t-sm)}
+.conh-ref small{display:block;color:var(--faint);font-size:var(--t-xs)}
+.conh-ed .interruptor{margin:4px 2px 18px}
+.conh-botoes{display:flex;gap:10px;justify-content:flex-end;padding-bottom:6px}
+.conh-botoes .btn{min-height:44px;min-width:120px}
+@media (min-width:761px){ .dlg.conh,.dlg.conh-ed{width:min(620px,100%)} }
+@media (max-width:760px){ .conh-botoes .btn{flex:1} .conh-modelos{grid-template-columns:1fr} }
+@media (prefers-reduced-motion:reduce){ .sugestoes button,.editor-msg{animation:none} }
 .msg.ia .txt{overflow-wrap:anywhere}
 .txt p{margin:.5em 0}
 .txt>:first-child{margin-top:0} .txt>:last-child{margin-bottom:0}
@@ -413,15 +472,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* linha de baixo da caixa: "+" no canto esquerdo, e do outro lado modelo · microfone · enviar (como no Claude) */
 .linha{display:flex;align-items:center;gap:8px;margin-top:6px;min-width:0;flex-wrap:nowrap}
 .linha .espaco{flex:1 1 0;min-width:0}
-#anexar,#falar,#enviar,.bt-web,#medidorCtx{flex:none}
+#anexar,#falar,#enviar,.bt-web{flex:none}
 /* bolinha de contexto: o anel enche conforme a memória da IA é usada (laranja ≥ 70 %, vermelho ≥ 90 %) */
-#medidorCtx{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:var(--accent);transition:background var(--t1)}
-#medidorCtx:hover{background:var(--hover)}
-#medidorCtx svg{width:20px;height:20px;transform:rotate(-90deg);fill:none;stroke-width:3}
-#medidorCtx .trilho{stroke:var(--line);stroke-width:3.5}
-#medidorCtx .uso{stroke:currentColor;stroke-linecap:round;stroke-dasharray:calc(var(--p,0) * 1) 100;transition:stroke-dasharray var(--t3) var(--padrao)}
-#medidorCtx.alto{color:var(--warn)}
-#medidorCtx.cheio{color:var(--danger)}
 .ctx{padding:4px 16px 12px}
 .ctx-num{display:flex;align-items:baseline;gap:10px;margin:4px 0 10px}
 .ctx-num b{font-size:var(--t-2xl);font-weight:600;letter-spacing:-.02em}
@@ -463,6 +515,10 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #falar{width:34px;height:34px;border-radius:50%;background:var(--hover)}
 .caixa{position:relative}
 .gravando{position:absolute;inset:0;z-index:2;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:inherit;background:var(--surface);animation:aparece var(--t1) ease}
+.caixa.so-audio{padding:6px 8px;animation:audioEntra var(--t2) var(--entra)}
+.caixa.so-audio>textarea,.caixa.so-audio>.linha,.caixa.so-audio>#chips{display:none!important}
+.caixa.so-audio .gravando{position:relative;inset:auto;height:52px;padding:0 2px;background:none;animation:none}
+@keyframes audioEntra{from{transform:scale(.97);opacity:.6}}
 .gravando b{font-variant-numeric:tabular-nums;font-weight:500;font-size:var(--t-sm);color:var(--muted)}
 .gravando .redondo{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--hover);color:var(--ink);transition:background var(--t1),transform var(--t1)}
 .gravando .redondo:hover{background:var(--line)} .gravando .redondo:active{transform:scale(.94)}
@@ -516,6 +572,23 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .p-topo h3{flex:1;margin:0;font-size:var(--t-lg);font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .p-voltar{display:none!important}
 .p-corpo{flex:1;min-height:0;overflow-y:auto;padding:18px 22px 26px;overscroll-behavior:contain}
+/* espaçamento dos Ajustes: um ritmo só (8/12/16/20/24) — nada colado dentro dos cartões */
+@media (min-width:761px){ #corpoConfig{padding:26px 32px 36px} .p-nav{width:268px;padding:22px 10px 14px} }
+#corpoConfig>.secao{margin-bottom:16px}
+#corpoConfig>.secao:not(:has(>.cartao,>.lista-modelos,>.opcoes,>.mcard)){padding:18px 20px}
+#corpoConfig>.secao>h4{margin-bottom:14px}
+#corpoConfig>.secao:has(>.cartao,>.lista-modelos,>.opcoes)>h4{margin:6px 4px 10px}
+#corpoConfig .cartao{padding:18px 20px;margin-bottom:16px}
+#corpoConfig .cartao>*+*,#corpoConfig .cartao>.botoes{margin-top:14px}
+#corpoConfig .cartao>.lm:first-child{border-top:0;margin-top:-6px}
+#corpoConfig .cartao>.lm{padding-left:0;padding-right:0}
+#corpoConfig .secao>.info:not(:first-child),#corpoConfig .cartao .info{margin-top:12px!important}
+#corpoConfig>.secao>.cartao+.info{margin:-6px 4px 0!important}
+#corpoConfig .botoes{gap:10px}
+#corpoConfig>.botoes{margin:4px 0 18px}
+#corpoConfig>.info:first-child{margin-bottom:18px}
+#corpoConfig>.info{margin-left:2px!important;margin-right:2px!important}
+#corpoConfig .mcard{margin-bottom:16px}
 .secao{margin-bottom:22px}
 .secao h4{font-size:var(--t-sm);font-weight:600;color:var(--muted);margin:0 0 8px}
 .seg{display:inline-flex;flex-wrap:wrap;background:var(--hover);border-radius:var(--r1);padding:3px;gap:2px;max-width:100%}
@@ -1021,7 +1094,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   .pop .lm{padding:10px 14px} .pop .lm b{font-size:var(--t-md)} .pop .lm small{font-size:var(--t-sm)}
   .pop .lista-modelos{margin:2px 2px 0}
   .painel-fundo{place-items:center}
-  .painel{height:min(680px,calc(100% - 56px));border-radius:var(--r3);border-bottom:1px solid var(--line);box-shadow:0 30px 90px rgba(0,0,0,.42);animation:pop var(--t3) var(--entra)}
+  .painel{width:min(1040px,calc(100% - 48px));height:min(760px,calc(100% - 48px));border-radius:var(--r3);border-bottom:1px solid var(--line);box-shadow:0 30px 90px rgba(0,0,0,.42);animation:pop var(--t3) var(--entra)}
   .p-arrastar{display:none}
 }
 @keyframes pop{from{opacity:0;transform:translateY(6px) scale(.985)}}
@@ -1046,7 +1119,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   <header>
     <button class="icone" id="abrirLat" title="Histórico de conversas (Ctrl+B)" aria-label="Abrir histórico" style="position:relative"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg><i class="ponto" id="pontoLat" hidden style="position:absolute;top:7px;right:7px"></i></button>
     <div class="titulo"><span id="tituloAtual">Própons IA</span><em id="estado" role="status" hidden>carregando</em></div>
-    <button class="icone" id="nova" title="Nova conversa (Ctrl+Shift+O)" aria-label="Nova conversa"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+    <button class="icone" id="menuTopo" title="Opções da conversa" aria-label="Opções da conversa" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.6"><circle cx="5" cy="12" r=".8"/><circle cx="12" cy="12" r=".8"/><circle cx="19" cy="12" r=".8"/></svg></button>
   </header>
   <div id="faixa"></div>
   <div id="conversa"></div>
@@ -1068,7 +1141,6 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
         <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="logoSeletor" class="logo-seletor"></span><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span></button>
         <button class="bt-web" id="btPesquisa" title="Pesquisa na internet ligada — toque para desligar" aria-label="Desligar a pesquisa na internet" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="x"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
         <span class="espaco"></span>
-        <button id="medidorCtx" title="Contexto" aria-label="Contexto: memória da IA em uso"><svg viewBox="0 0 24 24"><circle class="trilho" cx="12" cy="12" r="8"/><circle class="uso" cx="12" cy="12" r="8" pathLength="100"/></svg></button>
         <button class="icone" id="falar" title="Falar e transcrever" aria-label="Falar: gravar e transcrever"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
         <button id="enviar" title="Enviar" aria-label="Enviar" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg><i class="parar"></i></button>
       </div>

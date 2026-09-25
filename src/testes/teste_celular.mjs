@@ -26,7 +26,7 @@ ok('código com cores', await js(`!!document.querySelector('.msg.ia:last-child .
 await foto('3-codigo');
 // a Área de código é só do computador: no celular não há "Código" no menu nem "Guardar" nos blocos
 ok('sem Área de código no celular', await js(`!TELAS.codigo && !document.querySelector('#latNav [data-tela="codigo"]') && !document.querySelector('.msg.ia .guardar')`));
-ok('bolinha de contexto na caixa', await js(`!!$('#medidorCtx') && $('#medidorCtx').offsetWidth > 0 && usoAgora().total === nCtx`));
+ok('caixa sem a bolinha de contexto (a compactação é sozinha)', await js(`!$('#medidorCtx') && usoAgora().total === nCtx`));
 await js(`adicionarArquivos([new File(['print(sum([1, 2, 3]))\\n'], 'soma.py', {type: 'text/plain'})])`);
 m = await pergunta('o que esse arquivo imprime?');
 ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto.slice(0, 100));   // Lume (0.8B) varia; basta falar do arquivo

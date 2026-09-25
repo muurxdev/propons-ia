@@ -15,6 +15,7 @@ const res = []; const ok = (n, c, d = '') => { res.push(c); console.log(c ? '  �
 // o index.html é grande (bibliotecas de PDF dentro): espera o app.js carregar antes de olhar qualquer coisa
 for (let i = 0; i < 240; i++) { let p = false; try { p = await js(`typeof online !== 'undefined' && !!document.getElementById('entrada')`); } catch (e) {} if (p) break; await espera(500); }
 for (let i = 0; i < 300 && !(await js('online')); i++) await espera(500);
+await js(`pref('sugestoes', 'nao'); 1`);   // as sugestões (teste_fluxo) gerariam pedidos extras no meio das medições daqui
 console.log('   janela:', await js('innerWidth + "x" + innerHeight'), '· estreita:', await js('estreita()'));
 ok('sem texto de estado ao abrir', await js(`$('#estado').hidden`), await js(`$('#estado').textContent`));
 // o texto de sistema tem que ser o conhecimento.md de verdade (o motor exige a chave nos arquivos; sem ela caía no texto curto)
@@ -122,14 +123,11 @@ await js(`conversas = conversas.filter(c => !/^teste[AB]$/.test(c.id)); nova(); 
 await js(`pref('lerRespostas', 'nao'); nova(); atual = { id: novoId(), titulo: 'Voz', criada: Date.now(), atualizada: Date.now(), msgs: [{ role: 'user', texto: 'x', llm: 'x' }, { role: 'assistant', texto: 'Primeira frase da resposta. Segunda frase, um pouco mais longa, para dar tempo. Terceira e última.', llm: '' }] }; conversas.unshift(atual); abrir(atual.id); 1`);
 ok('resposta tem o botão de ouvir', await js(`!!document.querySelector('.msg.ia .acao.ler')`));
 await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(900);
-ok('ouvir: começa a falar e o botão vira "pausar" (com o ■ ao lado)', await js(`speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !!falaAtual && !falaAtual.pausado && !document.querySelector('.msg.ia .acao.parar-ler').hidden`));
+ok('ouvir: ▶ começa a falar e o botão vira ■', await js(`speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !!falaAtual && document.querySelector('.msg.ia .acao.ler').title === 'Parar a leitura'`));
 ok('enquanto lê, o texto é pintado de roxo no ritmo da voz', await js(`CSS.highlights.has('fala-lido') || CSS.highlights.has('fala-agora')`), await js(`JSON.stringify([...CSS.highlights.keys()])`));
-await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(500);
-ok('pausar: silêncio, botão vira ▶ e a leitura fica guardada', await js(`!speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('pausado') && !!falaAtual && falaAtual.pausado`));
-await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(700);
-ok('continuar: volta a falar de onde parou', await js(`speechSynthesis.speaking && !falaAtual.pausado`));
-await js(`document.querySelector('.msg.ia .acao.parar-ler').click(); 1`); await espera(400);
-ok('■ parar: silêncio, sem roxo e botão volta ao normal', await js(`!speechSynthesis.speaking && !document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !falaAtual && !CSS.highlights.has('fala-agora')`));
+ok('a resposta não tem mais o botão de compartilhar nem o ■ separado', await js(`!document.querySelector('.msg.ia .acao.parar-ler') && ![...document.querySelectorAll('.msg.ia .acao')].some(b => /Compartilhar/.test(b.title))`));
+await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(400);
+ok('■ parar: silêncio, sem roxo e o botão volta a ser ▶', await js(`!speechSynthesis.speaking && !document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !falaAtual && !CSS.highlights.has('fala-agora') && document.querySelector('.msg.ia .acao.ler').title === 'Ouvir a resposta'`));
 await js(`pref('lerRespostas', 'sim'); window.__falas = []; window.__falar0 = window.__falar0 || PLATAFORMA.falar; PLATAFORMA.falar = (t, id) => { window.__falas.push([t, !!geracao]); return window.__falar0(t, id); }; (()=>{ nova(); const e=$('#entrada'); e.value='Explique em cinco frases, uma por linha, o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
 // a fala começa antes de a resposta terminar: cada item guarda se geracao ainda existia no momento da chamada
 for (let i = 0; i < 40 && !(await js('!!geracao || window.__falas.length')); i++) await espera(250);
@@ -309,7 +307,7 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
 // 1.20: ajustes pedidos — "+" no canto, esforço por modelo, clicar liga (sem "Usar"), sem popup ao escolher modo
 {
   const ordem = await js(`[...document.querySelectorAll('.linha > *')].map(e => e.id || e.className)`);
-  ok('caixa organizada: "+" e o modelo à esquerda; contexto, microfone e enviar à direita', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[ordem.length-4] === 'espaco' && ordem[ordem.length-3] === 'medidorCtx' && ordem[ordem.length-2] === 'falar' && ordem[ordem.length-1] === 'enviar', JSON.stringify(ordem));
+  ok('caixa organizada: "+" e o modelo à esquerda; microfone e enviar à direita (sem a bolinha de contexto)', ordem[0] === 'anexar' && ordem[1] === 'seletorModelo' && ordem[ordem.length-3] === 'espaco' && !ordem.includes('medidorCtx') && ordem[ordem.length-2] === 'falar' && ordem[ordem.length-1] === 'enviar', JSON.stringify(ordem));
   await js(`abrirSeletorModelo(); 1`); await espera(1000);
   const lm = await js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b => ({ nome: b.querySelector('b').textContent, esf: (b.querySelector('b .pill')||{}).textContent || '', st: b.querySelector('.st').textContent.trim() }))`);
   ok('a lista de modelos não repete o nível de esforço (nem botão "Usar")', lm.every(x => !x.esf) && lm.every(x => !/Usar/.test(x.st)), JSON.stringify(lm));
@@ -496,9 +494,9 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   await js(`Object.defineProperty(navigator, 'onLine', { get: () => true, configurable: true }); nova(); (()=>{ const e=$('#entrada'); e.value='o que é fotossíntese?'; ajustar(); $('#enviar').click(); })(); 1`);
   for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
   for (let i = 0; i < 480 && (await js('!!geracao')); i++) await espera(250);
-  const comFonte = await js(`(()=>{ const m = atual.msgs[atual.msgs.length-1]; return { buscou: window.__buscou, fontes: (m.fontes||[]).length, link: !!document.querySelector('.msg.ia .fontes a') } })()`);
+  const comFonte = await js(`(()=>{ const m = atual.msgs[atual.msgs.length-1]; return { buscou: window.__buscou, fontes: (m.fontes||[]).length, link: !!document.querySelector('.msg.ia .fontes [data-fontes]') } })()`);
   ok('com internet: pesquisa, guarda as fontes e mostra os links', comFonte.buscou === 1 && comFonte.fontes >= 1 && comFonte.link, JSON.stringify(comFonte));
-  ok('as fontes viram cartões com a logo do site e o texto ganha citação clicável', await js(`(()=>{ const c = document.querySelector('.msg.ia .fonte'); const cit = document.querySelector('.msg.ia .cit'); return !!c && /wikipedia/.test(c.querySelector('.fn b').textContent) && (!cit || cit.getAttribute('href').startsWith('https://')) })()`));
+  ok('as fontes viram um botão com os ícones dos sites (sem os cartões) e o texto ganha citação clicável', await js(`(()=>{ const b = document.querySelector('.msg.ia .fontes-t'); const cit = document.querySelector('.msg.ia .cit'); return !!b && !document.querySelector('.msg.ia .fonte-cards') && /wikipedia/.test(b.dataset.fontes) && (!cit || cit.getAttribute('href').startsWith('https://')) })()`));
   ok('as fontes ficam no fim, depois do texto da resposta', await js(`(()=>{ const f = document.querySelector('.msg.ia .fontes'), t = f && f.parentNode.querySelector(':scope > .txt'); return !!t && !!(t.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING) })()`));
   await js(`document.querySelector('.msg.ia [data-fontes]').click(); 1`); await espera(500);
   ok('o cabeçalho "Fontes" abre a lista com todas', await js(`document.querySelectorAll('.fontes-dlg .fontes-lista a').length === atual.msgs[atual.msgs.length-1].fontes.length`));

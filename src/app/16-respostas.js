@@ -28,6 +28,8 @@ function abaRespostas(c) {
       <p class="info">O mesmo que a etiqueta ao lado do nome do modelo na caixa. Cada modelo mostra só os níveis que usa de verdade.</p></div>
     <div class="secao"><h4>Compactar sozinho</h4>${seg('autoCompactar', [['sim', 'Sim'], ['nao', 'Não']], compactaSozinho() ? 'sim' : 'nao')}
       <p class="info">Quando a conversa enche a memória da IA, as mensagens antigas viram um resumo antes da próxima resposta (continuam na tela).</p></div>
+    <div class="secao"><h4>Sugestões no fim da resposta</h4>${seg('sugestoes', [['sim', 'Mostrar'], ['nao', 'Não']], querSugestoes() ? 'sim' : 'nao')}
+      <p class="info">Três perguntas curtas para continuar o assunto; tocar manda a pergunta. A IA gasta alguns segundos a mais depois de cada resposta.</p></div>
     <div class="secao"><h4>Lugar, hora e clima</h4>${seg('dadosLugar', [['sim', 'Usar dados reais'], ['nao', 'Não']], usarDadosLugar() ? 'sim' : 'nao')}
       <p class="info">Em perguntas como "que horas são em Londres?" ou "vai chover aqui?", o app pega a hora, a sua localização (o aparelho pede a permissão) e o clima de verdade antes de responder. Só vai para a internet o nome da cidade ou as coordenadas.</p></div>
     <div class="secao"><h4>Enter envia</h4>${seg('enterEnvia', [['sim', 'Sim'], ['nao', 'Não, quebra a linha']], enterEnvia() ? 'sim' : 'nao')}
@@ -41,6 +43,7 @@ function abaRespostas(c) {
   ligarSeg(c, 'nivelEstudo', v => pref('nivelEstudo', v));
   ligarSeg(c, 'autoCompactar', v => pref('autoCompactar', v));
   ligarSeg(c, 'dadosLugar', v => pref('dadosLugar', v));
+  ligarSeg(c, 'sugestoes', v => { pref('sugestoes', v); if (v === 'nao') pararSugestoes(); });
   ligarSeg(c, 'enterEnvia', v => { pref('enterEnvia', v); $('#entrada').setAttribute('enterkeyhint', v === 'sim' ? 'send' : 'enter'); });
   modelos.forEach(m => ligarSeg(c, 'esforco-' + m.id, v => { definirEsforco(m.id, v); atualizarSeletorModelo(); }));
 }
@@ -70,6 +73,7 @@ const AJUDA = {
   'Tema': ['Tema', '"Sistema" segue o claro ou escuro do aparelho; os outros fixam um dos dois.'],
   'Tamanho da letra': ['Tamanho da letra', 'Muda o texto das conversas. Os menus continuam do mesmo tamanho.'],
   'Ler em voz alta': ['Ler em voz alta', 'Usa a voz do próprio aparelho, sem internet. Em "Toda resposta", a leitura começa enquanto a IA ainda escreve.'],
+  'Sugestões no fim da resposta': ['Sugestões', 'Depois de cada resposta a IA sugere três perguntas para você aprofundar o assunto, como nos apps de chat. Desligue para economizar bateria no celular.'],
   'Lugar, hora e clima': ['Lugar, hora e clima', 'A IA não sabe a hora nem o tempo lá fora: o app busca os números reais (fuso oficial, localização do aparelho, Open-Meteo) e ela só explica. Aparece um cartão com o lugar, latitude/longitude e de onde veio cada dado.'],
   'Avisar quando ficar pronto': ['Avisar quando ficar pronto', 'Se você sair do app enquanto a IA responde, chega uma notificação quando terminar.'],
   'Instruções para a IA': ['Instruções para a IA', 'Um recado fixo que a IA lê antes de toda resposta: como explicar, que exemplos usar, o que evitar. Não precisa repetir em cada conversa.'],

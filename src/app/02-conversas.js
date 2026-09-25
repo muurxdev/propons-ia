@@ -18,6 +18,8 @@ function validar(lista) {
       ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}), ...(+m.tempo > 0 ? { tempo: Math.round(+m.tempo) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo), ...(+a.paginas ? { paginas: +a.paginas } : {}), ...(Array.isArray(a.resumos) ? { resumos: a.resumos.filter(r => r && typeof r.texto === 'string').slice(0, 40).map(r => ({ de: +r.de || 0, ate: +r.ate || 0, texto: txt(r.texto).slice(0, 4000) })) } : {}) })) } : {}),
       ...(m.lugar && normalizarPainelLugar(m.lugar) ? { lugar: normalizarPainelLugar(m.lugar) } : {}),
+      ...(Array.isArray(m.sugestoes) ? { sugestoes: m.sugestoes.filter(x => typeof x === 'string').slice(0, 3).map(x => x.slice(0, 90)) } : {}),
+      ...(Array.isArray(m.conhecimentos) ? { conhecimentos: m.conhecimentos.filter(x => typeof x === 'string').slice(0, 3).map(x => x.slice(0, 60)) } : {}),
       ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 15).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
       ...(m.passos && Array.isArray(m.passos.lista) ? { passos: { titulo: txt(m.passos.titulo), lista: m.passos.lista.map(txt) } } : {}),
@@ -111,9 +113,10 @@ function menuFlutuante(ancora, itens, titulo) {
   ancora.setAttribute('aria-expanded', 'true');
 }
 document.addEventListener('click', e => { if (!e.target.closest('.menu')) fecharMenus(); });
-function menuConversa(botao, id) {
+function menuConversa(botao, id, doTopo) {
   const c = conversas.find(x => x.id === id); if (!c) return;
   menuFlutuante(botao, [
+    ...(doTopo ? [[ICO.editar, 'Nova conversa', nova]] : []),
     [ICO.renomear, 'Renomear', () => renomear(id)],
     [ICO.fixar, c.fixada ? 'Desafixar' : 'Fixar no topo', () => { c.fixada = !c.fixada; salvar(); desenharLista(); }],
     [ICO.pasta, c.pasta ? `Pasta: ${c.pasta}` : 'Mover para pasta…', async () => {
@@ -307,7 +310,7 @@ function fotoEmTelaCheia(src, nome) {
   document.body.appendChild(v);
 }
 function addEu(m, ultima) {
-  const d = document.createElement('div'); d.className = 'msg eu';
+  const d = document.createElement('div'); d.className = 'msg eu'; d._msg = m;
   d.innerHTML = (m.imagens && m.imagens.length ? `<div class="fotos-msg">${m.imagens.map(x => `<img src="${esc(x.miniatura)}" alt="${esc(x.nome)}" title="Ver ${esc(x.nome)}" data-ver="${esc(x.nome)}">`).join('')}</div>` : '') +
     (m.anexos && m.anexos.length ? `<div class="anexos-msg">${m.anexos.map(a => chipHTML(a)).join('')}</div>` : '') +
     (m.texto ? `<div class="txt">${esc(m.texto)}</div>` : '');
@@ -330,10 +333,12 @@ function addIa(m, ultima) {
     (m.lugar ? htmlPainelLugar(m.lugar) : '') +
     `<div class="txt${widget ? ' widget' : ''}">${widget ? widget : comCitacoes(md(m.texto || ''), m.fontes)}</div>` +
     (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +   // a resposta primeiro; as fontes no fim
+    (m.conhecimentos && m.conhecimentos.length ? `<div class="usou-conh">${ICO.conhecimento}<span>Conhecimento: ${m.conhecimentos.map(esc).join(', ')}</span></div>` : '') +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
   if (m.pensou) ligarLinhaPensa(d, m.pensou, pensou);
   ligarLinks(d); if (m.lugar) ligarPainelLugar(d);
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
+  if (ultima && m.sugestoes && m.sugestoes.length) anexarSugestoes(d, m);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
 }

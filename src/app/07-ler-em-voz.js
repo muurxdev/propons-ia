@@ -1,5 +1,5 @@
 /* ---------------- ler em voz alta (voz do sistema) ----------------
-   Em cada resposta: ▶ ouvir, ❚❚ pausar (e ▶ continua da palavra onde parou) e ■ parar. Enquanto a voz lê, o texto
+   Em cada resposta: ▶ ouvir e, enquanto lê, ■ parar (o mesmo botão). Enquanto a voz lê, o texto
    vai ficando roxo na mesma ordem e velocidade da fala: a palavra dita agora ganha o fundo roxo e o que já foi lido
    fica roxo (CSS Custom Highlight: nada muda no texto da resposta). Com "Ler em voz alta: toda resposta" (Aparência)
    a leitura começa enquanto a resposta ainda está chegando, frase por frase. Só uma leitura por vez.
@@ -97,13 +97,12 @@ function inicioDaFrase(L, i) {
 }
 
 function botoesLer(m) { return [...document.querySelectorAll('.acao.ler')].filter(b => b._msg === m); }
-// estado do botão: null (▶ ouvir), 'tocando' (❚❚ pausar) ou 'pausado' (▶ continuar); o ■ aparece enquanto há leitura
+// estado do botão: ▶ para ouvir; lendo, vira ■ para parar
 function marcarLendo(m, estado) {
   botoesLer(m).forEach(b => {
-    b.classList.toggle('on', !!estado); b.classList.toggle('pausado', estado === 'pausado');
-    b.innerHTML = estado === 'tocando' ? ICO.pausar : estado === 'pausado' ? ICO.tocar : ICO.falar;
-    b.title = estado === 'tocando' ? 'Pausar a leitura' : estado === 'pausado' ? 'Continuar de onde parou' : 'Ouvir a resposta'; b.setAttribute('aria-label', b.title);
-    const p = b.nextElementSibling; if (p && p.classList.contains('parar-ler')) p.hidden = !estado;
+    b.classList.toggle('on', !!estado);
+    b.innerHTML = estado ? ICO.pararFala : ICO.tocar;
+    b.title = estado ? 'Parar a leitura' : 'Ouvir a resposta'; b.setAttribute('aria-label', b.title);
   });
 }
 function fimLeitura() { if (!falaAtual) return; const m = falaAtual.msg; falaAtual = null; limparPintura(); marcarLendo(m, null); }
@@ -133,21 +132,13 @@ PLATAFORMA.ao('fala', d => {
     falarProxima();
   }
 });
-function pausarLeitura() {
-  const L = falaAtual; if (!L || L.pausado) return;
-  L.pausado = true; L.falando = false; L.desloc = L.palavra || L.desloc;   // continua da palavra em que parou
-  L.gen = ++falaGen; PLATAFORMA.pararFala();
-  if (temPintura()) CSS.highlights.delete('fala-agora');
-  marcarLendo(L.msg, 'pausado');
-}
-function continuarLeitura() { const L = falaAtual; if (!L || !L.pausado) return; L.pausado = false; marcarLendo(L.msg, 'tocando'); falarProxima(); }
 function novaLeitura(msg, frases, extra) {
   pararLeitura();
   falaAtual = Object.assign({ msg, el: null, frases, i: 0, desloc: 0, palavra: 0, gen: ++falaGen, pausado: false, falando: false, narrando: false, terminou: true, mapa: null, cursor: 0, base: -1 }, extra);
   return falaAtual;
 }
 function lerMensagem(m) {
-  if (falaAtual && falaAtual.msg === m) { if (falaAtual.pausado) continuarLeitura(); else pausarLeitura(); return; }
+  if (falaAtual && falaAtual.msg === m) { pararLeitura(); return; }
   const b = botoesLer(m)[0], el = b && b.closest('.msg') && b.closest('.msg').querySelector(':scope > .txt');
   const mapa = el ? mapaFala(el) : null;
   // o que se ouve é o que está na tela (sem o código); sem a tela, o texto da resposta limpo
@@ -182,15 +173,9 @@ function acoes(d, m, ultima) {
     bc.onclick = () => copiarTexto(m.texto).then(() => { bc.innerHTML = ICO.ok; bc.classList.add('feito'); setTimeout(() => { bc.innerHTML = ICO.copiar; bc.classList.remove('feito'); }, 1400); });
     a.appendChild(bc);
     if (PLATAFORMA.temFala) {
-      const bl = document.createElement('button'); bl.className = 'acao ler'; bl._msg = m; bl.innerHTML = ICO.falar; bl.title = 'Ouvir a resposta'; bl.setAttribute('aria-label', bl.title);
+      const bl = document.createElement('button'); bl.className = 'acao ler'; bl._msg = m; bl.innerHTML = ICO.tocar; bl.title = 'Ouvir a resposta'; bl.setAttribute('aria-label', bl.title);
       bl.onclick = () => lerMensagem(m); a.appendChild(bl);
-      const bp = document.createElement('button'); bp.className = 'acao parar-ler'; bp.hidden = true; bp.innerHTML = ICO.pararFala; bp.title = 'Parar a leitura'; bp.setAttribute('aria-label', bp.title);
-      bp.onclick = () => { if (falaAtual && falaAtual.msg === m) pararLeitura(); }; a.appendChild(bp);
-      if (falaAtual && falaAtual.msg === m) setTimeout(() => marcarLendo(m, falaAtual && falaAtual.pausado ? 'pausado' : 'tocando'), 0);
-    }
-    if (PLATAFORMA.podeCompartilhar) {
-      const bs = document.createElement('button'); bs.className = 'acao'; bs.title = 'Compartilhar'; bs.setAttribute('aria-label', 'Compartilhar resposta'); bs.innerHTML = ICO.compartilhar;
-      bs.onclick = () => PLATAFORMA.compartilhar(m.texto).catch(() => {}); a.appendChild(bs);
+      if (falaAtual && falaAtual.msg === m) setTimeout(() => marcarLendo(m, 'tocando'), 0);
     }
   }
   if (!m.interno) {   // qualquer resposta: gerar de novo (a partir dela) e ramificar a conversa até aqui

@@ -7,6 +7,8 @@ const AVISO_GRAV = 10 * 60, LIMITE_GRAV = 30 * 60;   // segundos: aviso e parada
 const mmss = s => (s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') : Math.floor(s / 60)) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 function barraGravacao(modo, texto, pct) {
   const g = $('#gravando');
+  // gravando, a caixa vira só a barra de áudio (menor, sem o campo e os botões): o foco fica na voz
+  $('#caixa').classList.toggle('so-audio', !!modo);
   if (!modo) { g.hidden = true; return; }
   g.hidden = false;
   const grav = modo === 'gravando';
@@ -42,7 +44,7 @@ function montarOnda() {
 }
 const nivelDaOnda = rms => { const db = 20 * Math.log10(rms + 1e-6); return Math.max(0.1, Math.min(1, (db + 58) / 46)); };   // -58 dB (silêncio) → 10%, -12 dB (voz alta) → 100%
 async function iniciarGravacao() {
-  if (gravacao || transcrevendo || geracao) return;
+  if (gravacao || transcrevendo) return;   // dá para gravar enquanto a IA responde: o texto vai para a caixa e depois para a fila
   if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Este aparelho não permite gravar aqui. Use "+" → Áudio para mandar um arquivo.', 4500); return; }
   if (!(await garantirVoz())) return;
   let fluxo;

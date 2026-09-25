@@ -25,7 +25,7 @@ await js(`(() => {
 
 // 1) a bolinha está na caixa
 await js('nova(); 1'); await espera(400);
-ok('bolinha de contexto ao lado do microfone', await js(`(() => { const b = $('#medidorCtx'), f = $('#falar'); return !!b && b.offsetWidth > 0 && b.nextElementSibling === f; })()`));
+ok('a caixa não tem mais a bolinha de contexto', await js(`!$('#medidorCtx')`));
 
 // 2) pergunta sobre o meio do arquivo: vão os trechos com a página certa, não o começo
 await js(`anexos = [{ nome: 'apostila.pdf', tam: 400000, lang: 'texto', conteudo: window.__doc, paginas: 120 }]; desenharChips(); $('#entrada').value = 'Em que ano Vale Serrano foi fundada?'; ajustar(); 1`);
@@ -68,7 +68,7 @@ const cmp = await js(`(async () => {
 ok('orçamento calculado × prompt real em ' + cmp.n + ' conversas: diferença < 5 %', cmp.n >= 5 && cmp.pior < 0.05, `pior ${(cmp.pior * 100).toFixed(1)}% · média ${(cmp.media * 100).toFixed(1)}%`);
 
 // 5) a folha "Contexto": as partes somam o total mostrado e há o botão de compactar
-await js(`$('#medidorCtx').click(); 1`); await espera(700);
+await js(`abrirFolhaContexto(); 1`); await espera(700);
 const folha = await js(`(() => { const f = document.querySelector('.dlg.contexto'); if (!f) return null; const nums = [...f.querySelectorAll('.ctx-lista li:not(.res) b')].map(b => +b.textContent.replace(/\\D/g, '')); return { itens: [...f.querySelectorAll('.ctx-lista li span')].map(s => s.textContent), soma: nums.reduce((a, b) => a + b, 0), cab: nCtx, botao: !!f.querySelector('[data-compactar]'), consulta: /apostila.pdf continua consultável/.test(f.textContent) }; })()`);
 ok('folha Contexto abre com as partes e diz que o arquivo continua consultável', !!folha && folha.itens.includes('Conversa') && folha.itens.includes('Livre') && folha.consulta, folha && folha.itens.join(', '));
 ok('partes + livre = memória inteira da IA', folha && Math.abs(folha.soma - folha.cab) <= 2, folha && `${folha.soma} × ${folha.cab}`);

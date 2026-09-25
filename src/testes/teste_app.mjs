@@ -28,7 +28,7 @@ await foto('a2-bubble');
 console.log('ESTUDO  →', (await pergunta('explique rapidamente o que é mitose')).slice(0, 300).replace(/\n/g, ' '));
 await foto('a3-resposta');
 // nova conversa + histórico aberto
-await js(`document.querySelector('#nova').click()`); await espera(300);
+await js(`nova()`); await espera(300);
 console.log('FÍSICA  →', (await pergunta('qual a fórmula da velocidade média?')).slice(0, 200).replace(/\n/g, ' '));
 await js(`document.querySelector('#abrirLat').click()`); await espera(500);
 await foto('a4-historico');

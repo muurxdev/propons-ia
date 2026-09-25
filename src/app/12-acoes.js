@@ -32,7 +32,7 @@ async function executarAcao(id) {
   } else if (id === 'ler') {
     const m = ultimaIa();
     if (!m || !PLATAFORMA.temFala) { respostaLocal(!m ? 'Ainda não há resposta para ler nesta conversa.' : 'Este aparelho não tem voz para ler em voz alta.'); return; }
-    respostaLocal('Lendo a última resposta em voz alta. Toque em **❚❚** embaixo dela para pausar.');
+    respostaLocal('Lendo a última resposta em voz alta. Toque em **■** embaixo dela para parar.');
     depois(() => { if (!(falaAtual && falaAtual.msg === m)) lerMensagem(m); });
   } else if (id === 'avisar') {
     pref('avisarPronto', 'sim');

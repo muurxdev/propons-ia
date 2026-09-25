@@ -105,6 +105,8 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 - **Responde em segundo plano** e avisa quando termina, mesmo com a janela minimizada ou a tela apagada
 - **Permissões do sistema**, pedidas na hora do uso (microfone, localização, notificações); negada, o app diz onde liberar e abre as configurações do app
 - **Lugar, hora e clima de verdade**: "que horas são em Londres?", "vai chover aqui?", "onde eu estou?" — fuso oficial, localização do aparelho e Open-Meteo, com um cartão (lugar, latitude/longitude, vento, umidade, máxima/mínima, nascer e pôr do sol)
+- **Conhecimento**: pacotes de instruções e arquivos que a IA usa quando a pergunta combina (a lógica das skills do Claude, com nome próprio)
+- **Fila, edição na bolha e sugestões**: mande outra mensagem enquanto a IA responde, edite a pergunta ali mesmo e toque nas sugestões do fim
 - **Peça e o app faz**: "grave um áudio", "tire uma foto", "leia a resposta" — responde e abre o recurso, com a permissão do sistema
 - **Ouvir com play e pausa**: a leitura em voz alta pinta o texto de roxo no ritmo da voz e continua da palavra onde parou
 - **PC com placa de vídeo:** aceleração por GPU (Vulkan — NVIDIA, AMD ou Intel, sem instalar nada); a Própons mede processador × placa e só usa a placa se ela for mais rápida (3–4× numa placa dedicada)
