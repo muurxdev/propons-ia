@@ -148,6 +148,9 @@ async function enviar(texto) {
   atual.msgs.forEach(x => { if (x._envio) x._envio = null; });
   atual.msgs.push(m); atual.atualizada = Date.now();
   conversas = [atual, ...conversas.filter(c => c !== atual)];
+  // "grave um áudio", "tire uma foto"…: o app responde e já faz (a permissão do sistema aparece em seguida), mesmo sem IA
+  const acao = !todos.length && !m.modo && acaoPedida(texto);
+  if (acao) { addEu(m, true); desenharLista(); salvar(); executarAcao(acao); return; }
   if (ESCOLHER) { m.pendente = true; addEu(m, true); desenharLista(); salvar(true); if (escolhendoId) return; if (MODELO_INICIAL) ligarInicial(); else abrirSeletorModelo('enviar'); return; }
   addEu(m, true); desenharLista(); salvar();
   if (!todos.length && !m.modo && tratarMemoria(texto)) return;   // "lembre que…" / "esqueça…": o app responde na hora
@@ -270,7 +273,7 @@ async function responder(conv, continuacao) {
   // lugar, hora de outra cidade e clima: dados reais pegos agora (12-lugar.js), com o cartão na conversa
   let dl = null;
   if (!comEsquema && !continuacao && texto.trim()) {
-    try { dl = await dadosDeLugar(texto, mostrarPasso); } catch (e) {}
+    try { dl = await dadosDeLugar(texto, mostrarPasso, t => { if (alvo) alvo.innerHTML = md(t); }); } catch (e) {}
     if (dl) {
       voltarAoGiro(); SISTEMA += '\n\n' + dl.texto;
       // a resposta começa pelas frases do app (números exatos); o motor continua o texto delas, como no Continuar
@@ -288,11 +291,11 @@ async function responder(conv, continuacao) {
     else {
       estado('pesquisando na internet');
       let r = null;
-      try { r = await pesquisarNaWeb(texto.slice(0, 300), mostrarPasso); } catch (e) {}
+      try { r = await pesquisarNaWeb(texto.slice(0, 300), mostrarPasso, achados => { if (giro) giro.icones(achados); }); } catch (e) {}
       voltarAoGiro();
       estado('', false, 'rede');
-      if (r && r.fontes.length) { blocoWeb = blocoPesquisa(r); SISTEMA += '\n\n' + blocoWeb; fontes = r.fontes; msg.fontes = fontes;
-        if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlFontes(fontes); const cartoes = c.firstElementChild; alvo.parentNode.insertBefore(cartoes, alvo); ligarLinks(cartoes); } }
+      // as fontes entram no fim da resposta (addIa, quando ela termina); enquanto a IA escreve, os ícones ficam no giro
+      if (r && r.fontes.length) { blocoWeb = blocoPesquisa(r); SISTEMA += '\n\n' + blocoWeb; fontes = r.fontes; msg.fontes = fontes; }
       else SISTEMA += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
     }
   }

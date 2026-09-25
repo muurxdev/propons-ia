@@ -595,6 +595,7 @@ class MainActivity : Activity() {
                             "notificar" -> { if (!emPrimeiroPlano) ServicoDownload.avisar(this@MainActivity, args.optString("titulo", "Própons IA"), args.optString("texto")); true }
                             "falar" -> { val tx = args.optString("texto"); val i = args.optString("id"); ui.post { falar(tx, i) }; true }
                             "pararFala" -> { ui.post { pararFala() }; true }
+                            "pedirPermissao" -> pedirPermissaoSistema(args.optString("recurso"))
                             "abrirConfig" -> { val r = args.optString("recurso"); ui.post { abrirConfigApp(r) }; true }
                             else -> throw Exception("ação desconhecida: $acao")
                         }
@@ -944,6 +945,21 @@ class MainActivity : Activity() {
         servicoResposta = false
         try { ServicoResposta.terminar(this) } catch (_: Exception) {}
     }
+    // pedido na conversa ("me avise quando terminar"): o Android mostra a janelinha e a resposta volta para a página;
+    // negada de vez, o Android não pergunta mais — devolve false e a página oferece abrir as configurações do app
+    @Volatile private var esperaNotificacao: java.util.concurrent.CountDownLatch? = null
+    private fun pedirPermissaoSistema(recurso: String): Any {
+        if (recurso != "notificacao") return JSONObject.NULL
+        if (Build.VERSION.SDK_INT < 33) return getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()
+        val p = android.Manifest.permission.POST_NOTIFICATIONS
+        if (checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED) return true
+        if (prefs.getBoolean("pediuNotificacoes", false) && !shouldShowRequestPermissionRationale(p)) return false
+        prefs.edit().putBoolean("pediuNotificacoes", true).apply()
+        val l = java.util.concurrent.CountDownLatch(1); esperaNotificacao = l
+        ui.post { try { requestPermissions(arrayOf(p), 3) } catch (_: Exception) { l.countDown() } }
+        l.await(60, java.util.concurrent.TimeUnit.SECONDS)
+        return checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
     // Android 13+: pede uma vez a permissão para mostrar a notificação do download
     private fun pedirNotificacoes() {
         if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean("pediuNotificacoes", false)) return
@@ -965,6 +981,7 @@ class MainActivity : Activity() {
     }
     override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
         super.onRequestPermissionsResult(codigo, permissoes, resultados)
+        if (codigo == 3) { esperaNotificacao?.countDown(); esperaNotificacao = null; return }
         if (codigo == PEDIDO_LOCAL) { val p = pedidoLocal; pedidoLocal = null; if (p != null) p.second?.invoke(p.first, temLocalizacao(), false); return }
         if (codigo != PEDIDO_MICROFONE) return
         val r = pedidoMicrofone; pedidoMicrofone = null

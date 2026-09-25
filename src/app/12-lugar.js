@@ -122,10 +122,19 @@ function posicaoDoAparelho() {
   });
 }
 let ultimoLugar = null;   // { quando, lugar } — a mesma posição serve por 10 minutos
-async function lugarDoAparelho(passo) {
+// a localização já foi permitida? (aí não há janelinha e nada precisa ser dito antes)
+async function localJaPermitida() {
+  if (pref('localOk') === 'sim') return true;
+  try { return (await navigator.permissions.query({ name: 'geolocation' })).state === 'granted'; } catch (e) { return false; }
+}
+async function lugarDoAparelho(passo, avisar) {
   if (ultimoLugar && Date.now() - ultimoLugar.quando < 10 * 60000) return ultimoLugar.lugar;
   passo('Vendo onde você está');
+  // primeira vez: a resposta diz o que vai acontecer e logo em seguida vem a janelinha do sistema (o Windows não pergunta:
+  // quem decide é a localização do próprio Windows)
+  if (avisar && PLATAFORMA.tipo !== 'windows' && !(await localJaPermitida())) avisar('Para responder sobre onde você está, vou usar a sua localização. **Permita na janela do sistema** que abriu agora.');
   const p = await posicaoDoAparelho();
+  if (p.lat != null) pref('localOk', 'sim');
   let lugar = null;
   if (p.lat != null) {
     lugar = { lat: p.lat, lon: p.lon, precisao: p.precisao, fonte: 'localização do aparelho', fuso: Intl.DateTimeFormat().resolvedOptions().timeZone };
@@ -185,7 +194,7 @@ function horaEm(fuso) {
 const difBonita = m => m === 0 ? 'mesmo horário que o seu' : `${Math.abs(m) % 60 ? (Math.abs(m) / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : Math.abs(m) / 60} h ${m > 0 ? 'à frente' : 'atrás'} do seu horário`;
 const nomeCompleto = l => [l.bairro, l.nome, l.regiao, l.pais].filter((x, i, a) => x && a.indexOf(x) === i).join(', ');
 /* junta tudo: devolve { painel (para o cartão), texto (para a IA) } ou null quando não é pergunta de lugar/hora/clima */
-async function dadosDeLugar(texto, passo) {
+async function dadosDeLugar(texto, passo, avisar) {
   const q = usarDadosLugar() && intencaoLugar(texto); if (!q) return null;
   const linhas = [], paineis = [], resumos = [];
   // alvos: a cidade citada e/ou "aqui" ("que horas são em Londres e como está o tempo aqui?" traz os dois)
@@ -197,7 +206,7 @@ async function dadosDeLugar(texto, passo) {
     else linhas.push(`Não achei o lugar "${q.cidade}" (${semInternet() ? 'o aparelho está sem internet e ele não está na lista de cidades do app' : 'nenhum resultado'}). Diga isso e peça o nome completo (cidade e país).`);
   }
   if (q.aqui || q.aquiTambem) {
-    const l = await lugarDoAparelho(passo);
+    const l = await lugarDoAparelho(passo, avisar);
     if (l.negada) { linhas.push('A pessoa não permitiu a localização do aparelho. Diga em uma linha que precisa da permissão de localização (dá para liberar nas configurações do app) ou que ela pode dizer a cidade.'); paineis.push({ negada: true }); }
     else if (l.indisponivel) linhas.push('A localização do aparelho não está disponível agora (serviço de localização desligado ou sem sinal) e não deu para estimar pela internet. Diga isso e peça a cidade.');
     else alvos.push(Object.assign({ aqui: true }, l));

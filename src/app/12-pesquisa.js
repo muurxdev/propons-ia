@@ -61,7 +61,7 @@ function lerResultados(html) {
   return saida;
 }
 /* busca de verdade: resultados do buscador + o conteúdo das primeiras páginas */
-async function pesquisarNaWeb(consulta, aoPasso) {
+async function pesquisarNaWeb(consulta, aoPasso, aoAchar) {
   const passo = t => { try { if (aoPasso) aoPasso(t); } catch (e) {} };
   const q = String(consulta || '').replace(/\s+/g, ' ').trim().slice(0, 240);
   passo('Pesquisando na internet');
@@ -71,7 +71,8 @@ async function pesquisarNaWeb(consulta, aoPasso) {
     achados = lerResultados(html);
   } catch (e) {}
   if (!achados.length) achados = await buscaSimples(q);          // sem o buscador (ou sem ponte): resposta direta
-  achados = achados.slice(0, 5);
+  achados = achados.slice(0, 15);   // todas as fontes que o buscador trouxe (a IA lê as 3 primeiras inteiras)
+  try { if (aoAchar && achados.length) aoAchar(achados); } catch (e) {}
   if (achados.length) passo('Lendo ' + Math.min(3, achados.length) + ' de ' + achados.length + (achados.length === 1 ? ' fonte' : ' fontes'));
   // abre as três primeiras para ler o que elas realmente dizem
   const lidas = await Promise.all(achados.slice(0, 3).map(async f => {
@@ -79,7 +80,7 @@ async function pesquisarNaWeb(consulta, aoPasso) {
   }));
   const trechos = achados.map((f, k) => {
     const corpo = (lidas[k] || '').length > 200 ? lidas[k] : f.trecho;
-    return (corpo || f.trecho || '').slice(0, CELULAR ? 1200 : 2500);   // no celular o processador lê o texto antes de responder: menos é mais rápido
+    return (corpo || f.trecho || '').slice(0, k < 3 ? (CELULAR ? 1200 : 2500) : 400);   // lidas inteiras: as 3 primeiras; o resto vai pelo resumo do buscador   // no celular o processador lê o texto antes de responder: menos é mais rápido
   });
   return { fontes: achados.map(f => ({ titulo: f.titulo, url: f.url })), trechos: trechos };
 }
@@ -96,6 +97,6 @@ async function buscaSimples(q) {
 }
 const N = String.fromCharCode(10);
 const blocoPesquisa = r => 'RESULTADOS DA PESQUISA (' + new Date().toLocaleDateString('pt-BR') + '):' + N
-  + r.fontes.map((f, k) => '[' + (k + 1) + '] ' + f.titulo + ' — ' + f.url + N + (r.trechos[k] || '')).join(N + N)
+  + r.fontes.slice(0, CELULAR ? 6 : 10).map((f, k) => '[' + (k + 1) + '] ' + f.titulo + ' — ' + f.url + N + (r.trechos[k] || '')).join(N + N)
   + N + N + 'Responda com base nestes resultados, citando as fontes usadas como [1], [2]…, e diga quando eles não responderem à pergunta. Não invente nada que não esteja aí.';
 

@@ -18,7 +18,7 @@ function validar(lista) {
       ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}), ...(+m.tempo > 0 ? { tempo: Math.round(+m.tempo) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo), ...(+a.paginas ? { paginas: +a.paginas } : {}), ...(Array.isArray(a.resumos) ? { resumos: a.resumos.filter(r => r && typeof r.texto === 'string').slice(0, 40).map(r => ({ de: +r.de || 0, ate: +r.ate || 0, texto: txt(r.texto).slice(0, 4000) })) } : {}) })) } : {}),
       ...(m.lugar && normalizarPainelLugar(m.lugar) ? { lugar: normalizarPainelLugar(m.lugar) } : {}),
-      ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 8).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
+      ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 15).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
       ...(m.passos && Array.isArray(m.passos.lista) ? { passos: { titulo: txt(m.passos.titulo), lista: m.passos.lista.map(txt) } } : {}),
       // modos de estudo: o modo da pergunta e o resultado estruturado da resposta (conferidos como se viessem do modelo)
@@ -327,8 +327,9 @@ function addIa(m, ultima) {
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
   const pensou = m.pensou ? (m.tempo ? 'Pensou por ' + tempoBonito(m.tempo) : 'Raciocínio') : '';
   d.innerHTML = (pensou ? htmlLinhaPensa(pensou) : '') +
-    (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') + (m.lugar ? htmlPainelLugar(m.lugar) : '') +
+    (m.lugar ? htmlPainelLugar(m.lugar) : '') +
     `<div class="txt${widget ? ' widget' : ''}">${widget ? widget : comCitacoes(md(m.texto || ''), m.fontes)}</div>` +
+    (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +   // a resposta primeiro; as fontes no fim
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
   if (m.pensou) ligarLinhaPensa(d, m.pensou, pensou);
   ligarLinks(d); if (m.lugar) ligarPainelLugar(d);

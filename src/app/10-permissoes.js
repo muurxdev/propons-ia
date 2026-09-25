@@ -19,17 +19,6 @@ const CAMINHO_CONFIG = {
   windows: 'Configurações → Privacidade e segurança',
   web: 'o cadeado ao lado do endereço, no navegador',
 };
-async function estadoPermissao(k) {
-  if (k === 'pasta') return !TEM_PASTA ? 'indisponivel' : pastaRaiz ? 'ok' : 'pedir';
-  if (k === 'camera' && !PLATAFORMA.temVisao) return 'indisponivel';
-  try {
-    if (navigator.permissions && navigator.permissions.query && PERMISSOES[k].nav) {
-      const r = await navigator.permissions.query({ name: PERMISSOES[k].nav });
-      return r.state === 'granted' ? 'ok' : r.state === 'denied' ? 'negado' : 'pedir';
-    }
-  } catch (e) {}
-  return 'pedir';
-}
 // negado: explica e leva às configurações do app no sistema (lá é que se libera)
 async function avisarNegada(k) {
   const p = PERMISSOES[k] || { nome: k, para: '' }, onde = CAMINHO_CONFIG[PLATAFORMA.tipo] || CAMINHO_CONFIG.web;

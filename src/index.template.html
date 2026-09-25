@@ -247,8 +247,31 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .busca-passo i{width:4px;height:4px;border-radius:50%;background:var(--faint);animation:pisca 1.2s infinite}
 .busca-passo i:nth-child(2){animation-delay:var(--t2)} .busca-passo i:nth-child(3){animation-delay:.4s}
 @keyframes pisca{0%,60%,100%{opacity:.25}30%{opacity:1}}
-.fontes{margin:0 0 10px}
-.fontes-t{display:block;font-size:var(--t-xs);color:var(--faint);font-weight:600;margin:0 0 6px}
+/* fontes no fim da resposta: cabeçalho com os ícones empilhados (abre a lista inteira) e os cartões */
+.fontes{margin:12px 0 4px}
+.fontes-t{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px 0 6px;margin:0 0 8px;border:1px solid var(--line);border-radius:var(--r4);background:var(--surface);color:var(--ink);font-size:var(--t-sm);cursor:pointer;transition:background var(--t1),border-color var(--t1)}
+.fontes-t:hover{background:var(--hover)}
+.fontes-t b{font-weight:600}
+.fontes-t small{color:var(--muted);font-size:var(--t-sm)}
+.fontes-t svg{width:14px;height:14px;color:var(--muted)}
+.pilha,.giro-icones{display:inline-flex;align-items:center}
+.pilha i,.giro-icones i{width:22px;height:22px;border-radius:50%;background:var(--surface);border:2px solid var(--bg);display:grid;place-items:center;overflow:hidden;flex:none}
+.pilha i+i,.giro-icones i+i{margin-left:-8px}
+.pilha img,.giro-icones img{width:14px;height:14px;border-radius:3px;display:block}
+.giro-icones{margin-left:2px}
+.giro-icones i{animation:iconeEntra .32s cubic-bezier(.2,.8,.2,1) both}
+.giro-icones small{margin-left:4px;font-size:var(--t-xs);color:var(--faint)}
+@keyframes iconeEntra{from{opacity:0;transform:scale(.4)}}
+.fontes-lista{list-style:none;margin:0;padding:0 0 6px;display:flex;flex-direction:column;gap:2px}
+.fontes-lista a{display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:var(--r2);text-decoration:none;color:var(--ink);min-height:44px}
+.fontes-lista a:hover{background:var(--hover)}
+.fl-ico{width:34px;height:34px;flex:none;border-radius:10px;background:var(--hover);display:grid;place-items:center}
+.fl-ico img{width:18px;height:18px;border-radius:4px}
+.fl-txt{min-width:0}
+.fl-txt small{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--t-xs)}
+.fl-txt small i{font-style:normal;font-weight:700;color:var(--accent)}
+.fl-txt b{display:block;font-weight:500;font-size:var(--t-md);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+@media (prefers-reduced-motion:reduce){ .giro-icones i{animation:none} }
 .fonte-cards{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 .fonte-cards::-webkit-scrollbar{display:none}
 /* popup da fonte: site, título, endereço para copiar e as ações */
@@ -257,7 +280,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .fonte-dlg .fonte-cab b{display:block;font-size:var(--t-lg);font-weight:600;word-break:break-all}
 .fonte-dlg .fonte-cab small{display:block;color:var(--muted);font-size:var(--t-sm);margin-top:2px}
 .fonte-dlg .fonte-url{font:var(--t-sm)/1.4 var(--mono);color:var(--muted);text-overflow:ellipsis}
-.fonte-acoes{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.fonte-acoes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 4px}
+.fonte-acoes .btn{min-height:44px}
+.fonte-acoes .btn.primario,.fonte-acoes .btn:last-child:nth-child(2){grid-column:1/-1}
 .fonte-acoes .btn.primario{flex:1 1 auto}
 .fonte-nota{margin:8px 4px 4px;font-size:var(--t-xs)}
 /* cartão de lugar, hora e clima (dados reais pegos para a pergunta) */
@@ -319,7 +344,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .pensa-seta svg{width:15px;height:15px}
 .pensa-linha:hover .pensa-seta{background:var(--hover)}
 .pensa-seta[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent);transform:rotate(180deg)}
-.pensa-folha .pens-txt{margin:2px 6px 10px;max-height:52vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:var(--t-sm)/1.65 var(--mono);color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:var(--r2);padding:12px}
+.pensa-folha .pens-txt{margin:2px 6px 10px;max-height:52vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:var(--t-md)/1.65 var(--sans);color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:var(--r2);padding:12px}
 .pensa-pe{margin:0 8px 6px;font-size:var(--t-xs)}
 /* raciocínio antigo (recolhível) */
 .pensando{margin:4px 0 8px;border:1px solid var(--line);border-radius:var(--r1);background:var(--surface);font-size:var(--t-sm);color:var(--muted)}
@@ -330,7 +355,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* memória e aviso com ação */
 .mem-lista{display:flex;flex-direction:column}
 .mem-item{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 12px;border-top:1px solid var(--line);font-size:var(--t-md)} .mem-item:first-child{border-top:0} .mem-item span{flex:1}
-.mem-novo{display:flex;gap:8px;padding:8px 12px 10px;border-top:1px solid var(--line)} .mem-novo input{flex:1;min-width:0;border:1px solid var(--line);border-radius:var(--r1);padding:7px 10px;background:var(--bg);outline:0} .mem-novo input:focus{border-color:var(--accent)}
+.mem-novo{display:flex;gap:8px;padding:12px 0 0;border-top:1px solid var(--line)}
+.mem-lista>.info{margin:0 0 12px!important}
+.mem-novo input{min-height:44px} .mem-novo input{flex:1;min-width:0;border:1px solid var(--line);border-radius:var(--r1);padding:7px 10px;background:var(--bg);outline:0} .mem-novo input:focus{border-color:var(--accent)}
 .toast.acao-toast{display:flex;align-items:center;gap:14px} .toast.acao-toast button{color:var(--accent);font-weight:600;padding:2px 4px}
 /* modos de estudo */
 .chip.modo{background:var(--accent-soft);color:var(--accent)} .chip.modo svg{width:14px;height:14px}
@@ -421,15 +448,12 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .bt-web .x svg{width:12px;height:12px}
 .bt-web:hover{background:var(--accent);color:var(--accent-ink)}
 .bt-web span.rot{display:none}
-.seletor-modelo{display:flex;align-items:center;gap:6px;height:34px;padding:0 6px 0 14px;border-radius:var(--r4);background:var(--hover);font-size:var(--t-md);font-weight:500;color:var(--ink);transition:background var(--t1),color var(--t1);min-width:64px;flex:0 1 auto;overflow:hidden;max-width:52%}
+.seletor-modelo{display:flex;align-items:center;gap:6px;height:34px;padding:0 14px 0 8px;border-radius:var(--r4);background:var(--hover);font-size:var(--t-md);font-weight:500;color:var(--ink);transition:background var(--t1),color var(--t1);min-width:64px;flex:0 1 auto;overflow:hidden;max-width:52%}
 .seletor-modelo:hover{background:var(--line)}
 .seletor-modelo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
-.seletor-modelo .roda{overflow:visible}
 #nomeModelo{flex:0 1 auto}
 #pillEsforco{flex:none}
 .seletor-modelo svg{width:14px;height:14px;flex:none;color:var(--muted)}
-.seletor-modelo .roda{width:22px;height:22px;border-radius:50%;background:var(--surface);display:grid;place-items:center;flex:none;transition:background var(--t1)}
-.seletor-modelo:hover .roda{background:var(--bg)}
 #entrada::placeholder{color:var(--faint)}
 #anexar{width:34px;height:34px;border-radius:50%;background:var(--hover);transition:transform var(--t2),background var(--t1)}
 .pill{display:inline-flex;align-items:center;height:17px;font-size:var(--t-xs);font-weight:600;padding:0 7px;border-radius:var(--r4);border:1px solid var(--line);color:var(--muted);flex:none}
@@ -517,6 +541,9 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 14px;border-radius:var(--r1);border:1px solid var(--line);background:var(--surface);font-size:var(--t-md);font-weight:500;transition:background var(--t1)}
 .btn:hover{background:var(--hover)}
 .btn:disabled{opacity:.55;cursor:default}
+/* confirmação de algo que apaga: o botão fica vermelho de verdade (fundo suave, texto forte) */
+.dlg .botoes .btn.perigo{background:var(--danger-soft);border-color:transparent;color:var(--danger);font-weight:600}
+.btn.primario:disabled{background:var(--hover);border-color:var(--line);color:var(--muted);opacity:1}
 .btn.primario{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .btn.primario:hover{background:var(--accent-hover)}
 .btn.perigo{color:var(--danger)}
@@ -532,6 +559,22 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .diag .ic{width:20px;flex:none;text-align:center}
 .diag b{font-weight:600} .diag small{display:block;color:var(--muted);font-size:var(--t-sm);overflow-wrap:anywhere}
 .info{font-size:var(--t-md);color:var(--muted);margin:0 0 12px}
+/* Ajustes: todas as páginas no mesmo desenho de Modelos e do menu principal — cada seção é um cartão com o rótulo em
+   cima, o controle ocupando a largura e a explicação pequena embaixo; seção que já traz cartões por dentro fica sem moldura */
+#corpoConfig>.info:first-child{font-size:var(--t-sm);line-height:1.55;margin:0 2px 14px}
+#corpoConfig>.secao{margin:0 0 14px}
+#corpoConfig>.secao:not(:has(>.cartao,>.lista-modelos,>.opcoes,>.mcard)){background:var(--surface);border:1px solid var(--line);border-radius:var(--r3);padding:14px 16px}
+#corpoConfig>.secao>h4{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:var(--t-md);font-weight:600;margin:0 0 10px}
+#corpoConfig>.secao:has(>.cartao,>.lista-modelos,>.opcoes)>h4{color:var(--muted);font-size:var(--t-sm);margin:0 4px 8px}
+#corpoConfig>.secao .info,#corpoConfig .cartao .info{font-size:var(--t-sm);line-height:1.5;margin:10px 0 0!important;padding:0!important}
+#corpoConfig .cartao{border-radius:var(--r3)}
+#corpoConfig .seg{display:flex;width:100%}
+#corpoConfig .seg button{flex:1 1 auto;text-align:center;white-space:nowrap}
+#corpoConfig .botoes{justify-content:flex-start;padding:0!important}
+@media (max-width:760px){
+  #corpoConfig .botoes{flex-direction:column;align-items:stretch}
+  #corpoConfig .botoes .btn,#corpoConfig>.secao>.btn,#corpoConfig .cartao>.btn{width:100%;min-height:44px}
+}
 .info a{color:var(--accent)}
 .cartao{background:var(--surface);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;margin-bottom:12px}
 .linha-info{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:var(--t-md)}
@@ -611,7 +654,9 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .t-novo .nv-ico,.nv-chip.t-novo{color:var(--accent)} .t-novo .nv-ico{background:var(--accent-soft)}
 .t-corrige .nv-ico,.nv-chip.t-corrige{color:var(--ok)}
 .nv-item b{display:block;font-weight:600;font-size:var(--t-md);line-height:1.35}
-.nv-item p{margin:3px 0 0;color:var(--muted);font-size:var(--t-sm);line-height:1.5}
+.nv-item p{margin:3px 0 0;color:var(--muted);font-size:var(--t-sm);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nv-item{cursor:pointer}
+.nv-item.aberto p{display:block;-webkit-line-clamp:unset}
 .nv-item code{font-size:.92em}
 .nv-pe{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-top:10px}
 .nv-link{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-size:var(--t-sm);text-decoration:none}
@@ -867,7 +912,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 /* janela estreita / celular: histórico vira gaveta, ajustes viram tela cheia */
 @media (max-width:760px){
   #lateral{position:fixed;left:calc(12px + var(--sl));top:calc(12px + var(--st));bottom:calc(12px + var(--sb));z-index:20;margin-left:0;padding:0;transform:translateX(0);transition:transform var(--t3) var(--entra);width:min(300px,84vw);border:1px solid var(--line);border-radius:var(--rf);box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}
-  #lateral.fechada{margin-left:0;transform:translateX(calc(-100% - 16px - var(--sl)))}
+  #lateral.fechada{margin-left:0;transform:translateX(calc(-100% - 16px - var(--sl)));box-shadow:none}   /* a sombra grande vazava na borda da tela */
   #lateral .lat-pe{padding-bottom:8px}
   #lateral.arrastando{transition:none}
   #fundo{display:block;position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:15;opacity:1;transition:opacity var(--t2)}
@@ -881,7 +926,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   #entrada{font-size:var(--t-lg)}
   #anexar,#enviar,#falar{width:38px;height:38px}
   .linha{gap:6px}
-  .seletor-modelo{padding-left:12px;font-size:var(--t-sm)}
+  .seletor-modelo{padding:0 12px 0 7px;font-size:var(--t-sm)}
   .opcoes{gap:8px} .opcoes button{padding:12px 4px 10px;font-size:var(--t-sm)}
   .acao{height:36px;min-width:36px}
   .item{padding:11px 6px 11px 12px;font-size:var(--t-md);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -1020,7 +1065,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="logoSeletor" class="logo-seletor"></span><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span><span class="roda"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="logoSeletor" class="logo-seletor"></span><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span></button>
         <button class="bt-web" id="btPesquisa" title="Pesquisa na internet ligada — toque para desligar" aria-label="Desligar a pesquisa na internet" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="x"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
         <span class="espaco"></span>
         <button id="medidorCtx" title="Contexto" aria-label="Contexto: memória da IA em uso"><svg viewBox="0 0 24 24"><circle class="trilho" cx="12" cy="12" r="8"/><circle class="uso" cx="12" cy="12" r="8" pathLength="100"/></svg></button>

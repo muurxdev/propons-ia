@@ -462,6 +462,15 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('pergunta só de dados: o app responde sozinho; pedido de conselho: a IA continua', await js(`!PEDE_MAIS.test('que horas são em Londres?') && PEDE_MAIS.test('vai chover? preciso de guarda-chuva?')`));
   await js(`document.getElementById('tlugar').remove(); 1`);
 }
+// 1.24: pedido de ação na conversa — o app responde na hora e em seguida faz (a permissão do sistema vem depois)
+{
+  await js(`nova(); $('#entrada').value = 'grave um áudio'; ajustar(); $('#enviar').click(); 1`); await espera(1200);
+  const ac = await js(`JSON.stringify({ resp: (atual.msgs[1] || {}).texto || '', gravando: !!gravacao, ger: !!geracao })`);
+  const a = JSON.parse(ac);
+  ok('"grave um áudio": o app responde (sem a IA) e já começa a gravar', /gravando/i.test(a.resp) && a.gravando && !a.ger, ac);
+  await js(`$('#cancelarGrav').click(); 1`); await espera(600);
+  await js(`conversas = conversas.filter(c => c !== atual); nova(); 1`);
+}
 // 1.21: pesquisa na internet — desligada por padrão, ligada no "+", botão na caixa e fontes na resposta
 {
   await js(`pref('pesquisaWeb', ''); atualizarBotaoPesquisa(); nova(); 1`); await espera(300);
@@ -490,6 +499,11 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   const comFonte = await js(`(()=>{ const m = atual.msgs[atual.msgs.length-1]; return { buscou: window.__buscou, fontes: (m.fontes||[]).length, link: !!document.querySelector('.msg.ia .fontes a') } })()`);
   ok('com internet: pesquisa, guarda as fontes e mostra os links', comFonte.buscou === 1 && comFonte.fontes >= 1 && comFonte.link, JSON.stringify(comFonte));
   ok('as fontes viram cartões com a logo do site e o texto ganha citação clicável', await js(`(()=>{ const c = document.querySelector('.msg.ia .fonte'); const cit = document.querySelector('.msg.ia .cit'); return !!c && /wikipedia/.test(c.querySelector('.fn b').textContent) && (!cit || cit.getAttribute('href').startsWith('https://')) })()`));
+  ok('as fontes ficam no fim, depois do texto da resposta', await js(`(()=>{ const f = document.querySelector('.msg.ia .fontes'), t = f && f.parentNode.querySelector(':scope > .txt'); return !!t && !!(t.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING) })()`));
+  await js(`document.querySelector('.msg.ia [data-fontes]').click(); 1`); await espera(500);
+  ok('o cabeçalho "Fontes" abre a lista com todas', await js(`document.querySelectorAll('.fontes-dlg .fontes-lista a').length === atual.msgs[atual.msgs.length-1].fontes.length`));
+  await js(`fecharDialogo(); 1`); await espera(300);
+  ok('pesquisando: os ícones dos sites aparecem no giro', await js(`(()=>{ const g = novoGiro(() => ''); document.body.appendChild(g.el); g.icones([{ url: 'https://pt.wikipedia.org/a' }, { url: 'https://g1.globo.com/b' }]); const n = g.el.querySelectorAll('.giro-icones img').length; g.parar(); return n === 2; })()`));
   await js(`pesquisarNaWeb = window.__pesqReal; delete navigator.onLine; definirPesquisa(false); nova(); 1`); await espera(300);
   ok('tocar no botão da caixa desliga a pesquisa e ele some', await js(`(()=>{ definirPesquisa(true); if ($('#btPesquisa').hidden) return false; $('#btPesquisa').click(); return !pesquisaLigada() && $('#btPesquisa').hidden })()`));
 }

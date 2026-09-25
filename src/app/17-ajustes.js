@@ -496,7 +496,8 @@ function itensNotas(s) {
 function tipoNota(n) {
   const t = n.titulo + ' ' + n.texto;
   if (/^por dentro/i.test(n.titulo)) return 'dentro';
-  if (/\b(corrig|consert|arrum|n[ãa]o (trava|some|pula|fecha|cai|mais)|volta a|sem o |bug|falha|erro)/i.test(t)) return 'corrige';
+  // correção pelo título (o texto de uma novidade pode dizer "sem chance de erro" sem ser correção)
+  if (/(corre[çc]|corrig|consert|arrum|n[ãa]o (trava|some|pula|fecha|cai|falha|apaga)|volta a funcionar)/i.test(n.titulo || t)) return 'corrige';
   if (/\b(novo|nova|novos|novas|chega|ganha|agora (d[áa]|tem|mostra|l[êe])|passa a)\b/i.test(t)) return 'novo';
   return 'melhora';
 }
@@ -514,6 +515,7 @@ function htmlNotasVersao(u, nova) {
   </div>`;
 }
 function ligarNotasVersao(c) {
+  c.querySelectorAll('.nv-item').forEach(li => li.onclick = e => { if (!e.target.closest('a')) li.classList.toggle('aberto'); });   // texto longo: 3 linhas, toque abre
   c.querySelectorAll('.nv-mais').forEach(b => b.onclick = () => { b.closest('.nv').querySelectorAll('.nv-item[hidden]').forEach((li, i) => { li.hidden = false; li.style.animationDelay = (i * 40) + 'ms'; }); b.remove(); });
   ligarLinks(c);
 }

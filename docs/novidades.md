@@ -1,3 +1,12 @@
+## Novidades da 1.24.0
+
+- **Peça e o app faz.** Escreva "grave um áudio", "tire uma foto", "leia a resposta", "me avise quando terminar" ou "ative minha localização": o app responde na hora e logo em seguida faz, e é aí que aparece a janelinha de permissão do próprio sistema (microfone, câmera, notificações, localização). Funciona até com a IA desligada. Perguntas como "como gravar um áudio no celular?" continuam indo para a IA.
+- **"Quantos graus agora?" na primeira vez:** a resposta avisa que vai usar a sua localização e a janela do sistema aparece logo depois; permitindo, os números chegam na mesma resposta.
+- **Fontes no fim da resposta, todas elas.** Primeiro vem a resposta inteira; embaixo, as fontes, com os ícones dos sites empilhados e "N sites", que abre a lista completa (não só 5). Enquanto a IA pesquisa, os ícones dos sites encontrados aparecem ao lado da palavra animada, como no ChatGPT.
+- **Mesmo desenho em todo o app.** Todas as páginas dos Ajustes ganharam o visual de cartões de Modelos (Respostas, Aparência, Conversas, Estudo, Diagnóstico, Sobre), com escolhas na largura toda e botões inteiros no celular. O popup da fonte, a confirmação de apagar, a Memória e o raciocínio ficaram mais legíveis, e a sombra do menu lateral não vaza mais na borda da tela.
+- **Seletor de modelo sem a setinha**, mais limpo ao lado do "+".
+- **Novidades da versão:** cada item mostra 3 linhas e abre ao tocar.
+
 ## Novidades da 1.23.0
 
 - **Lugar, hora e clima de verdade.** Pergunte "que horas são em Londres?", "vai chover amanhã aqui?" ou "onde eu estou?": o app pega os dados reais antes de responder (fuso oficial, a localização do aparelho e o clima do Open-Meteo) e mostra um cartão com o lugar, latitude/longitude, temperatura, sensação, umidade, vento com direção e rajadas, chance de chuva, máxima e mínima, UV, pressão, nascer e pôr do sol. Quando a pergunta é só isso, a resposta sai direto dos números, sem chance de erro; pedindo um conselho ("preciso de guarda-chuva?"), a IA continua a partir deles. Dá para desligar em Ajustes → Respostas.

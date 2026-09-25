@@ -234,6 +234,14 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     pararFala() { if (tipo === 'android') return pedir('pararFala', {}, 5000).catch(() => {}); try { speechSynthesis.cancel(); } catch (e) {} return Promise.resolve(true); },
     // permissão negada: abre as configurações do app no sistema (Android, iPhone, Mac, Windows)
     podeAbrirConfig: tipo !== 'web',
+    // pede uma permissão ao sistema na hora (hoje: notificações). true = permitida, false = negada, null = não se sabe
+    async pedirPermissao(recurso) {
+      if (tipo === 'android') return pedir('pedirPermissao', { recurso }, 60000);
+      if (recurso === 'notificacao' && tipo === 'web') { try { return (await Notification.requestPermission()) === 'granted'; } catch (e) { return null; } }
+      // Windows, Mac e iPhone perguntam na primeira notificação: manda uma de teste
+      if (recurso === 'notificacao') { await this.notificar('Própons IA', 'Pronto: é assim que eu aviso quando a resposta fica pronta.'); return null; }
+      return null;
+    },
     abrirConfigApp(recurso) { return pedir('abrirConfig', { recurso }, 5000); },
     // aceleração por GPU (Windows): módulo Vulkan baixado sob demanda; ligar/desligar religa o motor
     baixarGpu() { return pedir('baixarGpu', {}, 10000); },

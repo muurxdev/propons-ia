@@ -3,6 +3,9 @@
 const dominioDe = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
 /* cartões das fontes: logo do próprio site (serviço de ícones do buscador), domínio e título.
    Se a logo não vier (sem rede ou site sem ícone), ela some e fica só o número e o domínio. */
+const iconeSite = d => d ? '<img src="https://icons.duckduckgo.com/ip3/' + esc(d) + '.ico" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' : '';
+// ícones empilhados (como no ChatGPT): até 4 sites diferentes
+const pilhaIcones = fontes => [...new Set(fontes.map(f => dominioDe(f.url)).filter(Boolean))].slice(0, 4).map(d => '<i>' + iconeSite(d) + '</i>').join('');
 function htmlFontes(fontes) {
   const cartao = (f, i) => {
     const d = dominioDe(f.url);
@@ -12,8 +15,20 @@ function htmlFontes(fontes) {
       + '<b>' + esc(d || 'fonte') + '</b></span>'
       + '<span class="ft">' + esc(f.titulo) + '</span></a>';
   };
-  return '<div class="fontes"><b class="fontes-t">' + fontes.length + (fontes.length === 1 ? ' fonte' : ' fontes')
-    + '</b><div class="fonte-cards">' + fontes.map(cartao).join('') + '</div></div>';
+  return '<div class="fontes"><button class="fontes-t" data-fontes type="button"><span class="pilha">' + pilhaIcones(fontes) + '</span><b>Fontes</b><small>'
+    + fontes.length + (fontes.length === 1 ? ' site' : ' sites') + '</small>' + ICO.seguir + '</button>'
+    + '<div class="fonte-cards">' + fontes.map(cartao).join('') + '</div></div>';
+}
+// todas as fontes numa folha: ícone, domínio, título; tocar abre o popup da fonte
+function abrirListaFontes(fontes) {
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha fontes-dlg">${topoCentro(fontes.length + (fontes.length === 1 ? ' fonte' : ' fontes'))}
+    <ol class="fontes-lista">${fontes.map((x, i) => { const d = dominioDe(x.url); return `<li><a href="${esc(x.url)}" data-i="${i}"><span class="fl-ico">${iconeSite(d)}</span><span class="fl-txt"><small><i>${i + 1}</i>${esc(d)}</small><b>${esc(x.titulo || d)}</b></span></a></li>`; }).join('')}</ol></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+  folha.querySelectorAll('a[data-i]').forEach(a => a.onclick = e => { e.preventDefault(); const x = fontes[+a.dataset.i]; abrirFonte(x.url, x.titulo); });
+  folhaArrastavel(f, folha, sair);
+  pausarDesenho(); document.body.appendChild(f);
 }
 /* tocar numa fonte, numa citação [n] ou num link da resposta: um popup com o site, o título e o endereço inteiro para
    copiar, e os botões de abrir, copiar e compartilhar (como o aviso de link do Claude) — nada abre sem querer */
@@ -36,7 +51,10 @@ function abrirFonte(url, titulo) {
 }
 ICO.link = '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"/></svg>';
 // liga o popup em todos os links de um pedaço da conversa (cartões, citações e links do texto)
-const ligarLinks = el => el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); abrirFonte(a.href, a.getAttribute('title') || (a.classList.contains('cit') ? '' : a.textContent.trim())); });
+const ligarLinks = el => {
+  el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); abrirFonte(a.href, a.getAttribute('title') || (a.classList.contains('cit') ? '' : a.textContent.trim())); });
+  el.querySelectorAll('[data-fontes]').forEach(b => b.onclick = () => abrirListaFontes([...b.parentNode.querySelectorAll('.fonte')].map(a => ({ url: a.getAttribute('href'), titulo: a.getAttribute('title') || '' }))));
+};
 // [1] no meio do texto vira um selo clicável para a fonte (não mexe em blocos de código)
 function comCitacoes(html, fontes) {
   if (!fontes || !fontes.length) return html;
@@ -116,6 +134,12 @@ function novoGiro(textoPensando) {
     passo(t) { if (pararPal) { pararPal(); pararPal = null; } palavra.textContent = t; },
     // de volta às palavras que se revezam
     livre() { if (!pararPal) pararPal = novaPalavra(palavra, true); },
+    // pesquisando: os ícones dos sites achados entram um a um ao lado da palavra (como no ChatGPT)
+    icones(fontes) {
+      let p = el.querySelector('.giro-icones'); if (!p) { p = document.createElement('span'); p.className = 'giro-icones'; palavra.after(p); }
+      const ds = [...new Set((fontes || []).map(f => dominioDe(f.url)).filter(Boolean))];
+      p.innerHTML = ds.slice(0, 5).map((d, k) => `<i style="animation-delay:${k * 90}ms">${iconeSite(d)}</i>`).join('') + (ds.length > 5 ? `<small>+${ds.length - 5}</small>` : '');
+    },
     pensando(sim) { pensando = sim; el.classList.toggle('pensa', sim); el.title = sim ? 'Ver o raciocínio' : ''; },
     segundos() { return Math.max(1, Math.round((performance.now() - t0) / 1000)); },
     parar() { clearInterval(tick); if (pararPal) pararPal(); el.remove(); },
