@@ -30,7 +30,7 @@ await p.js(`document.querySelector('.dlg.modelos [data-m="${idModelo}"]').click(
 const t0 = Date.now(); let pct = null;
 for (let i = 0; i < 40; i++) { await espera(500); pct = await p.js(`(document.querySelector('.dlg.modelos [data-m="${idModelo}"] .anel b')||{}).textContent`); if (pct && /[1-9]\d*%/.test(pct)) break; }
 ok('bolinha com a porcentagem', /\d+%/.test(pct || ''), pct);
-ok('outros modelos ficam travados', await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].filter(b=>b.disabled).length === 2`));
+ok('outros modelos ficam travados', await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].filter(b=>b.disabled).length === 3`));
 await p.foto('e3-bolinha');
 p.fechar();
 // 3) quando termina, o chat abre e a IA responde a mensagem que ficou esperando
@@ -50,7 +50,7 @@ const nome = await c.js(`$('#nomeModelo').textContent`);
 ok('seletor mostra o nome do modelo', nome === NOMES[idModelo] || nome === 'Própons ' + NOMES[idModelo], nome);   // na tela estreita o nome é curto
 await c.foto('e4-respondeu');
 await c.js(`$('#seletorModelo').click(); 1`); await espera(900);
-ok('seletor abre a lista com o ✓ no modelo em uso', (await c.js(`document.querySelectorAll('.dlg.modelos .lm').length`)) === 3 && (await c.js(`!!document.querySelector('.dlg.modelos .lm.on .check')`)));
+ok('seletor abre a lista com o ✓ no modelo em uso', (await c.js(`document.querySelectorAll('.dlg.modelos .lm').length`)) === 4 && (await c.js(`!!document.querySelector('.dlg.modelos .lm.on .check')`)));
 await c.foto('e5-seletor');
 await c.js('fecharDialogo(); 1'); await espera(400);
 c.fechar();
