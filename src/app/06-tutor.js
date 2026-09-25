@@ -12,7 +12,7 @@ MODOS.tutor = { nome: 'Me ensina', desc: 'A IA te guia com perguntas e dicas, se
 const tutorLigado = conv => !!(conv && conv.tutor);
 function desligarTutor() { if (atual) { delete atual.tutor; salvar(); } desenharChips(); toast('"Me ensina" desligado: a IA volta a responder direto.'); }
 
-/* Estudar isto: menu com Flashcards, Quiz e Resumo a partir de uma resposta */
+/* Estudar isto: menu com Flashcards, Quiz, Resumo e Mapa mental a partir de uma resposta */
 function estudarIsto(m, botao) {
   const texto = String(m.texto || '').slice(0, 6000); if (!texto.trim()) return;
   const mandar = modo => { definirModo(modo); enviar('Sobre este conteúdo:\n\n' + texto, []); };
@@ -20,6 +20,7 @@ function estudarIsto(m, botao) {
     [ICO.cartoes, 'Criar flashcards disto', () => mandar('flashcards')],
     [ICO.quiz, 'Criar um quiz disto', () => mandar('quiz')],
     [ICO.resumo, 'Resumir para estudar', () => mandar('resumo')],
+    [ICO.mapa, 'Fazer um mapa mental disto', () => mandar('mapa')],
     [ICO.tutor, 'Me ensinar isto passo a passo', () => mandar('tutor')],
   ], 'Estudar isto');
 }

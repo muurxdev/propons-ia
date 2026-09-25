@@ -5,8 +5,10 @@
    por um resumo (elas continuam na tela, mas saem da memória da IA). */
 // o que a IA recebeu de verdade na última resposta (medido na hora de mandar) + a própria resposta; fica gravado na
 // conversa, então a bolinha só muda quando a IA responde — não a cada anexo, menu ou pesquisa ligada
-function registrarUso(conv, uso, blocoWeb) {
-  conv.ctxUso = { total: uso.total, sistema: uso.sistema, pesquisa: blocoWeb ? tokens(blocoWeb) : 0, historico: uso.historico, anexos: uso.anexos, omitidas: uso.omitidas, resposta: 0 };
+// ctx: o bloco da pergunta (instruções desta resposta, pesquisa, lugar…) vai junto da pergunta, mas conta como instrução
+function registrarUso(conv, uso, blocoWeb, ctx) {
+  const tkCtx = ctx ? tokens(ctx) : 0;
+  conv.ctxUso = { total: uso.total, sistema: uso.sistema + tkCtx, pesquisa: blocoWeb ? tokens(blocoWeb) : 0, historico: Math.max(0, uso.historico - tkCtx), anexos: uso.anexos, omitidas: uso.omitidas, resposta: 0 };
 }
 function registrarResposta(conv, msg) {
   if (conv.ctxUso && msg && msg.texto) conv.ctxUso.resposta = tokens(msg.texto) + POR_MENSAGEM;

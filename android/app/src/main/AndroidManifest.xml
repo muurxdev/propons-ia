@@ -45,6 +45,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- "Explicar com Própons" no compartilhar do sistema: texto ou foto (do caderno, de um print) vão para a caixa -->
+            <intent-filter android:label="@string/explicar_com">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
         </activity>
         <!-- onde o app de câmera grava a foto do botão "Câmera" -->
         <provider

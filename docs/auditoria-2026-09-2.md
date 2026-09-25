@@ -51,7 +51,7 @@ As citações só viravam links no fim.
   caixa). "Procurar" e "Atualizar tudo" viraram um botão só.
 - A lixeira de "apagar tudo" saiu da barra lateral. Apagar tudo mantém as fixadas, como dizia a ajuda.
 
-## 4. Velocidade do motor (próxima: 1.27.0)
+## 4. Velocidade do motor (feito na 1.27.0, menos MTP e o Android)
 
 **Achado principal: o prompt quase nunca é reaproveitado.** O `motor.log` mostra a primeira pergunta real igual a 92%
 do aquecimento, e mesmo assim os 814 tokens foram lidos de novo. O Qwen3.5 é híbrido, então o llama.cpp só volta a um
@@ -95,7 +95,11 @@ Também entram:
 - O celular pode usar a IA do PC de casa pela rede.
 - Documentação da API (formato OpenAI).
 
-## 7. O que a comunidade mais pede e ainda falta (1.29–1.30)
+## 7. O que a comunidade mais pede e ainda falta
+
+Feito na 1.27.0: gráfico de função interativo (item 1, para funções), mapa mental (2), plano de estudos (4), busca
+global melhorada (6), aviso de contexto (7), "Explicar com Própons" no Android (8), conversa por voz contínua (9) e cadeado com PIN (11). Também entrou
+nela a conferência de contas pelo app (item de qualidade da seção 5).
 
 Em ordem de impacto e esforço:
 1. visualizações interativas de matemática e ciências;

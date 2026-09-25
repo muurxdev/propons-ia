@@ -21,7 +21,7 @@ const vendor = !EMBUTIR ? '' : [['vendor-pdf', 'vendor/pdf.min.mjs'], ['vendor-p
   .map(([id, f]) => { const c = ler(f); if (/<\/script/i.test(c)) throw new Error(f + ' contém </script'); return `<script type="text/plain" id="${id}">${c}</script>`; }).join('\n');
 const partes = {
   VERSAO, PLATAFORMA: ler('plataforma.js'), ALGO: algo, DESTAQUE: ler('destaque.js'), MD: ler('markdown.js'),
-  LATEX: ler('latex.js'), DETECT: ler('detecta.js'), BUSCA: ler('busca.js'), APP: ler('resumo.js') + '\n' + app, VENDOR: vendor,
+  LATEX: ler('latex.js'), DETECT: ler('detecta.js'), BUSCA: ler('busca.js'), APP: ler('resumo.js') + '\n' + ler('calc.js') + '\n' + ler('grafico.js') + '\n' + app, VENDOR: vendor,
 };
 let html = ler('index.template.html');
 for (const [k, v] of Object.entries(partes)) html = html.split('{{' + k + '}}').join(v);

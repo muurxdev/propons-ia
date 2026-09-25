@@ -17,13 +17,20 @@ final class Motor {
         }
     }
 
-    struct Resultado { var fim: String; var tokens: Int; var geracaoTPS: Double; var leituraTPS: Double }
+    /// lidos: tokens do prompt que precisaram ser lidos (o resto veio do que o motor já tinha lido)
+    struct Resultado { var fim: String; var tokens: Int; var geracaoTPS: Double; var leituraTPS: Double; var lidos: Int = 0; var total: Int = 0 }
 
     let fila = DispatchQueue(label: "propons.motor", qos: .userInitiated)
     private var model: OpaquePointer?
     private var ctx: OpaquePointer?
     private var vocab: OpaquePointer?
     private var parar = false
+    /// O que o motor já leu da última pergunta: os tokens até o fim dela (sem a abertura da resposta) e o estado logo
+    /// depois deles. A próxima pergunta da mesma conversa começa igual (sistema, conversa, pergunta anterior): o estado
+    /// volta e só o que é novo é lido. O Qwen3.5 é híbrido (parte recorrente), então não dá para "cortar" a memória no
+    /// meio — por isso o estado é guardado exatamente no ponto que a próxima pergunta vai repetir.
+    private var lidoToks: [llama_token] = []
+    private var lidoEstado: [UInt8] = []
     private(set) var nCtx: Int32 = 4096
     private(set) var caminho: String?
     var carregado: Bool { ctx != nil }
@@ -34,6 +41,7 @@ final class Motor {
     func pedirParada() { parar = true }
 
     func descarregar() {
+        lidoToks = []; lidoEstado = []
         if let c = ctx { llama_free(c) }
         if let m = model { llama_model_free(m) }
         ctx = nil; model = nil; vocab = nil; caminho = nil
@@ -42,7 +50,8 @@ final class Motor {
     /// Carrega um GGUF. gpu=true usa Metal (iPhone/Mac); no simulador use false.
     /// Sem o interface/motor.json (não deveria acontecer: vai no pacote), o menor degrau do celular.
     static let contextoPadrao: Int32 = 4096
-    func carregar(caminho: String, gpu: Bool, contexto: Int32) throws {
+    /// kvQ8: cache da conversa em q8 com flash attention (como no motor.json): metade da memória, mesma qualidade.
+    func carregar(caminho: String, gpu: Bool, contexto: Int32, kvQ8: Bool = false) throws {
         descarregar()
         var mp = llama_model_default_params()
         mp.n_gpu_layers = gpu ? 99 : 0
@@ -55,6 +64,11 @@ final class Motor {
         let threads = Int32(max(1, min(nucleos - 2, 4)))
         cp.n_threads = threads
         cp.n_threads_batch = threads
+        if kvQ8 {
+            cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED
+            cp.type_k = GGML_TYPE_Q8_0
+            cp.type_v = GGML_TYPE_Q8_0
+        }
         guard let c = llama_init_from_model(m, cp) else { llama_model_free(m); throw Erro.contexto }
         model = m; ctx = c; vocab = llama_model_get_vocab(m)
         nCtx = contexto; self.caminho = caminho
@@ -117,17 +131,48 @@ final class Motor {
             prompt = formatar(msgs, adicionarAssistente: true)
         }
         var toks = tokenizar(prompt)
+        // até onde a próxima pergunta vai repetir: a conversa até o fim da última pergunta (sem a abertura da resposta)
+        var nBase = 0
+        if let iu = msgs.lastIndex(where: { $0.papel == "user" }) {
+            let base = formatar(Array(msgs[...iu]), adicionarAssistente: false)
+            if prompt.hasPrefix(base) {
+                let bt = tokenizar(base)
+                if bt.count < toks.count && Array(toks.prefix(bt.count)) == bt { nBase = bt.count }
+            }
+        }
         let limite = Int(nCtx) - maxTokens - 8
+        var cortado = false
         if toks.count > limite {
             guard limite > 256 else { throw Erro.prompt }
             toks = Array(toks.suffix(limite))               // corta o começo se a conversa for longa demais
+            cortado = true
         }
-        llama_memory_clear(llama_get_memory(ctx), true)
-
-        let t0 = Date()
+        let mem = llama_get_memory(ctx)
+        llama_memory_clear(mem, true)
+        // mesma conversa: volta o estado do fim da pergunta anterior e lê só o resto
         var i = 0
+        if !cortado, !lidoToks.isEmpty, toks.count > lidoToks.count, Array(toks.prefix(lidoToks.count)) == lidoToks {
+            let lidos = lidoEstado.withUnsafeBufferPointer { p in llama_state_seq_set_data(ctx, p.baseAddress, p.count, 0) }
+            if lidos > 0 && Int(llama_memory_seq_pos_max(mem, 0)) == lidoToks.count - 1 { i = lidoToks.count }
+            else { llama_memory_clear(mem, true) }
+        }
+
+        let inicioLeitura = i
+        let t0 = Date()
+        var guardou = i > 0 && i == nBase   // voltou exatamente ao fim desta pergunta (gerar de novo): já está guardado
         while i < toks.count {
-            let n = min(512, toks.count - i)
+            // chegou ao fim da pergunta: guarda o estado para a próxima (até 256 MB; mais que isso, relê)
+            if !cortado && !guardou && nBase > 0 && i == nBase {
+                guardou = true; lidoToks = []; lidoEstado = []
+                let tam = llama_state_seq_get_size(ctx, 0)
+                if tam > 0 && tam < 256 * 1024 * 1024 {
+                    var estado = [UInt8](repeating: 0, count: tam)
+                    let n = estado.withUnsafeMutableBufferPointer { p in llama_state_seq_get_data(ctx, p.baseAddress, tam, 0) }
+                    if n == tam { lidoEstado = estado; lidoToks = Array(toks.prefix(nBase)) }
+                }
+            }
+            let ate = (!cortado && !guardou && nBase > i) ? nBase : toks.count
+            let n = min(512, ate - i)
             var fatia = Array(toks[i..<(i + n)])
             let r = fatia.withUnsafeMutableBufferPointer { p in llama_decode(ctx, llama_batch_get_one(p.baseAddress, Int32(n))) }
             if r != 0 { throw Erro.decodificar }
@@ -167,7 +212,8 @@ final class Motor {
         let tGeracao = Date().timeIntervalSince(t1)
         return Resultado(fim: fim, tokens: gerados,
                          geracaoTPS: tGeracao > 0 ? Double(gerados) / tGeracao : 0,
-                         leituraTPS: tLeitura > 0 ? Double(toks.count) / tLeitura : 0)
+                         leituraTPS: tLeitura > 0 ? Double(toks.count - inicioLeitura) / tLeitura : 0,
+                         lidos: toks.count - inicioLeitura, total: toks.count)
     }
 
     /// Devolve o maior pedaço de UTF-8 válido (tokens podem cortar um caractere acentuado ou emoji ao meio).

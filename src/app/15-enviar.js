@@ -1,4 +1,6 @@
 /* ---------------- enviar / responder ---------------- */
+// texto de sistema de uma conversa: igual em toda resposta dela (regras, memória, preferências, resumo e o tutor)
+const sistemaDaConversa = conv => SYSTEM + textoMemoria() + textoPreferencias() + textoResumo(conv) + (conv && tutorLigado(conv) ? '\n\n' + INSTRUCAO_TUTOR : '');
 const INVENTA = /[\[(]\s*-?\d+\s*,\s*-?\d+\s*,/;
 
 /* tokens de verdade: o tokenizador do próprio modelo (/tokenize) mede cada texto uma vez; antes disso (ou no iOS) vale a
@@ -7,12 +9,14 @@ const medidos = new Map();
 const chaveTexto = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return s.length + ':' + (h >>> 0); };
 const tokens = s => { s = s || ''; if (s.length < 40) return estimar(s); const v = medidos.get(chaveTexto(s)); return v != null ? v : estimar(s); };
 async function medirTokens(textos) {
-  for (const s of textos) {
-    if (!s || s.length < 40) continue;
-    const k = chaveTexto(s); if (medidos.has(k)) continue;
-    const n = await PLATAFORMA.contarTokens(s); if (n == null) return;   // motor sem /tokenize: fica a estimativa
-    medidos.set(k, n); if (medidos.size > 500) medidos.delete(medidos.keys().next().value);
-  }
+  const faltam = [...new Set(textos.filter(s => s && s.length >= 40 && !medidos.has(chaveTexto(s))))];
+  let semTokenizador = false;
+  const medir = async s => {
+    if (semTokenizador) return;
+    const n = await PLATAFORMA.contarTokens(s); if (n == null) { semTokenizador = true; return; }   // motor sem /tokenize: fica a estimativa
+    medidos.set(chaveTexto(s), n); if (medidos.size > 500) medidos.delete(medidos.keys().next().value);
+  };
+  for (let i = 0; i < faltam.length; i += 4) await Promise.all(faltam.slice(i, i + 4).map(medir));
 }
 // quantos caracteres deste texto cabem em tk tokens (pela proporção medida do próprio texto)
 const charsPara = (s, tk) => Math.max(0, Math.floor(tk * s.length / Math.max(1, tokens(s))));
@@ -79,11 +83,17 @@ async function resumirEmPartes(a, aoPasso, sinal) {
 }
 
 // Monta o que vai para a IA dentro da memória dela (nCtx) e mede cada parte em .uso: a bolinha de contexto mostra isto.
-function montarHistorico(conv, maxTokens, sistema, extra) {
+/* O que muda de uma pergunta para outra não entra no texto de sistema: vai num bloco <contexto> no começo da própria
+   pergunta. Assim o começo de tudo (sistema + conversa) fica igual de uma resposta para a outra e o motor reaproveita o
+   que já leu, em vez de reler a conversa inteira.
+   - m.ctx (guardado com a pergunta): o que é curto — o esforço e a data. Volta igual nas próximas respostas.
+   - ctx (só nesta resposta, na última pergunta): o que é grande — pesquisa, lugar, Conhecimento, "sobre o app". */
+function montarHistorico(conv, maxTokens, sistema, extra, ctx) {
   const reserva = maxTokens + 300, tkSistema = tokens(sistema || SYSTEM);
   const orcamento = Math.max(1200, nCtx - tkSistema - reserva);
   const msgs = conv.msgs.filter(m => !m.interno && !m.compactada);   // compactadas: viraram o resumo (conv.resumo)
   const saida = []; let usado = 0, deArquivo = 0, omitidas = 0;
+  let iCtx = -1; if (ctx) for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === 'user') { iCtx = i; break; }
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i], ultima = i === msgs.length - 1;
     const fotos = m.imagens && m.imagens.length, fotosAgora = !!(fotos && ultima && m._envio), tkFotos = fotosAgora ? TOKENS_FOTO * fotos : 0;
@@ -91,6 +101,8 @@ function montarHistorico(conv, maxTokens, sistema, extra) {
     if (ultima && m.role === 'user') { const r = conteudoDaPergunta(m, msgs.slice(0, i), orcamento - tkFotos - POR_MENSAGEM); conteudo = r.texto; doc = r.anexos; }
     else if (m.anexos && m.anexos.length) doc = parteDe(conteudo, conteudo.length - String(m.texto || "").length);
     if (fotos && !fotosAgora) conteudo += `\n[${fotos === 1 ? 'uma foto foi enviada' : fotos + ' fotos foram enviadas'} nesta mensagem]`;
+    const bloco = ((m.role === 'user' && m.ctx) || '') + (i === iCtx ? '\n\n' + ctx : '');
+    if (bloco.trim()) conteudo = '<contexto>\n' + bloco.trim() + '\n</contexto>\n\n' + conteudo;
     if (usado + tokens(conteudo) + POR_MENSAGEM + tkFotos > orcamento) {
       if (ultima) { conteudo = conteudo.slice(0, charsPara(conteudo, orcamento - usado - POR_MENSAGEM - tkFotos)) + '\n[…texto cortado por ser longo demais]'; doc = Math.min(doc, tokens(conteudo)); }
       else if (m.anexos && m.anexos.length) { conteudo = m.texto + `\n[anexos anteriores omitidos: ${m.anexos.map(a => a.nome).join(', ')}]`; doc = 0; }
@@ -262,6 +274,7 @@ function cancelarEdicao() { editando = false; editandoIdx = -1; $('#editando').h
 $('#cancelarEdicao').onclick = () => { cancelarEdicao(); $('#entrada').value = ''; anexos = []; desenharChips(); };
 
 async function responder(conv, continuacao) {
+  pararAquecimento();   // a pergunta de verdade tem a vez no motor
   janelaEscondida = document.hidden;   // antes de qualquer espera (compactar, pesquisar, ler o arquivo): sair da janela conta
   const ultima = conv.msgs[conv.msgs.length - 1];
   const pergunta = continuacao ? conv.msgs[ultimoIndice(conv, 'user')] : ultima;
@@ -295,12 +308,15 @@ async function responder(conv, continuacao) {
   const nivel = escolhido === 'auto' ? (pensar ? 'alto' : 'medio') : escolhido;
   // pensar gasta tokens do raciocínio; a reserva nunca passa de 45 % da memória da IA (no celular ela é menor)
   const maxTokens = Math.min(pensar ? 4500 : nivel === 'baixo' ? 700 : pedeCodigo || (pergunta && pergunta.anexos) || nivel === 'alto' ? 3000 : 1500, Math.floor(nCtx * 0.45));
-  let SISTEMA = SYSTEM + (falaDoApp(texto) ? SOBRE_APP : '') + textoMemoria() + textoPreferencias() + (nivel === 'baixo' ? '\n\nResponda de forma direta e curta, sem rodeios.'
-    : nivel === 'alto' ? '\n\nAntes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '')
-;
+  // texto de sistema: só o que é igual em toda resposta da conversa (regras, memória, preferências, resumo, tutor).
+  // O que muda por pergunta vai no CTX, no começo da última pergunta (ver montarHistorico).
+  let SISTEMA = sistemaDaConversa(conv);
+  let CTX = falaDoApp(texto) ? SOBRE_APP : '';
+  let CTX_Q = nivel === 'baixo' ? 'Responda de forma direta e curta, sem rodeios.'
+    : nivel === 'alto' ? 'Antes de responder, pense rápido e objetivo: veja o que foi pedido, resolva e confira. Poucas linhas de raciocínio, sem repetir a pergunta, e então responda.' : '';
   let fontes = null, blocoWeb = '';   // a busca em si roda depois de a resposta aparecer na conversa
   // na continuação, a resposta cortada já é a última mensagem do histórico: o motor continua o texto dela
-  let historico = montarHistorico(conv, maxTokens, SISTEMA);
+  let historico = montarHistorico(conv, maxTokens, SISTEMA + CTX);
   // continuar só a partir do texto inteiro: se a resposta cortada não coube na memória da IA, continuar dela sairia errado
   if (continuacao && (!historico.length || historico[historico.length - 1].content !== (continuacao.llm || continuacao.texto))) {
     toast('A resposta ficou longa demais para continuar. Peça de novo, de preferência numa conversa nova.', 4000); return;
@@ -344,12 +360,19 @@ async function responder(conv, continuacao) {
   // conversa que já enche a memória da IA: o começo vira um resumo antes de responder (Ajustes → Respostas); a resposta
   // já está em andamento, então o passo aparece na conversa e o botão de parar vale
   if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) ) voltarAoGiro();
-  SISTEMA += textoResumo(conv);
-  if (tutorLigado(conv)) SISTEMA += '\n\n' + INSTRUCAO_TUTOR;   // "Me ensina": a conversa inteira no modo tutor
+  SISTEMA = sistemaDaConversa(conv);   // de novo: a compactação pode ter criado o resumo agora
   // Conhecimento (13-conhecimento.js): os pacotes que combinam com a pergunta entram com as instruções e os trechos
   if (!comEsquema && texto.trim()) {
     const ks = conhecimentosPara(texto);
-    if (ks.length) { SISTEMA += '\n\n' + blocoConhecimento(ks, texto); msg.conhecimentos = ks.map(k => k.nome); const s = status(); if (s) { s.insertAdjacentHTML('beforeend', htmlUsouConh(msg.conhecimentos)); rolar(); } }
+    if (ks.length) { CTX += '\n\n' + blocoConhecimento(ks, texto); msg.conhecimentos = ks.map(k => k.nome); const s = status(); if (s) { s.insertAdjacentHTML('beforeend', htmlUsouConh(msg.conhecimentos)); rolar(); } }
+  }
+  // gráfico de função pedido na pergunta: o app desenha e calcula os pontos (src/grafico.js); a IA só explica
+  if (!comEsquema && !continuacao && texto.trim()) {
+    const gr = GRAFICO.pedido(texto);
+    if (gr) {
+      msg.grafico = gr; CTX += '\n\n' + GRAFICO.fatos(gr);
+      if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlGrafico(gr); const card = c.firstElementChild; if (card) { alvo.parentNode.insertBefore(card, alvo); ligarGrafico(alvo.parentNode); rolar(); } }
+    }
   }
   // lugar, hora de outra cidade e clima: dados reais pegos agora (12-lugar.js), com o cartão na conversa
   let dl = null;
@@ -364,19 +387,18 @@ async function responder(conv, continuacao) {
     } catch (e) {}
     if (avisoLugar) avisoLugar.remove();
     if (dl) {
-      voltarAoGiro(); SISTEMA += '\n\n' + dl.texto;
+      voltarAoGiro(); CTX += '\n\n' + dl.texto;
       // a resposta começa pelas frases do app (números exatos); o motor continua o texto delas, como no Continuar
       if (dl.inicio && !pensar) msg.texto = msg.llm = dl.inicio + '\n\n';   // entra no histórico no fim (depois da última montagem)
       if (dl.painel) { msg.lugar = dl.painel; if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlPainelLugar(dl.painel); [...c.children].forEach(card => { alvo.parentNode.insertBefore(card, alvo); ligarPainelLugar(card); }); rolar(); } }
     }
   }
-  // "que dia é hoje", "que horas são": a data e a hora do aparelho (só nessas perguntas, para não mudar o texto de
-  // sistema a cada minuto e perder o que o motor já tinha lido da conversa)
+  // "que dia é hoje", "que horas são": a data e a hora do aparelho (só nessas perguntas)
   if (!(dl && dl.painel) && /\b(hora|horas|hor[áa]rio|data|dia|hoje|agora|amanh[ãa]|ontem|ano|m[êe]s|semana)\b/i.test(texto))
-    SISTEMA += '\n\nData e hora deste aparelho agora: ' + new Date().toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) + ' (fuso: ' + Intl.DateTimeFormat().resolvedOptions().timeZone + ').';
+    CTX_Q += '\n\nData e hora deste aparelho agora: ' + new Date().toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) + ' (fuso: ' + Intl.DateTimeFormat().resolvedOptions().timeZone + ').';
   // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
   if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
-    if (semInternet()) SISTEMA += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';
+    if (semInternet()) CTX += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';
     else {
       estado('pesquisando na internet');
       let r = null;
@@ -384,8 +406,8 @@ async function responder(conv, continuacao) {
       voltarAoGiro();
       estado('', false, 'rede');
       // as fontes entram no fim da resposta (addIa, quando ela termina); enquanto a IA escreve, os ícones ficam no giro
-      if (r && r.fontes.length) { blocoWeb = blocoPesquisa(r); SISTEMA += '\n\n' + blocoWeb; fontes = r.fontes; msg.fontes = fontes; }
-      else SISTEMA += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
+      if (r && r.fontes.length) { blocoWeb = blocoPesquisa(r); CTX += '\n\n' + blocoWeb; fontes = r.fontes; msg.fontes = fontes; }
+      else CTX += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
     }
   }
   // "resuma o PDF" (ou um modo de estudo) com um arquivo que não cabe na memória: lê por partes e resume cada uma;
@@ -401,12 +423,23 @@ async function responder(conv, continuacao) {
     voltarAoGiro();
     salvar();
   }
-  // com o texto de sistema final (pesquisa incluída): mede com o tokenizador do modelo e monta de novo
-  await medirTokens([SISTEMA, ...textosDe(montarHistorico(conv, maxTokens, SISTEMA))]);
-  historico = montarHistorico(conv, maxTokens, SISTEMA);
+  // com tudo pronto (pesquisa incluída): mede com o tokenizador do modelo e monta de novo. Na continuação, o bloco da
+  // pergunta é o mesmo da resposta original (o motor reaproveita tudo até o texto cortado).
+  // a instrução curta fica guardada na pergunta (as próximas respostas mandam igual); na continuação vale a da resposta original
+  if (continuacao) CTX = continuacao._ctx || '';
+  else if (pergunta) { if (CTX_Q.trim()) pergunta.ctx = CTX_Q.trim(); else delete pergunta.ctx; }
+  await medirTokens([SISTEMA, CTX, ...textosDe(montarHistorico(conv, maxTokens, SISTEMA, null, CTX))]);
+  historico = montarHistorico(conv, maxTokens, SISTEMA, null, CTX);
   await medirTokens(textosDe(historico));
-  historico = montarHistorico(conv, maxTokens, SISTEMA);
-  registrarUso(conv, historico.uso, blocoWeb);
+  historico = montarHistorico(conv, maxTokens, SISTEMA, null, CTX);
+  Object.defineProperty(msg, '_ctx', { value: CTX, writable: true, configurable: true, enumerable: false });
+  registrarUso(conv, historico.uso, blocoWeb, CTX + ((pergunta && pergunta.ctx) || ''));
+  // nada de cortar calado: se o começo da conversa saiu da memória da IA, avisa (uma vez a cada vez que piora)
+  if (historico.uso.omitidas > (conv._avisouOmitidas || 0) && atual === conv) {
+    Object.defineProperty(conv, '_avisouOmitidas', { value: historico.uso.omitidas, writable: true, configurable: true, enumerable: false });
+    const n = historico.uso.omitidas;
+    toastAcao(`A IA já não vê ${n === 1 ? 'a primeira mensagem' : 'as ' + n + ' primeiras mensagens'} desta conversa.`, 'Compactar', () => compactarConversa(conv).then(ok => { if (ok) toast('Pronto: o começo virou um resumo que a IA lê.'); }), 8000);
+  }
   const prefixo = !continuacao && dl && dl.inicio && msg.texto;   // o motor continua a partir das frases do app
   if (prefixo) historico.push({ role: 'assistant', content: msg.texto });
   // o raciocínio vai para a folha (aberta ou não): nunca ocupa a conversa
@@ -509,6 +542,11 @@ async function responder(conv, continuacao) {
   if (sobreAlgoritmo && !continuacao && !erro && INVENTA.test(foraDeCodigo(novo))) {
     novo = novo.trimEnd() + '\n\n*Os números do exemplo acima são só ilustrativos. Para um passo a passo exato, me mande a lista — por exemplo: **bubble sort em [5, 2, 8, 1]**.*';
   }
+  // contas simples escritas no texto são refeitas pelo app (src/calc.js); errada vira certa, com um aviso no fim
+  if (!comEsquema && !erro && novo) {
+    const cc = CALC.conferirContas(novo);
+    if (cc.correcoes.length) novo = cc.texto.trimEnd() + '\n\n*Conta conferida pelo app: ' + cc.correcoes.map(c => `${c.expr} = ${c.certo} (estava ${c.dado})`).join('; ') + '.*';
+  }
   msg.texto = (inicio + novo).trim(); msg.llm = msg.texto;
   if (pensTxt.trim()) msg.pensou = pensTxt.trim().slice(0, 6000); else if (!continuacao) delete msg.pensou;   // o raciocínio fica gravado, recolhido
   if (comEsquema && !erro) {   // o JSON vira o widget; se não deu (cortado/abortado), avisa
@@ -533,5 +571,6 @@ async function responder(conv, continuacao) {
   if (filaEnvio.length) setTimeout(andarFila, 80);
   else if (!erro && !ctrl.signal.aborted && !comEsquema) setTimeout(() => sugerirSeguintes(conv, msg), 250);   // três perguntas para seguir
   if (!erro && !ctrl.signal.aborted) avisarPronto(msg);   // janela em segundo plano: notificação do sistema
+  if (!erro && !ctrl.signal.aborted && atual === conv) vozDepoisDaResposta(msg);   // conversa por voz: lê e escuta de novo
 }
 

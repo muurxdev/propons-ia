@@ -51,9 +51,11 @@ function abaPrivacidade(c) {
     <div class="secao"><h4>Pesquisar na internet</h4>${seg('pesquisaWeb', [['sim', 'Ligada'], ['nao', 'Desligada']], pesquisaLigada() ? 'sim' : 'nao')}
       <p class="info">Ligada, a sua pergunta vai para a busca pública e as páginas achadas viram fontes da resposta. Também liga e desliga pelo "+".</p></div>
     <div class="secao"><h4>Lugar, hora e clima</h4>${seg('dadosLugar', [['sim', 'Usar dados reais'], ['nao', 'Não']], usarDadosLugar() ? 'sim' : 'nao')}
-      <p class="info">Em perguntas como "que horas são em Londres?" ou "vai chover aqui?", o app pega a hora, a sua localização (o aparelho pede a permissão) e o clima de verdade antes de responder. Só vai para a internet o nome da cidade ou as coordenadas.</p></div>`;
+      <p class="info">Em perguntas como "que horas são em Londres?" ou "vai chover aqui?", o app pega a hora, a sua localização (o aparelho pede a permissão) e o clima de verdade antes de responder. Só vai para a internet o nome da cidade ou as coordenadas.</p></div>
+    ${htmlCadeado()}`;
   ligarSeg(c, 'pesquisaWeb', v => definirPesquisa(v === 'sim'));
   ligarSeg(c, 'dadosLugar', v => pref('dadosLugar', v));
+  ligarCadeado(c);
 }
 // antes de responder: se a conversa já não cabe na memória da IA, compacta primeiro (o começo vira um resumo)
 async function compactarSeCheia(conv, aoPasso) {
@@ -77,6 +79,7 @@ const AJUDA = {
   'm:conversas': ['Conversas', 'Backup (exportar e importar tudo num arquivo) e limpeza. As conversas ficam só neste aparelho.'],
   'm:estudo': ['Estudo', 'Seus flashcards (com revisão espaçada: cada cartão volta no dia certo), quizzes e redações corrigidas.'],
   'Memória': ['Memória', 'O que a IA sabe sobre você, porque você pediu ("lembre que eu faço o ENEM"). Entra em todas as conversas; apague o que quiser.'],
+  'Cadeado': ['Cadeado', 'Um PIN de 4 a 6 números para abrir o app. Se esquecer, dá para tirar o cadeado apagando as conversas, a memória e o baralho deste aparelho.'],
   'Pesquisar na internet': ['Pesquisar na internet', 'A pergunta vai para um buscador público e os trechos das páginas entram na resposta, com as fontes no fim.'],
   'm:diagnostico': ['Diagnóstico', 'Mede memória, processador, espaço e a velocidade real da IA, e gera um relatório para copiar se algo der errado.'],
   'm:sobre': ['Sobre', 'Versão, licença e como a Própons é feita: código aberto, sem conta, tudo no seu aparelho.'],

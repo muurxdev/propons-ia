@@ -11,7 +11,8 @@ function abrirMais() {
     <div class="opcoes linhas">
       <button data-op="conhecimento"><span class="oi">${ICO.conhecimento}</span><span class="pt"><b>Conhecimento</b><small>${(n => n ? n + (n === 1 ? ' ligado' : ' ligados') + ' · a IA usa quando combina' : 'Ensine a IA a responder do seu jeito')(lerConhecimentos().filter(k => k.ativo !== false).length)}</small></span>${ICO.seta}</button>
       <button data-op="pesquisa"><span class="oi">${ICO.globo}</span><span class="pt"><b>Pesquisar na internet</b><small>${pesquisaLigada() ? 'Ligada · suas perguntas vão para a busca pública' : 'Desligada · tudo continua no aparelho'}</small></span><span class="chave${pesquisaLigada() ? ' on' : ''}"></span></button>
-      <button data-modos><span class="oi">${ICO.estudo}</span><span class="pt"><b>Modos de estudo</b><small>${modoAtivo ? 'Ativo: ' + MODOS[modoAtivo].nome : 'Flashcards, quiz, redação, resumo e revisão'}</small></span>${ICO.seta}</button>
+      ${PLATAFORMA.temTranscricao ? `<button data-voz><span class="oi">${ICO.conversaVoz}</span><span class="pt"><b>Conversa por voz</b><small>${modoVoz ? 'Ligada · toque para desligar' : 'Mãos livres: você fala, a IA responde em voz alta'}</small></span><span class="chave${modoVoz ? ' on' : ''}"></span></button>` : ''}
+      <button data-modos><span class="oi">${ICO.estudo}</span><span class="pt"><b>Modos de estudo</b><small>${modoAtivo ? 'Ativo: ' + MODOS[modoAtivo].nome : 'Flashcards, quiz, mapa mental, plano e mais'}</small></span>${ICO.seta}</button>
     </div>
     ${temVisao ? '' : '<p class="info" style="margin:8px 8px 0">Neste aparelho a IA ainda não lê fotos.</p>'}</div>`;
   const folha = f.firstChild;
@@ -22,6 +23,7 @@ function abrirMais() {
   folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
   folha.querySelector('[data-modos]').onclick = () => { sair(); setTimeout(abrirModos, 160); };
+  const bv = folha.querySelector('[data-voz]'); if (bv) bv.onclick = () => { sair(); ligarModoVoz(!modoVoz); };
   folha.querySelectorAll('[data-op]').forEach(b => b.onclick = async () => {
     const op = b.dataset.op; sair();
     // no celular a foto é do app de câmera do sistema (não pede permissão); no PC, a webcam pede ao abrir

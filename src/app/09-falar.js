@@ -70,6 +70,7 @@ async function iniciarGravacao() {
     if (!analisador) return;
     analisador.getFloatTimeDomainData(amostras);
     let q = 0; for (let i = 0; i < amostras.length; i++) q += amostras[i] * amostras[i];
+    if (vigiarVoz(Math.sqrt(q / amostras.length))) return;   // conversa por voz: parou de falar, transcreve e envia
     soma += Math.sqrt(q / amostras.length); qtd++;
     if (++tick % 2) return;                                  // uma barrinha nova a cada 100 ms
     niveis.shift(); niveis.push(nivelDaOnda(soma / qtd)); soma = 0; qtd = 0;
@@ -170,6 +171,7 @@ async function transcreverAudio(blob, mesmoSemFala) {
       if (!mesmoSemFala && !temFala(amostras)) {
         // volume baixo demais: pergunta em vez de descartar (pode ser uma gravação distante, mas com fala)
         transcrevendo = false; barraGravacao(null);
+        if (modoVoz) { setTimeout(escutarDeNovo, 300); return; }   // conversa por voz: só escuta de novo
         if (await confirmar('Áudio muito baixo', '<p>Não ouvi fala neste áudio — pode estar mudo ou muito baixo.</p>', 'Transcrever assim mesmo')) return transcreverAudio(blob, true);
         return;
       }
@@ -185,8 +187,9 @@ async function transcreverAudio(blob, mesmoSemFala) {
       texto = partes.join(' ').replace(/\s+/g, ' ').trim();
     }
     if (sinal.aborted) { if (texto) toast('Transcrição cancelada; ficou só o que já tinha sido transcrito.', 3500); else { toast('Transcrição cancelada.'); return; } }
-    if (!texto) { toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
+    if (!texto) { if (modoVoz) setTimeout(escutarDeNovo, 300); else toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
     porTranscricao(texto);
+    if (modoVoz) { vozTranscreveu(); return; }   // conversa por voz: envia sozinho (e não enche a Biblioteca de falas curtas)
     const segundos = amostras && amostras.length ? amostras.length / 16000 : await duracaoDeAudio(blob);
     guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto, segundos, audio: blob });
   } catch (e) {
@@ -198,6 +201,6 @@ async function transcreverAudio(blob, mesmoSemFala) {
 PLATAFORMA.ao('transcricao', d => { if (!transcrevendo) return; const t = trechoAtual || { i: 0, n: 1 }; barraGravacao('transcrevendo', undefined, (t.i + (d.pct || 0)) / t.n); });
 $('#falar').onclick = async () => { alvoTranscricao = null; if (await garantirPermissao('microfone')) iniciarGravacao(); };
 $('#pararGrav').onclick = () => pararGravacao(true);
-$('#cancelarGrav').onclick = () => { if (gravacao) pararGravacao(false); else if (cancelarTranscricao) { cancelarTranscricao.abort(); $('#tempoGrav').textContent = 'Cancelando'; } };
+$('#cancelarGrav').onclick = () => { if (modoVoz) { ligarModoVoz(false); return; } if (gravacao) pararGravacao(false); else if (cancelarTranscricao) { cancelarTranscricao.abort(); $('#tempoGrav').textContent = 'Cancelando'; } };
 $('#audio').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) { transcreverAudio(f); } };
 

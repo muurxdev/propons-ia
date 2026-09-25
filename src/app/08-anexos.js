@@ -1,10 +1,13 @@
 /* ---------------- anexos ---------------- */
 function desenharChips() {
   const tutor = tutorLigado(atual) && modoAtivo !== 'tutor';
-  const c = $('#chips'); c.hidden = !anexos.length && !modoAtivo && !tutor;
-  c.innerHTML = (tutor ? `<div class="chip modo">${ICO.tutor}<b>Me ensina ligado</b><button data-rm-tutor aria-label="Desligar o Me ensina">${ICO.fechar}</button></div>` : '') + (modoAtivo ? `<div class="chip modo">${ICO[MODOS[modoAtivo].ico]}<b>Modo: ${esc(MODOS[modoAtivo].nome)}</b><button data-rm-modo aria-label="Sair do modo">${ICO.fechar}</button></div>` : '') + anexos.map(a => chipHTML(a, true)).join('');
+  const voz = typeof modoVoz !== 'undefined' && modoVoz;
+  const c = $('#chips'); c.hidden = !anexos.length && !modoAtivo && !tutor && !voz;
+  c.innerHTML = (voz ? `<div class="chip modo">${ICO.conversaVoz}<b>Conversa por voz</b><button class="chip-acao" data-voz-agora>Falar agora</button><button data-rm-voz aria-label="Desligar a conversa por voz">${ICO.fechar}</button></div>` : '') + (tutor ? `<div class="chip modo">${ICO.tutor}<b>Me ensina ligado</b><button data-rm-tutor aria-label="Desligar o Me ensina">${ICO.fechar}</button></div>` : '') + (modoAtivo ? `<div class="chip modo">${ICO[MODOS[modoAtivo].ico]}<b>Modo: ${esc(MODOS[modoAtivo].nome)}</b><button data-rm-modo aria-label="Sair do modo">${ICO.fechar}</button></div>` : '') + anexos.map(a => chipHTML(a, true)).join('');
   const rm = c.querySelector('[data-rm-modo]'); if (rm) rm.onclick = () => definirModo(null);
   const rt = c.querySelector('[data-rm-tutor]'); if (rt) rt.onclick = desligarTutor;
+  const rv = c.querySelector('[data-rm-voz]'); if (rv) rv.onclick = () => ligarModoVoz(false);
+  const va = c.querySelector('[data-voz-agora]'); if (va) va.onclick = interromperVoz;
   c.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => { e.stopPropagation(); anexos = anexos.filter(a => a.nome !== b.dataset.rm); desenharChips(); ajustar(); });
   ligarVerAnexos(c, anexos, true);
   ajustar();
@@ -135,5 +138,18 @@ async function adicionarArquivos(lista) {
   desenharChips();
 }
 $('#anexar').onclick = () => abrirMais();
+/* "Explicar com Própons" (compartilhar do Android): a foto entra como anexo e o texto vai para a caixa, já com
+   "Explique isto" quando vier só a foto — a pessoa confere e envia */
+async function receberCompartilhado() {
+  let c = null; try { c = await PLATAFORMA.pegarCompartilhado(); } catch (e) { return; }
+  if (!c || (!c.texto && !c.imagem)) return;
+  fecharTela(); fecharDialogo();
+  if (c.imagem) { try { const b = await (await fetch(c.imagem)).blob(); adicionarArquivos([new File([b], c.nome || 'compartilhada.jpg', { type: b.type || 'image/jpeg' })]); } catch (e) { toast('Não deu para abrir a imagem compartilhada.'); } }
+  const e = $('#entrada');
+  e.value = c.texto ? (e.value ? e.value + '\n\n' : '') + c.texto : e.value || 'Explique isto';
+  ajustar(); e.focus(); try { e.setSelectionRange(e.value.length, e.value.length); } catch (er) {}
+  toast(c.imagem ? 'Foto recebida. Escreva a pergunta e envie.' : 'Texto recebido. Confira e envie.');
+}
+PLATAFORMA.ao('compartilhado', () => receberCompartilhado());
 ['arquivo', 'fotos', 'camera'].forEach(id => $('#' + id).onchange = e => { adicionarArquivos([...e.target.files]); e.target.value = ''; });
 

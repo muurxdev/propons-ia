@@ -1,13 +1,13 @@
 {
-  "_leia": "Configuração única do motor (llama-server / llama.cpp) para os 5 sistemas. O src/montar.js copia para a interface (motor.json) e gera o motor.env do Linux; cada host lê daqui em vez de ter a lista no código. contexto = [[RAM mínima em GB, tokens], ...]: vale o último degrau que a RAM do aparelho alcança. Medidas em treino/README.md (Qwen3.5 é híbrido: 32k com cache q8 custa ~100 MB a mais que 8k no Aurora).",
+  "_leia": "Configuração única do motor (llama-server / llama.cpp) para os 5 sistemas. O src/montar.js copia para a interface (motor.json) e gera o motor.env do Linux; cada host lê daqui em vez de ter a lista no código. contexto = [[RAM mínima em GB, tokens], ...]: vale o último degrau que a RAM do aparelho alcança. Medidas em treino/README.md (Qwen3.5 é híbrido: 32k com cache q8 custa ~100 MB a mais que 8k no Aurora). -ctxcp: pontos salvos da conversa que o motor guarda para não reler tudo (cada um ~20 MB no Aurora, ~50 MB no Ápice): o app manda o texto de sistema fixo e o que muda no começo da pergunta, então o ponto do fim da pergunta anterior serve.",
   "pc": {
     "contexto": [[0, 16384], [8, 32768]],
-    "args": ["-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "600", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0"],
+    "args": ["-np", "1", "--cache-ram", "0", "-ctxcp", "6", "--reasoning-format", "auto", "--reasoning-budget", "600", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0"],
     "imagemMaxTokens": 400
   },
   "celular": {
     "contexto": [[0, 8192], [8, 16384]],
-    "args": ["-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "300", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0"],
+    "args": ["-np", "1", "--cache-ram", "0", "-ctxcp", "4", "--reasoning-format", "auto", "--reasoning-budget", "300", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0"],
     "imagemMaxTokens": 300
   }
 }

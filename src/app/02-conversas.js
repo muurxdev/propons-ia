@@ -15,9 +15,11 @@ function validar(lista) {
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
       ...(m.interno ? { interno: true } : {}), ...(m.compactada ? { compactada: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
+      ...(m.role === 'user' && txt(m.ctx).trim() ? { ctx: txt(m.ctx).slice(0, 600) } : {}),   // instrução curta desta pergunta (esforço, data)
       ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}), ...(+m.tempo > 0 ? { tempo: Math.round(+m.tempo) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo), ...(+a.paginas ? { paginas: +a.paginas } : {}), ...(Array.isArray(a.resumos) ? { resumos: a.resumos.filter(r => r && typeof r.texto === 'string').slice(0, 40).map(r => ({ de: +r.de || 0, ate: +r.ate || 0, texto: txt(r.texto).slice(0, 4000) })) } : {}) })) } : {}),
       ...(m.lugar && normalizarPainelLugar(m.lugar) ? { lugar: normalizarPainelLugar(m.lugar) } : {}),
+      ...(m.grafico && typeof m.grafico.expr === 'string' && GRAFICO.analisar(m.grafico.expr) ? { grafico: { expr: m.grafico.expr.slice(0, 160), de: isFinite(+m.grafico.de) ? +m.grafico.de : -10, ate: isFinite(+m.grafico.ate) ? +m.grafico.ate : 10 } } : {}),
       ...(Array.isArray(m.sugestoes) ? { sugestoes: m.sugestoes.filter(x => typeof x === 'string').slice(0, 3).map(x => x.slice(0, 90)) } : {}),
       ...(Array.isArray(m.conhecimentos) ? { conhecimentos: m.conhecimentos.filter(x => typeof x === 'string').slice(0, 3).map(x => x.slice(0, 60)) } : {}),
       ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 15).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
@@ -28,6 +30,8 @@ function validar(lista) {
       ...(m.cartoes && normalizarModo('flashcards', { cartoes: m.cartoes }) ? { cartoes: normalizarModo('flashcards', { cartoes: m.cartoes }) } : {}),
       ...(m.quiz && normalizarModo('quiz', m.quiz) ? { quiz: normalizarModo('quiz', m.quiz) } : {}),
       ...(m.redacao && normalizarModo('redacao', m.redacao) ? { redacao: normalizarModo('redacao', m.redacao) } : {}),
+      ...(m.mapa && normalizarModo('mapa', m.mapa) ? { mapa: normalizarModo('mapa', m.mapa) } : {}),
+      ...(m.plano && normalizarModo('plano', m.plano) ? { plano: normalizarModo('plano', m.plano) } : {}),
     })),
   }));
 }
@@ -63,9 +67,21 @@ function grupoData(ts) {
   const dias = Math.floor((hoje - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
   return dias <= 0 ? 'Hoje' : dias === 1 ? 'Ontem' : dias < 7 ? 'Últimos 7 dias' : dias < 30 ? 'Últimos 30 dias' : 'Mais antigas';
 }
+/* busca nas conversas (Ctrl+K): sem ligar para acentos e maiúsculas; embaixo do título aparece o trecho achado e,
+   ao abrir, a conversa rola até a mensagem */
+// (semAcento está em 12-lugar.js)
+function achadoEm(c, q) {
+  if (semAcento(c.titulo).includes(q)) return { trecho: '' };
+  for (let i = 0; i < c.msgs.length; i++) {
+    const t = c.msgs[i].texto || '', k = semAcento(t).indexOf(q);
+    if (k >= 0) { const a = Math.max(0, k - 30); return { i, trecho: (a ? '…' : '') + t.slice(a, k + q.length + 50).replace(/\s+/g, ' ').trim() + '…' }; }
+  }
+  return null;
+}
 function desenharLista() {
-  const l = $('#lista'), q = $('#busca').value.trim().toLowerCase();
-  const lista = !q ? conversas : conversas.filter(c => c.titulo.toLowerCase().includes(q) || c.msgs.some(m => m.texto.toLowerCase().includes(q)));
+  const l = $('#lista'), q = semAcento($('#busca').value.trim());
+  const achados = new Map();
+  const lista = !q ? conversas : conversas.filter(c => { const a = achadoEm(c, q); if (a) achados.set(c.id, a); return !!a; });
   if (!lista.length) { l.innerHTML = `<div class="vazio">${q ? 'Nada encontrado.' : 'Nenhuma conversa ainda.'}</div>`; return; }
   // ordem: fixadas, depois as pastas (em ordem alfabética), depois as outras por data
   const fixadas = lista.filter(c => c.fixada), emPasta = lista.filter(c => !c.fixada && c.pasta).sort((a, b) => a.pasta.localeCompare(b.pasta, 'pt') || b.atualizada - a.atualizada), soltas = lista.filter(c => !c.fixada && !c.pasta);
@@ -73,7 +89,8 @@ function desenharLista() {
   for (const c of [...fixadas, ...emPasta, ...soltas]) {
     const gr = c.fixada ? 'Fixadas' : c.pasta ? '📁 ' + c.pasta : grupoData(c.atualizada);
     if (gr !== g) { g = gr; html += `<div class="grupo">${esc(gr)}</div>`; }
-    html += `<div class="item${atual && c.id === atual.id ? ' atual' : ''}" data-id="${esc(c.id)}" role="button" tabindex="0" title="${esc(c.titulo)}"><span>${esc(c.titulo)}</span><button class="mais" data-menu="${esc(c.id)}" aria-label="Opções da conversa">${ICO.mais}</button></div>`;
+    const ach = achados.get(c.id);
+    html += `<div class="item${atual && c.id === atual.id ? ' atual' : ''}${ach && ach.trecho ? ' com-trecho' : ''}" data-id="${esc(c.id)}"${ach && ach.i != null ? ` data-msg="${ach.i}"` : ''} role="button" tabindex="0" title="${esc(c.titulo)}"><span>${esc(c.titulo)}${ach && ach.trecho ? `<small class="trecho">${esc(ach.trecho)}</small>` : ''}</span><button class="mais" data-menu="${esc(c.id)}" aria-label="Opções da conversa">${ICO.mais}</button></div>`;
   }
   l.innerHTML = html;
   l.querySelectorAll('.item').forEach(it => {
@@ -82,10 +99,21 @@ function desenharLista() {
       const b = e.target.closest('[data-menu]');
       if (b) { e.stopPropagation(); menuConversa(b, b.dataset.menu); return; }
       abrir(it.dataset.id); if (estreita()) fecharLateral();
+      if (it.dataset.msg != null) irParaMensagem(+it.dataset.msg);
     };
     it.onkeydown = e => { if (e.key === 'Enter' && e.target === it) it.click(); };
     pressionarLongo(it, () => menuConversa(it.querySelector('[data-menu]'), it.dataset.id));
   });
+}
+// leva até a mensagem achada pela busca e a destaca por um instante
+function irParaMensagem(i) {
+  const m = atual && atual.msgs[i]; if (!m) return;
+  setTimeout(() => {
+    const el = [...document.querySelectorAll('.msg')].find(x => x._msg === m) || document.querySelectorAll('#conversa .msg')[i];
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('achada'); setTimeout(() => el.classList.remove('achada'), 1800);
+  }, 120);
 }
 // toque longo (celular): abre o menu; um toque normal continua abrindo a conversa
 function pressionarLongo(el, fn) {
@@ -220,7 +248,7 @@ function abrir(id) {
   $('#conversa').appendChild(col); atualizarMedidor();
   if (trocou) { $('#entrada').value = c.rascunho || ''; ajustar(); }
   rolar(true); desenharLista();
-  if (trocou) sugerirModeloDaConversa(c);
+  if (trocou) { sugerirModeloDaConversa(c); if (online && !geracao) aquecerDepois(); }   // o motor já lê esta conversa
 }
 // a conversa aberta fica marcada no próprio arquivo de conversas (que a página fria e a ligada leem igual): ao sair e
 // voltar ao app, ou quando a IA liga e a página recarrega, ela reabre no mesmo lugar em vez de uma conversa nova
@@ -346,18 +374,19 @@ const htmlStatusIa = (pensou, conhecimentos) => pensou || (conhecimentos && conh
   ? `<div class="ia-status">${pensou ? htmlLinhaPensa(pensou) : ''}${conhecimentos && conhecimentos.length ? htmlUsouConh(conhecimentos) : ''}</div>` : '';
 const htmlUsouConh = ks => `<div class="usou-conh">${ICO.conhecimento}<span>Conhecimento: ${ks.map(esc).join(', ')}</span></div>`;
 function addIa(m, ultima, trocar) {
-  const d = document.createElement('div'); d.className = 'msg ia' + (trocar ? ' sem-entrada' : '');
+  const d = document.createElement('div'); d.className = 'msg ia' + (trocar ? ' sem-entrada' : ''); d._msg = m;
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
-  const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
+  const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : m.mapa ? htmlMapa(m) : m.plano ? htmlPlano(m) : '';
   const pensou = m.pensou ? (m.tempo ? 'Pensou por ' + tempoBonito(m.tempo) : 'Raciocínio') : '';
   d.innerHTML = htmlStatusIa(pensou, m.conhecimentos) +
     (m.lugar ? htmlPainelLugar(m.lugar) : '') +
+    (m.grafico ? htmlGrafico(m.grafico) : '') +
     (m.passos ? htmlPassos(m.passos.titulo, m.passos.lista) : '') +
     `<div class="txt${widget ? ' widget' : ''}">${widget ? widget : comCitacoes(md(m.texto || ''), m.fontes)}</div>` +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : m.cortada && ultima ? '<div class="nota">A resposta ficou longa e parou aqui.</div>' : '') +
     (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '');
   if (m.pensou) ligarLinhaPensa(d, m.pensou, pensou);
-  ligarLinks(d); if (m.lugar) ligarPainelLugar(d);
+  ligarLinks(d); if (m.lugar) ligarPainelLugar(d); if (m.grafico) ligarGrafico(d);
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
   if (ultima && m.sugestoes && m.sugestoes.length) anexarSugestoes(d, m);

@@ -164,12 +164,19 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         #else
         let gpu = true
         #endif
-        let contexto = Int32(ctx)
+        let contexto = Int32(ctx), kvQ8 = argsCelular.contains("q8_0") && argsCelular.contains("-fa")
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             motor.fila.async { [motor] in
-                do { try motor.carregar(caminho: arq.path, gpu: gpu, contexto: contexto); c.resume() } catch { c.resume(throwing: error) }
+                do { try motor.carregar(caminho: arq.path, gpu: gpu, contexto: contexto, kvQ8: kvQ8); c.resume() } catch { c.resume(throwing: error) }
             }
         }
+    }
+    // os mesmos argumentos do motor dos outros celulares (motor.json): daqui sai o cache KV em q8 com flash attention
+    private var argsCelular: [String] {
+        guard let u = Bundle.main.url(forResource: "motor", withExtension: "json", subdirectory: "interface"), let d = try? Data(contentsOf: u),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any], let cel = j["celular"] as? [String: Any],
+              let a = cel["args"] as? [String] else { return [] }
+        return a
     }
     // contexto pelo degrau de RAM do iPhone, de interface/motor.json (gerado de src/motor.json, igual nos 5 sistemas)
     private var ctx: Int {

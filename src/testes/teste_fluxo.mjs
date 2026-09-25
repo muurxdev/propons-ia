@@ -12,9 +12,9 @@ await cdp('Page.navigate', { url: 'file:///' + path.resolve('payload/interface/i
 const r = {};
 // IA de mentira: responde em ~1,2 s; o pedido de sugestões devolve JSON
 await js(`PLATAFORMA.saude = async () => true; online = true; window.__pedidos = []; PLATAFORMA.gerar = async (msgs, op, aoToken, sinal) => {
-  window.__pedidos.push({ esquema: !!op.esquema, ultima: msgs[msgs.length - 1].content.slice(0, 60), sistema: msgs[0].content.includes('CONHECIMENTO') });
+  window.__pedidos.push({ esquema: !!op.esquema, ultima: msgs[msgs.length - 1].content.slice(0, 60), sistema: msgs[msgs.length - 1].content.includes('CONHECIMENTO'), msgs: JSON.parse(JSON.stringify(msgs)) });
   if (op.esquema) { await new Promise(r => setTimeout(r, 200)); aoToken(JSON.stringify({ sugestoes: ['Me dá um exemplo', 'E na prática?', 'Faz um quiz'] })); return { fim: 'stop' }; }
-  const partes = ['Resposta ', 'para: ', msgs[msgs.length - 1].content.slice(0, 30), '.'];
+  const partes = ['Resposta ', 'para: ', msgs[msgs.length - 1].content.replace(/^<contexto>[\\s\\S]*?<\\/contexto>\\s*/, '').slice(0, 30), '.'];   // o bloco de contexto do app não conta
   for (const p of partes) { if (sinal && sinal.aborted) throw Object.assign(new Error('x'), { name: 'AbortError' }); await new Promise(r => setTimeout(r, 300)); aoToken(p); }
   return { fim: 'stop' };
 }; nova(); 1`);
@@ -78,6 +78,54 @@ for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
 await espera(400);
 r.estudar = await js(`JSON.stringify({ modo: atual.msgs.filter(m => m.role === 'user').pop().modo, esquema: window.__sis.some(x => x.esquema) })`);
 await js(`conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// o começo do pedido fica igual de uma resposta para a outra (o motor reaproveita o que já leu): texto de sistema
+// igual e a pergunta anterior mandada igual, com a instrução curta dela (esforço) guardada junto
+await js(`nova(); definirEsforco(idModeloAtual(), 'baixo'); window.__pedidos = []; $('#entrada').value = 'Quanto é dois mais dois?'; ajustar(); $('#enviar').click(); 1`);
+for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
+await espera(900);
+await js(`window.__pedidos = window.__pedidos.filter(p => !p.esquema); $('#entrada').value = 'E três mais três?'; ajustar(); $('#enviar').click(); 1`);
+for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
+await espera(600);
+r.prefixo = await js(`(() => { const p = window.__pedidos.filter(x => !x.esquema); const a = p[0].msgs, b = p[p.length - 1].msgs; return JSON.stringify({ n: p.length, sistemaIgual: a[0].content === b[0].content, perguntaIgual: a[1].content === b[1].content, temContexto: /^<contexto>/.test(b[b.length - 1].content), curtaGuardada: /direta e curta/.test(a[1].content) }); })()`);
+await js(`definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// conversa por voz: a transcrição é enviada sozinha e, com a resposta pronta, a Própons volta a escutar
+r.voz = await js(`(async () => {
+  const esperar = ms => new Promise(r => setTimeout(r, ms));
+  nova(); const ig = iniciarGravacao, tf = PLATAFORMA.temFala; let ouviu = 0;
+  iniciarGravacao = () => { ouviu++; }; PLATAFORMA.temFala = false; modoVoz = true; desenharChips();
+  const chip = !!document.querySelector('#chips [data-rm-voz]');
+  $('#entrada').value = 'Pergunta falada'; vozTranscreveu();
+  for (let i = 0; i < 40 && (!atual || atual.msgs.length < 2 || geracao); i++) await esperar(200);
+  await esperar(900);
+  const r = { chip, enviada: atual && atual.msgs[0] && atual.msgs[0].texto, escutouDeNovo: ouviu };
+  modoVoz = false; iniciarGravacao = ig; PLATAFORMA.temFala = tf; desenharChips();
+  conversas = conversas.filter(c => c !== atual); nova();
+  return JSON.stringify(r);
+})()`);
+// cadeado: cria o PIN (duas vezes), trava, PIN errado treme, o certo abre
+r.cadeado = await js(`(async () => {
+  const esperar = ms => new Promise(r => setTimeout(r, ms));
+  const sha = sha256('abc') === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+  pref('cadeado', ''); localStorage.removeItem('cadeado');
+  const toca = k => document.querySelector('.cadeado [data-k="' + k + '"]').click();
+  let criado = null; telaPin('criar', p => { criado = p; if (p) { const sal = 'x'; pref('cadeado', JSON.stringify({ sal, hash: sha256(sal + ':' + p), quando: 'abrir' })); } });
+  '2468'.split('').forEach(toca); document.querySelector('.cd-ok').click(); '2468'.split('').forEach(toca); document.querySelector('.cd-ok').click();
+  await esperar(300);
+  travarSePreciso(false); await esperar(100);
+  const travou = !!document.querySelector('.cadeado');
+  '1111'.split('').forEach(toca); document.querySelector('.cd-ok').click(); await esperar(50);
+  const errado = document.querySelector('.cd-aviso').textContent;
+  '2468'.split('').forEach(toca); await esperar(300);
+  const abriu = !document.querySelector('.cadeado:not(.saindo)');
+  pref('cadeado', ''); localStorage.removeItem('cadeado'); pref('cadeadoLivreAte', '');
+  return JSON.stringify({ sha, criado, travou, errado, abriu });
+})()`);
+// gráfico de função: o cartão (desenhado pelo app) entra antes do texto e a IA recebe as raízes calculadas
+await js(`nova(); window.__pedidos = []; $('#entrada').value = 'Faça o gráfico de f(x) = x^2 - 4'; ajustar(); $('#enviar').click(); 1`);
+for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
+await espera(500);
+r.grafico = await js(`(() => { const d = [...document.querySelectorAll('.msg.ia')].pop(), p = window.__pedidos.filter(x => !x.esquema).pop(); const u = p.msgs[p.msgs.length - 1].content; return JSON.stringify({ ordem: [...d.children].map(x => x.className.split(' ')[0]), curva: !!d.querySelector('.gf-curva'), raizes: /x ≈ -2, x ≈ 2/.test(u), guardado: !!atual.msgs[atual.msgs.length - 1].grafico }); })()`);
+await js(`conversas = conversas.filter(c => c !== atual); nova(); 1`);
 // ordem da resposta (auditoria 1.26): "Pensou por" entra no topo assim que o texto começa e fica lá; no fim a versão
 // pronta entra no lugar da que foi escrita (sem animar de novo); "Continuar" não apaga o raciocínio
 await js(`nova(); definirEsforco(idModeloAtual(), 'alto'); window.__g0 = PLATAFORMA.gerar; PLATAFORMA.gerar = async (msgs, op, aoToken, sinal) => {
@@ -97,6 +145,10 @@ await espera(400);
 r.continuou = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1], d = [...document.querySelectorAll('.msg.ia')].pop(); return JSON.stringify({ pensou: !!m.pensou, tempo: m.tempo, linha: !!d.querySelector('.ia-status .pensa-linha'), texto: m.texto.slice(-20), giroSolto: !!document.querySelector('.giro') }); })()`);
 await js(`PLATAFORMA.gerar = window.__g0; definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
 const J = x => JSON.parse(x);
+ok('conversa por voz: envia a fala sozinha e volta a escutar depois da resposta', (o => o.chip && o.enviada === 'Pergunta falada' && o.escutouDeNovo >= 1)(J(r.voz)), r.voz);
+ok('cadeado: cria o PIN confirmando, trava, recusa o errado e abre com o certo', (o => o.sha && o.criado === '2468' && o.travou && /errado/.test(o.errado) && o.abriu)(J(r.cadeado)), r.cadeado);
+ok('gráfico de função: cartão antes do texto, curva desenhada e raízes calculadas no pedido', (o => o.ordem.indexOf('grafico-card') >= 0 && o.ordem.indexOf('grafico-card') < o.ordem.indexOf('txt') && o.curva && o.raizes && o.guardado)(J(r.grafico)), r.grafico);
+ok('o começo do pedido se repete igual na pergunta seguinte (sistema fixo, instrução curta guardada na pergunta)', (o => o.n >= 2 && o.sistemaIgual && o.perguntaIgual && o.temContexto && o.curtaGuardada)(J(r.prefixo)), r.prefixo);
 ok('respondendo: "Pensou por" já no topo, o texto embaixo e o giro logo depois do texto', J(r.durante)[0] === 'ia-status' && J(r.durante).indexOf('txt') === 1 && J(r.durante)[2] === 'giro', r.durante);
 ok('no fim: status, texto, nota, ações — a versão pronta entra no lugar (sem animar de novo)', (o => o.ordem[0] === 'ia-status' && o.ordem[1] === 'txt' && o.ordem.indexOf('nota') > 1 && o.ordem.indexOf('acoes') > o.ordem.indexOf('nota') && o.semEntrada && o.velhoSaiu && o.pensou)(J(r.depois)), r.depois);
 ok('Continuar mantém o raciocínio e o tempo (e o giro some)', (o => o.pensou && o.tempo > 0 && o.linha && /continua aqui\.$/.test(o.texto) && !o.giroSolto)(J(r.continuou)), r.continuou);

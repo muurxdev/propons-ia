@@ -8,7 +8,8 @@ func confere(_ nome: String, _ ok: Bool, _ det: String = "") { print(ok ? "  ✔
 
 let motor = Motor()
 let t0 = Date()
-do { try motor.carregar(caminho: args[1], gpu: false, contexto: 4096) } catch { print("falhou ao carregar:", error); exit(1) }
+// como no app: cache da conversa em q8 com flash attention (motor.json)
+do { try motor.carregar(caminho: args[1], gpu: false, contexto: 4096, kvQ8: true) } catch { print("falhou ao carregar:", error); exit(1) }
 confere("modelo carregado", motor.carregado, String(format: "%.1f s", Date().timeIntervalSince(t0)))
 
 let fmt = motor.formatar([("system", "Seja breve."), ("user", "oi")], adicionarAssistente: true)
@@ -29,6 +30,20 @@ do {
                         maxTokens: 40, temperatura: 0, continuar: true) { cont += $0 }
     confere("continuação segue do ponto certo", !cont.contains("1. Mercúrio") && cont.lowercased().contains("marte"), cont)
 } catch { confere("continuação", false, "\(error)") }
+
+// a segunda pergunta da mesma conversa não relê tudo: o estado do fim da primeira volta e só o que é novo é lido
+do {
+    let sis = ("system", "Você é uma assistente de estudos. Responda sempre em português, em uma frase curta. " + String(repeating: "Seja clara e correta. ", count: 30))
+    var a1 = ""
+    let r1 = try motor.gerar([sis, ("user", "Qual é a capital da França?")], maxTokens: 40, temperatura: 0, continuar: false) { a1 += $0 }
+    var a2 = ""
+    let r2 = try motor.gerar([sis, ("user", "Qual é a capital da França?"), ("assistant", a1), ("user", "E a da Itália?")], maxTokens: 40, temperatura: 0, continuar: false) { a2 += $0 }
+    confere("segunda pergunta reaproveita o que já foi lido", r2.lidos < r2.total / 2 && r1.lidos == r1.total, "1ª: \(r1.lidos)/\(r1.total) · 2ª: \(r2.lidos)/\(r2.total)")
+    confere("e responde certo depois de reaproveitar", a2.lowercased().contains("roma"), a2)
+    var a3 = ""
+    let r3 = try motor.gerar([("user", "Diga só: olá")], maxTokens: 10, temperatura: 0, continuar: false) { a3 += $0 }
+    confere("outra conversa lê tudo de novo", r3.lidos == r3.total, "\(r3.lidos)/\(r3.total)")
+} catch { confere("reaproveitamento", false, "\(error)") }
 
 // um token pode trazer só metade de um caractere acentuado: "a" + primeiro byte de "ã" (0xC3)
 var utf: [UInt8] = [0x61, 0xC3]

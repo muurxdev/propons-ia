@@ -1,3 +1,27 @@
+## Novidades da 1.27.0
+
+Segunda parte da auditoria #2: velocidade do motor e os primeiros módulos que a comunidade mais pede.
+
+- **Respostas começam mais rápido numa conversa longa:**
+  - O texto de sistema agora é sempre o mesmo. O que muda de uma pergunta para outra (pesquisa, clima, data, Conhecimento, esforço) vai junto da própria pergunta. Assim o motor reaproveita o que já leu da conversa, em vez de reler tudo a cada mensagem.
+  - Ao abrir uma conversa, a IA já vai lendo o começo dela.
+  - O motor guarda mais pontos da conversa.
+  - A contagem de tokens roda em paralelo.
+  - O texto "sobre o app" só entra quando você pergunta do app.
+  - No iPhone, a IA reaproveita o que já leu e usa metade da memória para a conversa.
+- **Contas conferidas pelo app:** contas simples na resposta ("12 × 7 = 86") são refeitas com números de verdade. Uma conta errada vira a certa, com um aviso no fim.
+- **Gráfico de função interativo:** "faça o gráfico de f(x) = x² − 4" mostra o gráfico desenhado pelo app. Ele traz as raízes, onde a curva corta o eixo y, o máximo e o mínimo. Os números da função viram controles deslizantes, e tocar na curva mostra o ponto. A IA explica usando os números calculados.
+- **Novos modos de estudo:**
+  - **Mapa mental:** o tema no centro e as ideias em ramos coloridos. Tocar numa ideia pede a explicação dela.
+  - **Plano de estudos:** um cronograma por dia, com tarefas para marcar e barra de progresso.
+  - "Estudar isto" também faz o mapa mental de uma resposta.
+- **Conversa por voz, mãos livres** ("+" → Conversa por voz): você fala. Quando para de falar, a Própons transcreve no aparelho, envia, lê a resposta em voz alta e volta a escutar. "Falar agora" interrompe a leitura. Tudo offline.
+- **Cadeado com PIN** (Ajustes → Privacidade): pede um PIN para abrir o app, e também ao voltar, se quiser. Se esquecer o PIN, dá para tirar o cadeado apagando as conversas.
+- **"Explicar com Própons" no Android:** compartilhe uma foto do caderno ou um texto de outro app e ele chega na caixa, pronto para perguntar.
+- **Conhecimentos prontos por matéria:** Física, Química, Biologia, História, Geografia, Português, Inglês e Filosofia/Sociologia, no jeito que cai no ENEM ("+" → Conhecimento → Começar de um modelo).
+- **Busca nas conversas:** ignora acentos, mostra o trecho encontrado e leva até a mensagem.
+- **Nada de cortar calado:** quando o começo de uma conversa longa sai da memória da IA, o app avisa e oferece compactar.
+
 ## Novidades da 1.26.0
 
 Primeira parte da segunda auditoria completa (menus, ordem das respostas e limpeza). O relatório e o plano das próximas versões estão em `docs/auditoria-2026-09-2.md`.

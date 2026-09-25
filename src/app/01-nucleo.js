@@ -43,7 +43,7 @@ let conversas = [], atual = null, SYSTEM = '', online = false, jaFicouOnline = f
    no texto de sistema atrasa a primeira resposta de toda conversa nova. */
 let SOBRE_APP = '';
 const MARCA_SOBRE = 'Sobre você (a Própons IA)';
-const RE_SOBRE_APP = new RegExp("voc[êe]|pr[óo]pons|aplicativo|esse app|este app|o app|onde fica|onde est[áa]|onde eu (?:acho|vejo|mudo|ligo)|como (?:eu )?(?:fa[çc]o|mudo|troco|ligo|desligo|abro|uso|acesso|apago|salvo|baixo|instalo)|ajustes|configura|esfor[çc]o|biblioteca|[áa]rea de c[óo]digo|menu lateral|permiss|c[âa]mera|microfone|offline|sem internet|atualiza[çr]|vers[ãa]o|quem (?:te|o|a) (?:criou|fez)|quem [ée] voc[êe]|o que voc[êe]|melhor(?:ia|ar|as|es) (?:no|do|desse|deste|para o|pro) (?:app|aplicativo|sistema|programa)|melhorar (?:esse|este|o) (?:app|aplicativo|sistema|programa)|sugest[õo]es (?:de|para|pro|no) (?:app|aplicativo|sistema|melhoria)|d[áa] pra melhorar|poderia (?:ter|ser|fazer)|c[óo]digo[- ]fonte|github|arquitetura (?:do|desse|deste)|como (?:isso|ele|ela|o app|o aplicativo|esse sistema) funciona", 'i');
+const RE_SOBRE_APP = new RegExp("pr[óo]pons|aplicativo|esse app|este app|o app|onde fica|onde est[áa]|onde eu (?:acho|vejo|mudo|ligo)|como (?:eu )?(?:fa[çc]o|mudo|troco|ligo|desligo|abro|uso|acesso|apago|salvo|baixo|instalo)|ajustes|configura|esfor[çc]o|biblioteca|[áa]rea de c[óo]digo|menu lateral|permiss|c[âa]mera|microfone|offline|sem internet|atualiza[çr]|vers[ãa]o|quem (?:te|o|a) (?:criou|fez)|quem [ée] voc[êe]|o que voc[êe]|melhor(?:ia|ar|as|es) (?:no|do|desse|deste|para o|pro) (?:app|aplicativo|sistema|programa)|melhorar (?:esse|este|o) (?:app|aplicativo|sistema|programa)|sugest[õo]es (?:de|para|pro|no) (?:app|aplicativo|sistema|melhoria)|d[áa] pra melhorar|poderia (?:ter|ser|fazer)|c[óo]digo[- ]fonte|github|arquitetura (?:do|desse|deste)|como (?:isso|ele|ela|o app|o aplicativo|esse sistema) funciona", 'i');
 function separarSistema() {
   const i = SYSTEM.indexOf(MARCA_SOBRE);
   if (i > 0) { SOBRE_APP = String.fromCharCode(10) + String.fromCharCode(10) + SYSTEM.slice(i).trim(); SYSTEM = SYSTEM.slice(0, i).trim(); }
@@ -55,7 +55,7 @@ let editando = false, salvarBloqueado = false, nCtx = 8192;
 const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const estimar = s => Math.ceil((s || '').length / 3.2);     // tokens aproximados (português/código)
 const TEXTO_OK = /\.(txt|md|markdown|py|pyw|js|mjs|cjs|ts|tsx|jsx|java|kt|kts|c|h|cpp|cc|cxx|hpp|cs|go|rs|php|rb|swift|sql|html?|css|scss|json|csv|tsv|xml|ya?ml|toml|ini|cfg|conf|sh|bash|zsh|ps1|bat|lua|r|m|dart|vue|svelte|tex|log|gitignore|env)$/i;
-const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3, MAX_FOTOS = 3, TOKENS_FOTO = 420;
+const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3, MAX_FOTOS = 3, TOKENS_FOTO = CELULAR ? 320 : 420;   // cada foto: o teto de tokens de imagem do motor.json (300 no celular, 400 no PC) + as marcas
 const eFoto = f => (f.type && /^image\//.test(f.type)) || /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(f.name || '');
 
 /* ---------------- utilidades ---------------- */

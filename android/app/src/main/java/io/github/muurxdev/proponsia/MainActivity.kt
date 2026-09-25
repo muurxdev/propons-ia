@@ -109,6 +109,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ativa = java.lang.ref.WeakReference(this); encerrado = false
+        receberCompartilhado(intent)
         web = WebView(this)
         val raiz = FrameLayout(this).apply { addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)) }
         setContentView(raiz)
@@ -533,6 +534,7 @@ class MainActivity : Activity() {
                     try {
                         val dados: Any = when (acao) {
                             "carregar" -> carregarConversas()
+                            "compartilhado" -> { val c = compartilhado; compartilhado = null; c ?: JSONObject.NULL }
                             "salvar" -> { salvarConversas(args.optString("dados", "[]")); true }
                             "sistema" -> sistema()
                             "modelo" -> {
@@ -765,9 +767,31 @@ class MainActivity : Activity() {
         return c.inputStream.bufferedReader().use { it.readText() }
     }
 
+    /* "Explicar com Própons": o que veio de outro app (texto ou foto) espera aqui até a página pedir ("compartilhado").
+       A foto vai como data: URL (até 12 MB); a página reduz e anexa como qualquer foto. */
+    @Volatile private var compartilhado: JSONObject? = null
+    private fun receberCompartilhado(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        val o = JSONObject()
+        intent.getStringExtra(Intent.EXTRA_TEXT)?.let { if (it.isNotBlank()) o.put("texto", it.take(20000)) }
+        val uri: Uri? = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        if (uri != null && (intent.type ?: "").startsWith("image/")) thread {
+            try {
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes != null && bytes.size < 12 * 1024 * 1024) {
+                    o.put("imagem", "data:" + (contentResolver.getType(uri) ?: "image/jpeg") + ";base64," + Base64.encodeToString(bytes, Base64.NO_WRAP))
+                    o.put("nome", "compartilhada.jpg")
+                }
+            } catch (_: Exception) {}
+            if (o.length() > 0) { compartilhado = o; evento("compartilhado", JSONObject()) }
+        } else if (o.length() > 0) { compartilhado = o; evento("compartilhado", JSONObject()) }
+    }
+
     // resposta do instalador: pede a confirmação do usuário ou avisa se deu errado
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        receberCompartilhado(intent)
         if (intent.action != ACAO_INSTALACAO) return
         when (val st = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -999)) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {

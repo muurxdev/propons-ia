@@ -110,6 +110,28 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     return { fim, timings };
   }
 
+  /* aquecer: o motor lê de antemão exatamente o começo que a próxima pergunta vai ter (texto de sistema + conversa
+     aberta), sem responder nada. O corte é no fim da última mensagem pronta: a próxima pergunta começa ali, então o
+     ponto salvo pelo motor serve de verdade (antes o aquecimento terminava num "oi" que a pergunta real não tinha, e o
+     modelo híbrido relia tudo). O começo é achado formatando a conversa duas vezes com perguntas diferentes. */
+  async function aquecerHTTP(mensagens, sinal) {
+    const soTexto = mensagens.map(m => Array.isArray(m.content) ? { role: m.role, content: m.content.filter(c => c.type === 'text').map(c => c.text).join('\n') } : m);
+    const formatar = async u => {
+      const r = await fetch(base + '/apply-template', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify({ messages: soTexto.concat({ role: 'user', content: u }) }) });
+      if (!r.ok) throw await erroHTTP(r);
+      return (await r.json()).prompt || '';
+    };
+    const [a, b] = await Promise.all([formatar('a1'), formatar('b2')]);
+    let n = 0; while (n < a.length && a[n] === b[n]) n++;
+    const corte = a.lastIndexOf('<|', n - 1);   // antes da marca que abre a pergunta (tokens especiais nunca se juntam ao texto)
+    if (corte <= 0) return false;
+    const r = await fetch(base + '/completion', { method: 'POST', signal: sinal, headers: cab(),
+      body: JSON.stringify({ prompt: a.slice(0, corte), n_predict: 1, stream: true, cache_prompt: true, temperature: 0 }) });
+    if (!r.ok) throw await erroHTTP(r);
+    await lerSSE(r, () => {});
+    return true;
+  }
+
   /* amostragem: semente nova a cada pedido (a mesma pergunta não cai sempre no mesmo texto) e os valores
      recomendados para o Qwen3.5; em texto livre, DRY (não repetir trechos) e XTC (mais variedade). Em código e contas
      (op.exato) só temperatura baixa e semente. */
@@ -165,6 +187,8 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     tipo, chave,
     ao(nome, f) { (ouvintes[nome] = ouvintes[nome] || []).push(f); },
     gerar(mensagens, op, aoToken, sinal) { return tipo === 'ios' ? gerarNativo(mensagens, op, aoToken, sinal) : gerarHTTP(mensagens, op, aoToken, sinal); },
+    // sem o /apply-template (iOS, motor embutido) não há como aquecer só o começo: não faz nada
+    aquecer(mensagens, sinal) { return tipo === 'ios' ? Promise.resolve(false) : aquecerHTTP(mensagens, sinal); },
     async saude() {
       if (tipo === 'ios') { try { const s = await pedir('estado', {}, 4000); return !!(s && s.pronto); } catch (e) { return false; } }
       try { const r = await fetch(base + '/health', { cache: 'no-store' }); return r.ok; } catch (e) { return false; }
@@ -289,6 +313,8 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     usarVoz(id) { return pedir('usarVoz', { id }, 5000); },
     apagarVoz(id) { return pedir('apagarVoz', { id }, 15000); },
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
+    // o que chegou de outro app pelo "compartilhar" do sistema (Android): { texto?, imagem? (data: URL), nome? } ou null
+    pegarCompartilhado() { return tipo === 'android' ? pedir('compartilhado', {}, 10000) : Promise.resolve(null); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },
     // pesquisa na internet: o app baixa a página por nós (a janela web não lê sites de fora)
     temBusca: tipo !== 'web',

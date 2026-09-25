@@ -15,7 +15,7 @@ function limparSugestoes(t) {
     .filter(x => x.length >= 6 && x.length <= 90 && !vistas.has(x.toLowerCase()) && vistas.add(x.toLowerCase())).slice(0, 3);
 }
 async function sugerirSeguintes(conv, msg) {
-  if (!querSugestoes() || !online || !msg || !msg.texto || msg.interno || msg.erro || msg.cartoes || msg.quiz || msg.redacao) return;
+  if (!querSugestoes() || !online || !msg || !msg.texto || msg.interno || msg.erro || msg.cartoes || msg.quiz || msg.redacao || msg.mapa || msg.plano) return;
   pararSugestoes();
   const ctrl = new AbortController(); sugCtrl = ctrl;
   // o lugar delas já fica reservado (três pílulas apagadas): quando chegam, nada embaixo da resposta pula

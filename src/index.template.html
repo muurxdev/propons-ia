@@ -72,6 +72,9 @@ textarea:focus-visible,input:focus-visible{outline:none}
 .item{position:relative;display:flex;align-items:center;gap:4px;width:100%;padding:7px 6px 7px 10px;border-radius:var(--r1);font-size:var(--t-md);color:var(--ink);text-align:left;transition:background var(--t1);cursor:pointer}
 .item:hover{background:var(--hover)}
 .item.atual{background:var(--hover);font-weight:500}
+.item .trecho{display:block;font-size:var(--t-xs);font-weight:400;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.msg.achada{animation:achada 1.8s ease}
+@keyframes achada{0%,40%{background:var(--accent-soft);border-radius:var(--r2)}}
 .item span{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;transition:padding-right var(--t1)}
 .item:hover span,.item.atual span,.item:has(.mais[aria-expanded="true"]) span{padding-right:28px}
 .item input{flex:1;min-width:0;border:1px solid var(--accent);border-radius:8px;background:var(--surface);padding:2px 6px;font-size:var(--t-md);outline:0}
@@ -145,6 +148,68 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ia-status .usou-conh{margin:0}
 .msg.sem-entrada,.msg.sem-entrada .lugar-card{animation:none}
 .nota.aviso-lugar{margin:0 0 10px}
+/* gráfico de função: cartão com o desenho, os pontos notáveis e os controles dos números */
+.grafico-card{margin:2px 0 12px;padding:12px 14px 10px;border:1px solid var(--line);border-radius:var(--r3);background:var(--surface);max-width:560px}
+.gf-topo{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.gf-ico{width:28px;height:28px;border-radius:var(--r1);display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
+.gf-ico svg{width:16px;height:16px}
+.gf-f{flex:1;min-width:0;font:600 var(--t-md)/1.3 var(--sans);overflow-wrap:anywhere}
+.gf-volta{width:30px;height:30px}
+.gf-svg{display:block;width:100%;height:auto;touch-action:pan-y;cursor:crosshair;user-select:none}
+.gf-grade{stroke:var(--line);stroke-width:.6}
+.gf-eixo{stroke:var(--muted);stroke-width:1}
+.gf-svg text{stroke:none}
+.gf-num{fill:var(--faint);font:9px var(--sans)}
+.gf-curva{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.gf-ponto{fill:var(--bg);stroke:var(--accent);stroke-width:1.8} .gf-ponto.ext{stroke:var(--ok)} .gf-ponto.y0{stroke:var(--muted)}
+.gf-trilha line{stroke:var(--faint);stroke-dasharray:3 3} .gf-trilha circle{fill:var(--accent)} .gf-svg .gf-trilha text{fill:var(--ink);font:600 10px var(--sans);paint-order:stroke;stroke:var(--surface);stroke-width:3px}
+.gf-info{margin-top:6px;font-size:var(--t-sm);color:var(--muted);line-height:1.45}
+.gf-ctls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 16px;margin-top:8px}
+.gf-ctl{display:flex;align-items:center;gap:10px;font-size:var(--t-sm)}
+.gf-ctl span{font:600 var(--t-sm) var(--mono);color:var(--accent);width:12px}
+.gf-ctl input{flex:1;accent-color:var(--accent);min-width:0}
+.gf-ctl output{font:var(--t-sm) var(--mono);color:var(--ink);min-width:42px;text-align:right}
+.chip .chip-acao{font-size:var(--t-xs);font-weight:600;color:var(--accent);padding:2px 8px;border-radius:var(--r4);background:var(--accent-soft)}
+/* cadeado: a tela do PIN cobre tudo */
+.cadeado{position:fixed;inset:0;z-index:200;background:var(--bg);display:grid;place-items:center;padding:calc(var(--st) + 16px) 16px calc(var(--sb) + 16px);animation:aparece var(--t2) ease}
+.cadeado.saindo{opacity:0;transition:opacity .2s}
+.cd-caixa{width:min(320px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
+.cd-ico{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);margin-bottom:12px}.cd-ico svg{width:26px;height:26px}
+.cd-titulo{font-size:var(--t-lg);font-weight:600}
+.cd-aviso{min-height:1.4em;margin:6px 0 4px;font-size:var(--t-sm);color:var(--danger)}
+.cd-pontos{display:flex;gap:12px;margin:8px 0 18px}.cd-pontos i{width:12px;height:12px;border-radius:50%;border:2px solid var(--muted)}.cd-pontos i.on{background:var(--accent);border-color:var(--accent)}
+.cd-pontos.treme{animation:treme .36s}
+@keyframes treme{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.cd-teclado{display:grid;grid-template-columns:repeat(3,72px);gap:12px;justify-content:center}
+.cd-teclado button{height:64px;border-radius:50%;background:var(--surface);border:1px solid var(--line);font-size:var(--t-xl);color:var(--ink);transition:background var(--t1)}
+.cd-teclado button:active,.cd-teclado button:hover{background:var(--hover)}
+.cd-teclado .cd-lado{background:none;border:0;font-size:var(--t-md);color:var(--muted)}
+.cd-ok{margin-top:18px;min-width:180px}
+.cd-esqueci{margin-top:14px;font-size:var(--t-sm);color:var(--muted);text-decoration:underline}
+/* mapa mental: o tema no centro, os ramos coloridos embaixo, ligados por uma linha */
+.mapa{max-width:720px}
+.mp-centro{margin:0 auto;width:max-content;max-width:100%;padding:10px 18px;border-radius:var(--r4);background:var(--accent);color:#fff;font-weight:700;font-size:var(--t-lg);text-align:center;position:relative}
+.mp-ramos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:22px;position:relative}
+.mp-ramos::before{content:"";position:absolute;left:50%;top:-22px;height:14px;border-left:2px solid var(--line)}
+.mp-ramo{border:1px solid var(--line);border-top:3px solid var(--c);border-radius:var(--r2);background:var(--surface);padding:10px 12px}
+.mp-titulo{display:block;color:var(--c);font-size:var(--t-md);margin-bottom:6px}
+.mp-itens{display:flex;flex-wrap:wrap;gap:6px}
+.mp-item{padding:5px 10px;border-radius:var(--r4);background:var(--hover);font-size:var(--t-sm);color:var(--ink);text-align:left;transition:background var(--t1)}
+.mp-item:hover{background:color-mix(in srgb,var(--c) 18%,transparent)}
+.mp-dica{margin-top:8px!important;font-size:var(--t-xs)}
+/* plano de estudos: dias com tarefas para marcar e a barra de progresso */
+.plano{max-width:620px}
+.pl-topo{display:flex;align-items:baseline;gap:10px}.pl-topo b{flex:1;font-size:var(--t-lg)}
+.pl-conta{font-size:var(--t-sm);color:var(--muted);white-space:nowrap}
+.pl-barra{height:6px;border-radius:3px;background:var(--hover);margin:8px 0 12px;overflow:hidden}.pl-barra i{display:block;height:100%;background:var(--ok);transition:width var(--t2)}
+.pl-dias{display:grid;gap:8px}
+.pl-dia{border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);padding:10px 12px}
+.pl-dia.feito{border-color:var(--ok);background:var(--ok-soft)}
+.pl-cab{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}.pl-cab b{font-size:var(--t-md)}.pl-cab small{color:var(--muted);font-size:var(--t-sm)}
+.pl-tarefa{display:flex;align-items:flex-start;gap:10px;padding:5px 0;font-size:var(--t-md);cursor:pointer}
+.pl-tarefa input{margin-top:3px;accent-color:var(--ok);width:16px;height:16px;flex:none}
+.pl-tarefa input:checked+span{color:var(--muted);text-decoration:line-through}
+.pl-dicaT{margin-top:10px!important}
 .sugestoes button:nth-child(2){animation-delay:60ms} .sugestoes button:nth-child(3){animation-delay:120ms}
 .sugestoes button:hover{background:var(--hover);border-color:var(--accent)}
 .sugestoes button svg{width:14px;height:14px;color:var(--accent);flex:none}
