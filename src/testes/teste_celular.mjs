@@ -44,7 +44,8 @@ ok('anexo lido', m && /6|soma|arquivo|python|print/i.test(m.texto), m && m.texto
 // apostila de 120 páginas com a memória pequena do celular: vão os trechos com a página certa e a resposta não é cortada
 {
   const { documento } = (await import('node:module')).createRequire(import.meta.url)('./documento_longo.js');
-  await js(`window.__pedidos = []; if (!window.__gerar0) { window.__gerar0 = PLATAFORMA.gerar; PLATAFORMA.gerar = (m, op, a, s) => { window.__pedidos.push(m); return window.__gerar0(m, op, a, s); }; } 1`);
+  // só os pedidos de resposta (as sugestões do fim, com esquema JSON, também passam por aqui)
+  await js(`window.__pedidos = []; if (!window.__gerar0) { window.__gerar0 = PLATAFORMA.gerar; PLATAFORMA.gerar = (m, op, a, s) => { if (!op || !op.esquema) window.__pedidos.push(m); return window.__gerar0(m, op, a, s); }; } 1`);
   await js(`anexos = [{ nome: 'apostila.pdf', tam: 400000, lang: 'texto', conteudo: ${JSON.stringify(documento())}, paginas: 120 }]; desenharChips(); 1`);
   const m = await pergunta('Segundo a apostila, em que ano Vale Serrano foi fundada? Responda em uma frase.');
   const pedido = await js(`(() => { const p = window.__pedidos[window.__pedidos.length - 1]; const u = p[p.length - 1]; return typeof u.content === 'string' ? u.content : ''; })()`);

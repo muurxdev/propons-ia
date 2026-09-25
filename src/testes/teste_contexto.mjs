@@ -20,7 +20,7 @@ await js(`(() => {
   const pags = []; for (let p = 1; p <= 120; p++) { const f = []; for (let i = 0; i < 14; i++) f.push(F[(p * 7 + i * 3) % F.length]); if (fatos[p]) f.splice(5, 0, fatos[p]); pags.push('— página ' + p + ' —\\n' + f.join(' ')); }
   window.__doc = pags.join('\\n\\n');
   // guarda o que vai para a IA em cada pedido
-  window.__pedidos = []; const g = PLATAFORMA.gerar; PLATAFORMA.gerar = (m, op, a, s) => { window.__pedidos.push(m); return g(m, op, a, s); };
+  window.__pedidos = []; const g = PLATAFORMA.gerar; PLATAFORMA.gerar = (m, op, a, s) => { if (!op || !op.esquema) window.__pedidos.push(m); return g(m, op, a, s); };   // sem os pedidos de sugestões
   return 1; })()`);
 
 // 1) a bolinha está na caixa
