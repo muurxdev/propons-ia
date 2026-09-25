@@ -96,6 +96,6 @@ function enfeitar(el) {
     g.onclick = () => { const lang = (p.dataset.lang || '').toLowerCase(), ext = ({ python: 'py', javascript: 'js', typescript: 'ts', 'c/c++': 'c', c: 'c', 'c#': 'cs', java: 'java', kotlin: 'kt', html: 'html', css: 'css', json: 'json', sql: 'sql', bash: 'sh', go: 'go', rust: 'rs', php: 'php', ruby: 'rb', swift: 'swift' })[lang] || 'txt'; guardarNoProjeto('codigo.' + ext, p.querySelector('code').innerText, true); abrirTela('codigo'); };
     p.appendChild(g);
   });
-  el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); });
+  ligarLinks(el);
 }
 

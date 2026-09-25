@@ -12,7 +12,7 @@ function validar(lista) {
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
       ...(m.interno ? { interno: true } : {}), ...(m.compactada ? { compactada: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
-      ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}),
+      ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}), ...(+m.tempo > 0 ? { tempo: Math.round(+m.tempo) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo), ...(+a.paginas ? { paginas: +a.paginas } : {}), ...(Array.isArray(a.resumos) ? { resumos: a.resumos.filter(r => r && typeof r.texto === 'string').slice(0, 40).map(r => ({ de: +r.de || 0, ate: +r.ate || 0, texto: txt(r.texto).slice(0, 4000) })) } : {}) })) } : {}),
       ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 8).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
@@ -208,10 +208,35 @@ function coluna() {
   if (!col) { $('#conversa').innerHTML = ''; col = document.createElement('div'); col.className = 'col'; $('#conversa').appendChild(col); }
   return col;
 }
-let grudado = true;
-$('#conversa').addEventListener('scroll', () => { const c = $('#conversa'); grudado = c.scrollHeight - c.scrollTop - c.clientHeight < 80; $('#descer').hidden = grudado || c.scrollHeight - c.scrollTop - c.clientHeight < 400; }, { passive: true });
-function rolar(forcar) { const c = $('#conversa'); if (forcar || grudado) { c.scrollTop = c.scrollHeight; grudado = true; $('#descer').hidden = true; } }
-$('#descer').onclick = () => { const c = $('#conversa'); c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' }); grudado = true; $('#descer').hidden = true; };
+/* a conversa acompanha a resposta descendo sozinha, mas o dedo (ou a roda do mouse) manda: rolou para cima, ela para de
+   acompanhar na hora e não puxa de volta; voltou até o fim (ou tocou em ↓), volta a acompanhar. A rolagem que o próprio
+   app faz não conta como gesto (antes ela se confundia com o dedo e brigava, cortando até o embalo do arrasto). */
+let grudado = true, rolagemDoApp = false, dedoNaTela = false, soltouEm = 0;
+const distFim = () => { const c = $('#conversa'); return c.scrollHeight - c.scrollTop - c.clientHeight; };
+const mostrarDescer = () => { $('#descer').hidden = grudado || distFim() < 400; };
+$('#conversa').addEventListener('scroll', () => {
+  if (rolagemDoApp) { rolagemDoApp = false; return; }
+  const d = distFim();
+  if (d < 24) grudado = true; else if (!grudado || dedoNaTela || Date.now() - soltouEm < 900) grudado = d < 24;
+  mostrarDescer();
+}, { passive: true });
+// gesto para cima (roda, teclas ou dedo descendo a tela) solta na hora, mesmo antes do primeiro evento de rolagem
+$('#conversa').addEventListener('wheel', e => { if (e.deltaY < 0) { grudado = false; mostrarDescer(); } }, { passive: true });
+$('#conversa').addEventListener('keydown', e => { if (/^(ArrowUp|PageUp|Home)$/.test(e.key)) grudado = false; });
+let dedoY = 0;
+$('#conversa').addEventListener('touchstart', e => { dedoNaTela = true; dedoY = e.touches[0].clientY; }, { passive: true });
+$('#conversa').addEventListener('touchmove', e => { if (e.touches[0].clientY - dedoY > 6) { grudado = false; mostrarDescer(); } }, { passive: true });
+const soltarDedo = () => { dedoNaTela = false; soltouEm = Date.now(); };
+$('#conversa').addEventListener('touchend', soltarDedo, { passive: true }); $('#conversa').addEventListener('touchcancel', soltarDedo, { passive: true });
+function rolar(forcar) {
+  const c = $('#conversa');
+  if (forcar) grudado = true;
+  // com o dedo na tela ou logo depois de soltar (embalo), não mexe: quem manda é o gesto
+  if (!grudado || (!forcar && (dedoNaTela || Date.now() - soltouEm < 400))) return;
+  if (distFim() > 1) { rolagemDoApp = true; c.scrollTop = c.scrollHeight; }
+  $('#descer').hidden = true;
+}
+$('#descer').onclick = () => { const c = $('#conversa'); grudado = true; rolagemDoApp = true; c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' }); $('#descer').hidden = true; };
 function chipHTML(a, remover) {
   const comum = `class="chip${a.tipo === 'imagem' ? ' foto' : ''} ver" title="Ver ${esc(a.nome)}" data-ver="${esc(a.nome)}" role="button" tabindex="0"`;
   const x = remover ? `<button data-rm="${esc(a.nome)}" aria-label="Remover ${a.tipo === 'imagem' ? 'foto' : 'anexo'}">${ICO.fechar}</button>` : '';
@@ -287,12 +312,13 @@ function addIa(m, ultima) {
   const d = document.createElement('div'); d.className = 'msg ia';
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
-  d.innerHTML = (m.pensou ? htmlLinhaPensa('Raciocínio') : '') +
+  const pensou = m.pensou ? (m.tempo ? 'Pensou por ' + tempoBonito(m.tempo) : 'Raciocínio') : '';
+  d.innerHTML = (pensou ? htmlLinhaPensa(pensou) : '') +
     (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +
     `<div class="txt${widget ? ' widget' : ''}">${widget ? widget : comCitacoes(md(m.texto || ''), m.fontes)}</div>` +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
-  if (m.pensou) ligarLinhaPensa(d, m.pensou);
-  d.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); });
+  if (m.pensou) ligarLinhaPensa(d, m.pensou, pensou);
+  ligarLinks(d);
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;

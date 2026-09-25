@@ -135,15 +135,15 @@ function cartaoModelo(m, ram, rec) {
   if (m.atual || ligando) acoes = '';
   else if (m.bloqueado) acoes = m.baixado && !web ? `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>` : '';
   else if (b) acoes = `<button class="btn" data-acao="cancelar" data-id="${m.id}">Cancelar download</button>`;
-  else if (web) acoes = usar('Usar este');
-  else if (m.baixado) acoes = usar('Usar este') + `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>`;
+  else if (web) acoes = usar('Usar');
+  else if (m.baixado) acoes = usar('Usar') + `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>`;
   else acoes = usar('Baixar e usar') + `<button class="btn" data-acao="baixar" data-id="${m.id}">${ICO.exportar}Só baixar</button>`;
   if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
   const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? '' : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
   const pl = PLACAR_MODELO[m.id];
   const medida = (rotulo, valor, extra) => `<div class="mmed${extra ? ' ' + extra : ''}"><small>${rotulo}</small><b>${valor}</b></div>`;
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
-    <div class="mtopo"><span class="mselo m-${esc(m.id)}">${esc((nomeCurtoModelo(m) || '?')[0])}</span>
+    <div class="mtopo">${logoModelo(m) || `<span class="logo-modelo">${esc((nomeCurtoModelo(m) || '?')[0])}</span>`}
       <div class="pt"><b>${esc(nomeModelo(m))}${botaoAjuda('modelo:' + m.id)}</b><small>${PESO_MODELO[m.id] || esc(m.descricao || '')}</small></div>${selo}</div>
     <div class="mmedidas">${pl ? medida('Acerto', pl[0] + '–' + pl[1] + ' %') : ''}${medida('Tamanho', gbBonito(m.tamanho))}${medida('Memória', ramNecessaria(m) + ' GB+', pouca ? 'aviso' : '')}</div>
     ${m.bloqueado ? `<p class="maviso">${esc(m.bloqueado)}</p>` : `<p class="mdesc">${esc(USO_MODELO[m.id] || perfil)}${m.id === rec ? ' <span class="rec">Recomendado para este aparelho</span>' : ''}${m.visaoTamanho && PLATAFORMA.temVisao ? ` · ${m.visaoBaixada ? 'lê fotos' : 'lê fotos (+' + gbBonito(m.visaoTamanho) + ')'}` : ''}</p>`}

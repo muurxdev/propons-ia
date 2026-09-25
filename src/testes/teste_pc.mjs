@@ -242,12 +242,13 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   await js(`definirEsforco(idModeloAtual(), 'alto'); atualizarSeletorModelo(); nova(); (()=>{ const e=$('#entrada'); e.value='Quanto é 17 vezes 23? Responda só o número.'; ajustar(); $('#enviar').click(); })(); 1`);
   for (let i = 0; i < 40 && !(await js('!!atual && atual.msgs.length')); i++) await espera(100);
   let viuPensando = false, textoNaConversa = null;
-  for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.pensa .pensa-linha .trabalhando')`); }
-  if (viuPensando) textoNaConversa = await js(`document.querySelector('.msg.pensa').textContent.length`);
+  for (let i = 0; i < 60 && !viuPensando; i++) { await espera(250); viuPensando = await js(`!!document.querySelector('.msg.ia .giro.pensa .trabalhando')`); }
+  if (viuPensando) textoNaConversa = await js(`document.querySelector('.msg.ia .giro').textContent.length`);
   for (let i = 0; i < 40 && !(await js('!!geracao')); i++) await espera(250);
   for (let i = 0; i < 960 && (await js('!!geracao')); i++) await espera(250);
   const pr = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1]; return { pensou: (m.pensou || '').length, texto: m.texto.slice(0, 40), detalhe: !!document.querySelector('.msg.ia .pensa-linha'), fechado: !document.querySelector('.pensa-folha') } })()`);
-  ok('esforço Alto: na conversa fica só a palavra animada e a flechinha', viuPensando && textoNaConversa !== null && textoNaConversa < 40, 'letras na linha: ' + textoNaConversa);
+  ok('esforço Alto: enquanto pensa, só o giro (marca, palavra e tempo), tocável', viuPensando && textoNaConversa !== null && textoNaConversa < 40, 'letras no giro: ' + textoNaConversa);
+  ok('no fim o giro some e fica "Pensou por N s"', await js(`!document.querySelector('.giro') && /Pensou por \\d+/.test((document.querySelector('.msg.ia .pensa-linha') || {}).textContent || '')`), await js(`(document.querySelector('.msg.ia .pensa-linha') || {}).textContent`));
   ok('esforço Alto: raciocínio gravado fora da conversa, resposta separada', pr.pensou > 50 && pr.detalhe && pr.fechado && !/Thinking|Process/.test(pr.texto), JSON.stringify(pr));
   await js(`document.querySelector('.msg.ia .pensa-seta').click(); 1`); await espera(500);
   const folhaP = await js(`(()=>{ const d = document.querySelector('.pensa-folha'); if (!d) return null; const st = getComputedStyle(document.querySelector('.msg.ia .pensa-seta'));
@@ -284,8 +285,8 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   if (viuPalavra) animada = (await js(`(()=>{ const t = document.querySelector('.msg.ia .trabalhando'); return t ? getComputedStyle(t).animationName : '' })()`)) === 'brilho';
   ok('antes do 1º token: palavra em português com brilho (sem cursor roxo)', /^(Pensando|Conferindo|Calculando|Analisando|Refletindo|Organizando as ideias|Considerando|Processando)$/.test(viuPalavra), viuPalavra + (animada ? ' (animada)' : ''));
   let bolinha = null;
-  for (let i = 0; i < 80 && !bolinha; i++) { await espera(50); bolinha = await js(`(()=>{ const c = document.querySelector('.msg.ia .txt.digitando .cauda'); if (!c || !c.textContent.trim()) return null; const u = c.lastElementChild || c; const s = getComputedStyle(u, '::after'); return { r: s.borderRadius, an: s.animationName, cor: s.backgroundColor } })()`); }
-  ok('durante a escrita: bolinha que respira no fim do texto', bolinha && bolinha.an === 'respira' && /50%/.test(bolinha.r), JSON.stringify(bolinha));
+  for (let i = 0; i < 80 && !bolinha; i++) { await espera(50); bolinha = await js(`(()=>{ const c = document.querySelector('.msg.ia .txt.digitando .cauda'); if (!c || !c.textContent.trim()) return null; const g = c.closest('.msg').querySelector(':scope > .giro'); if (!g) return { giro: false }; const m = g.querySelector('.giro-marca'); return { giro: true, marca: m.textContent, anima: getComputedStyle(m).animationName, depois: !!(g.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING) } })()`); }
+  ok('durante a escrita: o giro fica embaixo do texto, girando', bolinha && bolinha.giro && bolinha.anima === 'giroPulsa' && bolinha.depois, JSON.stringify(bolinha));
   for (let i = 0; i < 600 && (await js('!!geracao')); i++) await espera(250);
   // manda de novo e, no mesmo instante, dispara o blur real (é o que acontece ao trocar de janela)
   await js(`window.__notif = []; (()=>{ const e=$('#entrada'); e.value='Diga apenas: pronto'; ajustar(); $('#enviar').click(); dispatchEvent(new Event('blur')); })(); 1`);

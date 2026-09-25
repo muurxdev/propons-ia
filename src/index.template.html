@@ -245,6 +245,15 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .fontes-t{display:block;font-size:var(--t-xs);color:var(--faint);font-weight:600;margin:0 0 6px}
 .fonte-cards{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 .fonte-cards::-webkit-scrollbar{display:none}
+/* popup da fonte: site, título, endereço para copiar e as ações */
+.fonte-dlg .fonte-cab{display:flex;align-items:center;gap:12px;margin:2px 4px 14px}
+.fonte-dlg .fonte-cab img{width:32px;height:32px;border-radius:8px;background:var(--hover);padding:4px;flex:none}
+.fonte-dlg .fonte-cab b{display:block;font-size:var(--t-lg);font-weight:600;word-break:break-all}
+.fonte-dlg .fonte-cab small{display:block;color:var(--muted);font-size:var(--t-sm);margin-top:2px}
+.fonte-dlg .fonte-url{font:var(--t-sm)/1.4 var(--mono);color:var(--muted);text-overflow:ellipsis}
+.fonte-acoes{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.fonte-acoes .btn.primario{flex:1 1 auto}
+.fonte-nota{margin:8px 4px 4px;font-size:var(--t-xs)}
 .fonte{flex:0 0 190px;display:block;padding:9px 11px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);text-decoration:none;color:var(--ink);transition:border-color var(--t1),background var(--t1)}
 .fonte:hover{border-color:var(--accent);background:var(--hover)}
 .fonte .fn{display:flex;align-items:center;gap:6px;margin-bottom:4px}
@@ -256,7 +265,17 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .cit:hover{background:var(--accent);color:var(--accent-ink)}
 /* raciocínio (Esforço Alto): uma linha na conversa; o texto fica na folha */
 .msg.pensa{margin:6px 0 2px}
-/* uma linha só enquanto pensa: a palavra com brilho (como o "Pensando" da resposta) e a flechinha que abre o raciocínio */
+/* o giro da Própons enquanto responde: marca roxa que muda de forma, palavra com brilho e o tempo (some no fim) */
+.giro{display:flex;align-items:center;gap:8px;margin:8px 0 2px;min-height:28px;color:var(--muted);font-size:var(--fs)}
+.giro.pensa{cursor:pointer}
+.giro-marca{display:inline-grid;place-items:center;width:1.2em;color:var(--accent);font-size:1.2em;line-height:1}
+.giro .giro-marca{animation:giroPulsa 1.4s ease-in-out infinite}
+@keyframes giroPulsa{50%{transform:scale(1.18) rotate(24deg)}}
+.giro-tempo{font-size:var(--t-sm);color:var(--faint);font-variant-numeric:tabular-nums}
+.giro-marca.parada{font-size:1.05em;width:1.1em}
+.msg.ia:has(> .giro) .cauda>:last-child::after,.msg.ia:has(> .giro) .cauda:empty::after{content:none}   /* o giro já mostra que está escrevendo */
+@media (prefers-reduced-motion:reduce){.giro .giro-marca{animation:none}}
+/* no fim, se pensou: a marca parada, "Pensou por N s" e a flechinha que abre o raciocínio */
 .pensa-linha{display:inline-flex;align-items:center;gap:4px;padding:2px 0;cursor:pointer}
 .pensa-rotulo{font-size:var(--fs);color:var(--muted)}
 .pensa-seta{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:transparent;transition:background var(--t2),color var(--t2),transform var(--t3) var(--padrao)}
@@ -501,8 +520,14 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .selo.ok{background:var(--ok-soft);color:var(--ok)}
 .selo.cinza{background:var(--hover);color:var(--muted)}
 /* cartão do modelo: selo com a inicial, três medidas lado a lado, para que serve e o botão */
-.mselo{width:40px;height:40px;flex:none;border-radius:12px;display:grid;place-items:center;font-weight:700;font-size:var(--t-lg);color:#fff}
-.mselo.m-leve{background:linear-gradient(135deg,#3aa0ff,#6a48f5)} .mselo.m-normal{background:linear-gradient(135deg,#8a6cf0,#d9589a)} .mselo.m-avancado{background:linear-gradient(135deg,#e0932a,#c53535)}
+/* logo de cada modelo: desenho branco sobre o degradê do modelo (cartões, lista de modelos e caixa de mensagem) */
+.logo-modelo{width:40px;height:40px;flex:none;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:var(--t-lg);background:var(--muted)}
+.logo-modelo svg{width:60%;height:60%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.logo-modelo.m-leve{background:linear-gradient(135deg,#3aa0ff,#6a48f5)} .logo-modelo.m-normal{background:linear-gradient(135deg,#8a6cf0,#d9589a)} .logo-modelo.m-avancado{background:linear-gradient(135deg,#e0932a,#c53535)}
+.lista-modelos .lm .logo-modelo{width:34px;height:34px;border-radius:10px}
+.logo-seletor:empty{display:none}
+.logo-seletor .logo-modelo{width:22px;height:22px;border-radius:7px}
+.logo-seletor .logo-modelo svg{stroke-width:2.2}
 .mcard .mtopo b .ajuda{vertical-align:-5px}
 .mmedidas{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:14px 0 0}
 .mmed{background:var(--hover);border-radius:var(--r1);padding:8px 10px;min-width:0}
@@ -845,7 +870,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
       <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
       <div class="linha">
         <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
-        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span><span class="roda"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+        <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="logoSeletor" class="logo-seletor"></span><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span><span class="roda"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
         <button class="bt-web" id="btPesquisa" title="Pesquisa na internet ligada — toque para desligar" aria-label="Desligar a pesquisa na internet" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="x"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
         <span class="espaco"></span>
         <button id="medidorCtx" title="Contexto" aria-label="Contexto: memória da IA em uso"><svg viewBox="0 0 24 24"><circle class="trilho" cx="12" cy="12" r="8"/><circle class="uso" cx="12" cy="12" r="8" pathLength="100"/></svg></button>

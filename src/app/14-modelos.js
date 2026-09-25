@@ -32,6 +32,14 @@ ICO.check = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 // dentro do app o "Própons" é redundante: na caixa estreita fica só Lume, Aurora ou Ápice
 const nomeCurtoModelo = m => NOME_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1');
 const nomeModelo = m => 'Própons ' + nomeCurtoModelo(m);
+/* logo de cada modelo: Lume é uma chama com brilho, Aurora o sol nascendo no horizonte, Ápice a montanha com a estrela
+   no topo. O desenho é branco sobre o degradê do modelo (CSS .logo-modelo.m-<id>). */
+const LOGO_MODELO = {
+  leve: '<svg viewBox="0 0 24 24"><path d="M12 3.5c.6 3-2.8 4.6-2.8 8.2A2.9 2.9 0 0 0 12 14.6a2.9 2.9 0 0 0 2.8-2.9c0-1.1-.4-2-1-2.8 2.6 1 4.3 3.6 4.3 6.3A6.1 6.1 0 0 1 12 21.3a6.1 6.1 0 0 1-6.1-6.1c0-5.2 5.3-7 6.1-11.7z"/><path d="M18.5 3.8l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" fill="currentColor"/></svg>',
+  normal: '<svg viewBox="0 0 24 24"><path d="M3 16.5h18M6.5 20h11"/><path d="M6.8 16.5a5.2 5.2 0 0 1 10.4 0"/><path d="M12 5.5v2.2M5.2 8.7l1.6 1.5M18.8 8.7l-1.6 1.5M2.8 13.2h2.1M19.1 13.2h2.1"/></svg>',
+  avancado: '<svg viewBox="0 0 24 24"><path d="M2.8 19.5l6.3-10 3.2 4.6 2.2-3.1 6.7 8.5z"/><path d="M9.1 9.5l1.6 2.4 1.6-1"/><path d="M15.2 3.3l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" fill="currentColor"/></svg>',
+};
+const logoModelo = m => { const id = (m && (m.id || m)) || ''; return LOGO_MODELO[id] ? `<span class="logo-modelo m-${id}" aria-hidden="true">${LOGO_MODELO[id]}</span>` : ''; };
 // bolinha com a porcentagem do download
 const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, Math.floor(pct * 100)))}"><b>${Math.floor(pct * 100)}%</b></span>`;
 
@@ -92,6 +100,7 @@ function atualizarSeletorModelo() {
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
   const curto = m => estreita() ? nomeCurtoModelo(m) : nomeModelo(m);
   $('#nomeModelo').textContent = ESCOLHER ? 'Selecionar modelo' : a ? curto(a) : 'Modelo';   // sem motor ligado, não mostra o modelo da vez passada
+  const lg = $('#logoSeletor'); if (lg) lg.innerHTML = !ESCOLHER && a ? logoModelo(a) : '';
   // o nível aparece sempre (inclusive "Médio"): todo modelo tem o seu
   const p = $('#pillEsforco'); if (p) { p.textContent = ESFORCO[esforco()][0]; p.hidden = ESCOLHER; }
 }
@@ -127,7 +136,7 @@ function desenharListaModelos(folha) {
       : !m.baixado ? `<span class="btn-mini">Baixar</span>` : '';   // clicar já liga: nada de botão "Usar"
     const desc = m.bloqueado ? m.bloqueado : ligando ? 'Ativando…' : b ? textoDownload(b) : (DESC_MODELO[m.id] || PESO_MODELO[m.id] || '') + (m.baixado ? '' : ' · ' + gbBonito(m.tamanho) + (ESCOLHER ? '' : ' para baixar'));
     return `<button class="lm${emUso ? ' on' : ''}" data-m="${m.id}"${m.bloqueado || (escolhendoId && escolhendoId !== m.id) ? ' disabled' : ''}>
-      <span class="pt"><b>${esc(nomeModelo(m))}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
+      ${logoModelo(m)}<span class="pt"><b>${esc(nomeModelo(m))}${ESCOLHER && m.id === rec ? ' <span class="selo ok">Recomendado</span>' : ''}</b>
       <small>${esc(desc)}</small></span><span class="st">${st}</span></button>`;
   }).join('');
   lm.querySelectorAll('[data-m]').forEach(bt => bt.onclick = async () => {

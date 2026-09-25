@@ -15,6 +15,28 @@ function htmlFontes(fontes) {
   return '<div class="fontes"><b class="fontes-t">' + fontes.length + (fontes.length === 1 ? ' fonte' : ' fontes')
     + '</b><div class="fonte-cards">' + fontes.map(cartao).join('') + '</div></div>';
 }
+/* tocar numa fonte, numa citação [n] ou num link da resposta: um popup com o site, o título e o endereço inteiro para
+   copiar, e os botões de abrir, copiar e compartilhar (como o aviso de link do Claude) — nada abre sem querer */
+function abrirFonte(url, titulo) {
+  const d = dominioDe(url) || url;
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha fonte-dlg">${topoCentro('Fonte')}
+    <div class="fonte-cab">${d ? `<img src="https://icons.duckduckgo.com/ip3/${esc(d)}.ico" alt="" onerror="this.remove()">` : ''}<div><b>${esc(d)}</b>${titulo && titulo !== url ? `<small>${esc(titulo)}</small>` : ''}</div></div>
+    <input class="campo-texto fonte-url" readonly value="${esc(url)}" aria-label="Endereço da página">
+    <div class="fonte-acoes"><button class="btn primario" data-abrir>${ICO.link || ''}Abrir página</button><button class="btn" data-copiar>${ICO.copiar}Copiar link</button>${PLATAFORMA.podeCompartilhar ? `<button class="btn" data-comp>${ICO.compartilhar}Compartilhar</button>` : ''}</div>
+    <p class="info fonte-nota">Abre no navegador do aparelho.</p></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
+  folha.querySelector('.fonte-url').onfocus = e => e.target.select();
+  folha.querySelector('[data-abrir]').onclick = () => { PLATAFORMA.abrirLink(url); sair(); };
+  folha.querySelector('[data-copiar]').onclick = () => copiarTexto(url).then(() => toast('Link copiado.'));
+  const c = folha.querySelector('[data-comp]'); if (c) c.onclick = () => PLATAFORMA.compartilhar(url).catch(() => {});
+  folhaArrastavel(f, folha, sair);
+  pausarDesenho(); document.body.appendChild(f);
+}
+ICO.link = '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"/></svg>';
+// liga o popup em todos os links de um pedaço da conversa (cartões, citações e links do texto)
+const ligarLinks = el => el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); abrirFonte(a.href, a.getAttribute('title') || (a.classList.contains('cit') ? '' : a.textContent.trim())); });
 // [1] no meio do texto vira um selo clicável para a fonte (não mexe em blocos de código)
 function comCitacoes(html, fontes) {
   if (!fontes || !fontes.length) return html;
@@ -24,18 +46,20 @@ function comCitacoes(html, fontes) {
       return f ? '<a class="cit" href="' + esc(f.url) + '" data-link title="' + esc(f.titulo) + '">' + n + '</a>' : todo;
     })).join('');
 }
-const htmlLinhaPensa = rotulo => `<div class="pensa-linha"><span class="pensa-rotulo">${rotulo ? esc(rotulo) : htmlTrabalhando()}</span><button class="pensa-seta" aria-label="Ver o raciocínio" aria-expanded="false">${ICO.baixo}</button></div>`;
+// no fim da resposta: a marca parada e "Pensou por N s"; tocar abre o raciocínio inteiro
+const tempoBonito = s => s >= 60 ? Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : '') : s + ' s';
+const htmlLinhaPensa = rotulo => `<div class="pensa-linha"><span class="giro-marca parada" aria-hidden="true">✻</span><span class="pensa-rotulo">${rotulo ? esc(rotulo) : htmlTrabalhando()}</span><button class="pensa-seta" aria-label="Ver o raciocínio" aria-expanded="false">${ICO.baixo}</button></div>`;
 let folhaPensa = null;
-function ligarLinhaPensa(el, texto) {
+function ligarLinhaPensa(el, texto, titulo) {
   const linha = el.querySelector('.pensa-linha'); if (!linha) return;
-  const abrir = () => abrirFolhaPensa(typeof texto === 'function' ? texto() : texto, linha);
+  const abrir = () => abrirFolhaPensa(typeof texto === 'function' ? texto() : texto, linha, titulo);
   linha.querySelector('.pensa-seta').onclick = abrir;
   linha.onclick = e => { if (!e.target.closest('.pensa-seta')) abrir(); };
 }
-function abrirFolhaPensa(texto, linha) {
+function abrirFolhaPensa(texto, linha, titulo) {
   if (folhaPensa) { folhaPensa.fechar(); return; }
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha pensa-folha">${topoCentro('Raciocínio')}<div class="pens-txt">${esc(texto || '')}</div>
+  f.innerHTML = `<div class="dlg folha pensa-folha">${topoCentro(titulo || 'Raciocínio')}<div class="pens-txt">${esc(texto || '')}</div>
     <p class="info pensa-pe">É o rascunho da IA antes de responder. Some quando você apaga a conversa.</p></div>`;
   const dlg = f.firstChild;
   const sair = () => { folhaPensa = null; if (linha) linha.querySelector('.pensa-seta').setAttribute('aria-expanded', 'false'); animarSaida(f, dlg); };
@@ -70,6 +94,33 @@ function novaPalavra(el, primeira) {
   return () => clearInterval(t);
 }
 const htmlTrabalhando = () => '<span class="trabalhando">Pensando</span>';
+
+/* ---------------- o giro da Própons: enquanto responde, a marca roxa muda de forma, a palavra do momento brilha e o
+   tempo corre (como o ✻ do Claude Code). Os passos (pesquisa, leitura do arquivo, compactar) aparecem nele; pensando,
+   tocar abre o raciocínio chegando. No fim ele some e, se a IA pensou, fica "Pensou por N s" para abrir. ---------------- */
+const FORMAS_GIRO = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢'];
+function novoGiro(textoPensando) {
+  const el = document.createElement('div'); el.className = 'giro'; el.setAttribute('role', 'status');
+  el.innerHTML = '<span class="giro-marca" aria-hidden="true">·</span><span class="trabalhando">Pensando</span><span class="giro-tempo"></span>';
+  const marca = el.querySelector('.giro-marca'), palavra = el.querySelector('.trabalhando'), tempo = el.querySelector('.giro-tempo');
+  const t0 = performance.now(); let i = 0, pararPal = novaPalavra(palavra, true), pensando = false;
+  const tick = setInterval(() => {
+    if (!el.isConnected && !el._pendente) return;
+    marca.textContent = FORMAS_GIRO[i = (i + 1) % FORMAS_GIRO.length];
+    const s = Math.floor((performance.now() - t0) / 1000); tempo.textContent = s ? s + ' s' : '';
+  }, 140);
+  el.onclick = () => { if (pensando) abrirFolhaPensa(textoPensando(), null); };
+  return {
+    el,
+    // um passo com nome (pesquisando, lendo o arquivo…): a palavra para de trocar e mostra o passo
+    passo(t) { if (pararPal) { pararPal(); pararPal = null; } palavra.textContent = t; },
+    // de volta às palavras que se revezam
+    livre() { if (!pararPal) pararPal = novaPalavra(palavra, true); },
+    pensando(sim) { pensando = sim; el.classList.toggle('pensa', sim); el.title = sim ? 'Ver o raciocínio' : ''; },
+    segundos() { return Math.max(1, Math.round((performance.now() - t0) / 1000)); },
+    parar() { clearInterval(tick); if (pararPal) pararPal(); el.remove(); },
+  };
+}
 
 /* ---------------- segundo plano: avisa quando a resposta fica pronta com a janela fora de foco ---------------- */
 let janelaEscondida = document.hidden;

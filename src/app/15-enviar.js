@@ -243,12 +243,14 @@ async function responder(conv, continuacao) {
     msg = { role: 'assistant', texto: '', llm: '' };
     alvo = atual === conv ? addIa({ texto: '', interno: true }, false) : null;
   }
-  // enquanto nada foi escrito: "Pensando" com brilho (nos modos de estudo, o aviso do modo); pararPalavra() encerra a troca
-  let pararPalavra = null;
+  // o giro da Própons embaixo da resposta: marca que muda de forma, palavra do momento e tempo; some no fim
+  let giro = null, pensTxt = '';
   if (alvo) {
     alvo.classList.add('digitando');
-    if (comEsquema) alvo.innerHTML = `<p class="info">${esc(modo.espera)}</p>`;
-    else if (!msg.texto && !pensar) { alvo.innerHTML = htmlTrabalhando(); pararPalavra = novaPalavra(alvo.firstChild, true); }   // pensando, a palavra fica só na linha do raciocínio
+    giro = novoGiro(() => pensTxt);
+    alvo.parentNode.appendChild(giro.el);
+    if (comEsquema) giro.passo(modo.espera);
+    if (pensar) giro.pensando(true);
   }
   // a partir daqui a resposta está em andamento (o botão vira "parar"): pesquisa e leitura do arquivo também param
   const ctrl = new AbortController();
@@ -256,10 +258,11 @@ async function responder(conv, continuacao) {
   PLATAFORMA.ocupado(true);
   $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
   // a conversa mostra o passo (pesquisa, leitura do arquivo) no lugar da palavra animada
-  const mostrarPasso = t => { if (alvo) { alvo.innerHTML = '<span class="busca-passo">' + esc(t) + '<i></i><i></i><i></i></span>'; rolar(); } };
+  const mostrarPasso = t => { if (giro) { giro.passo(t); rolar(); } };
+  const voltarAoGiro = () => { if (giro && !comEsquema) giro.livre(); };
   // conversa que já enche a memória da IA: o começo vira um resumo antes de responder (Ajustes → Respostas); a resposta
   // já está em andamento, então o passo aparece na conversa e o botão de parar vale
-  if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) && alvo && !msg.texto) alvo.innerHTML = pensar ? '' : htmlTrabalhando();
+  if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) ) voltarAoGiro();
   SISTEMA += textoResumo(conv);
   // "que dia é hoje", "que horas são": a data e a hora do aparelho (só nessas perguntas, para não mudar o texto de
   // sistema a cada minuto e perder o que o motor já tinha lido da conversa)
@@ -272,10 +275,10 @@ async function responder(conv, continuacao) {
       estado('pesquisando na internet');
       let r = null;
       try { r = await pesquisarNaWeb(texto.slice(0, 300), mostrarPasso); } catch (e) {}
-      if (alvo && !msg.texto) alvo.innerHTML = pensar ? '' : htmlTrabalhando();   // pensando, a palavra fica só na linha do raciocínio
+      voltarAoGiro();
       estado('', false, 'rede');
       if (r && r.fontes.length) { blocoWeb = blocoPesquisa(r); SISTEMA += '\n\n' + blocoWeb; fontes = r.fontes; msg.fontes = fontes;
-        if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlFontes(fontes); const cartoes = c.firstElementChild; alvo.parentNode.insertBefore(cartoes, alvo); cartoes.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); }); } }
+        if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlFontes(fontes); const cartoes = c.firstElementChild; alvo.parentNode.insertBefore(cartoes, alvo); ligarLinks(cartoes); } }
       else SISTEMA += '\n\nA pesquisa na internet não trouxe resultados agora: diga isso em uma linha e responda com o que você já sabe.';
     }
   }
@@ -289,7 +292,7 @@ async function responder(conv, continuacao) {
       try { await resumirEmPartes(a, mostrarPasso, ctrl.signal); } catch (e) { if (e.name === 'AbortError') break; toast('Não consegui resumir "' + a.nome + '" por partes; uso os trechos.'); }
     }
     estado('', false, 'rede');
-    if (alvo && !msg.texto && !comEsquema && !ctrl.signal.aborted) alvo.innerHTML = pensar ? '' : htmlTrabalhando();
+    voltarAoGiro();
     salvar();
   }
   // com o texto de sistema final (pesquisa incluída): mede com o tokenizador do modelo e monta de novo
@@ -298,17 +301,6 @@ async function responder(conv, continuacao) {
   await medirTokens(textosDe(historico));
   historico = montarHistorico(conv, maxTokens, SISTEMA);
   registrarUso(conv, historico.uso, blocoWeb);
-  // raciocínio (Esforço Alto): bloco recolhível acima da resposta enquanto pensa; recolhe quando a resposta começa
-  let pensEl = null, pensTxt = '';
-  let pararPalavraPens = null;
-  if (alvo && pensar) {
-    pensEl = document.createElement('div'); pensEl.className = 'msg ia pensa';
-    pensEl.innerHTML = htmlLinhaPensa(null);
-    alvo.parentNode.insertBefore(pensEl, alvo);
-    pensEl.dataset.pensando = 'sim';
-    ligarLinhaPensa(pensEl, () => pensTxt);
-    pararPalavraPens = novaPalavra(pensEl.querySelector('.trabalhando'), true);
-  }
   // o raciocínio vai para a folha (aberta ou não): nunca ocupa a conversa
   const aoPensar = pensar ? p => { pensTxt += p; atualizarFolhaPensa(pensTxt); } : undefined;
   // leitura em voz alta enquanto a resposta chega (Aparência → Ler em voz alta: toda resposta)
@@ -378,16 +370,13 @@ async function responder(conv, continuacao) {
     const r = await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
       { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
-        if (pararPalavra) { pararPalavra(); pararPalavra = null; }
-        if (pensEl && pensEl.dataset.pensando !== 'nao') { if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; } pensEl.dataset.pensando = 'nao'; const r = pensEl.querySelector('.pensa-rotulo'); if (r) r.textContent = 'Raciocínio'; }
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';
   } catch (e) {
     if (e.name !== 'AbortError') erro = e.message || String(e);
   } finally {
-    if (pararPalavra) { pararPalavra(); pararPalavra = null; }
-    if (pararPalavraPens) { pararPalavraPens(); pararPalavraPens = null; }
+    if (giro) { msg.tempo = giro.segundos(); giro.parar(); }
     if (!erro && !comEsquema) await alcancar();
     clearTimeout(tTimer); cancelAnimationFrame(tRaf); tTimer = tRaf = 0;
     geracao = null;
@@ -400,7 +389,6 @@ async function responder(conv, continuacao) {
     novo = novo.trimEnd() + '\n\n*Os números do exemplo acima são só ilustrativos. Para um passo a passo exato, me mande a lista — por exemplo: **bubble sort em [5, 2, 8, 1]**.*';
   }
   msg.texto = (inicio + novo).trim(); msg.llm = msg.texto;
-  if (pensEl) pensEl.remove();
   if (pensTxt.trim()) msg.pensou = pensTxt.trim().slice(0, 6000); else delete msg.pensou;   // o raciocínio fica gravado, recolhido
   if (comEsquema && !erro) {   // o JSON vira o widget; se não deu (cortado/abortado), avisa
     const d = normalizarModo(pergunta.modo, extrairJSON(novo));
