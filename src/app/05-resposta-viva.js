@@ -52,7 +52,7 @@ const ligarLinks = el => {
 // [1] no meio do texto vira um selo clicável para a fonte (não mexe em blocos de código)
 function comCitacoes(html, fontes) {
   if (!fontes || !fontes.length) return html;
-  return String(html).split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/).map((parte, i) => i % 2 ? parte
+  return String(html).split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>|<[^>]+>)/).map((parte, i) => i % 2 ? parte
     : parte.replace(/\[(\d{1,2})\]/g, (todo, n) => {
       const f = fontes[+n - 1];
       return f ? '<a class="cit" href="' + esc(f.url) + '" data-link title="' + esc(f.titulo) + '">' + n + '</a>' : todo;
@@ -68,10 +68,12 @@ function ligarLinhaPensa(el, texto, titulo) {
   linha.querySelector('.pensa-seta').onclick = abrir;
   linha.onclick = e => { if (!e.target.closest('.pensa-seta')) abrir(); };
 }
+// antes de o raciocínio começar a chegar: um anel girando e linhas que brilham, em vez de uma caixa vazia parada
+const ESPERA_PENSA = '<div class="pens-espera" role="status"><span class="pens-anel" aria-hidden="true"></span><span>Começando a pensar…</span></div><div class="pens-linhas" aria-hidden="true"><i></i><i></i><i></i></div>';
 function abrirFolhaPensa(texto, linha, titulo) {
   if (folhaPensa) { folhaPensa.fechar(); return; }
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg folha pensa-folha">${topoCentro(titulo || 'Raciocínio')}<div class="pens-txt">${esc(texto || '')}</div>
+  f.innerHTML = `<div class="dlg folha pensa-folha">${topoCentro(titulo || 'Raciocínio')}<div class="pens-txt">${texto ? esc(texto) : ESPERA_PENSA}</div>
     <p class="info pensa-pe">É o rascunho da IA antes de responder. Some quando você apaga a conversa.</p></div>`;
   const dlg = f.firstChild;
   const sair = () => { folhaPensa = null; if (linha) linha.querySelector('.pensa-seta').setAttribute('aria-expanded', 'false'); animarSaida(f, dlg); };
@@ -86,6 +88,7 @@ function abrirFolhaPensa(texto, linha, titulo) {
 function atualizarFolhaPensa(texto) {
   if (!folhaPensa) return;
   const t = folhaPensa.querySelector('.pens-txt'); if (!t) return;
+  if (t.querySelector('.pens-espera')) { if (!texto) return; t.textContent = ''; }   // o raciocínio começou: sai o giro de espera
   const atual = t.textContent;
   if (texto.startsWith(atual)) { if (texto.length > atual.length) t.appendChild(document.createTextNode(texto.slice(atual.length))); }
   else t.textContent = texto;
@@ -113,7 +116,7 @@ const htmlTrabalhando = () => '<span class="trabalhando">Pensando</span>';
 const FORMAS_GIRO = ['·', '✢', '✳', '✶', '✻', '✽', '✻', '✶', '✳', '✢'];
 function novoGiro(textoPensando) {
   const el = document.createElement('div'); el.className = 'giro'; el.setAttribute('role', 'status');
-  el.innerHTML = '<span class="giro-marca" aria-hidden="true">·</span><span class="trabalhando">Pensando</span><span class="giro-tempo"></span>';
+  el.innerHTML = '<span class="giro-marca" aria-hidden="true">·</span><span class="trabalhando">Pensando</span><span class="giro-tempo" aria-hidden="true"></span>';
   const marca = el.querySelector('.giro-marca'), palavra = el.querySelector('.trabalhando'), tempo = el.querySelector('.giro-tempo');
   const t0 = performance.now(); let i = 0, pararPal = novaPalavra(palavra, true), pensando = false;
   const tick = setInterval(() => {

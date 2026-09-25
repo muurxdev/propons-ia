@@ -1,8 +1,10 @@
 /* ---------------- anexos ---------------- */
 function desenharChips() {
-  const c = $('#chips'); c.hidden = !anexos.length && !modoAtivo;
-  c.innerHTML = (modoAtivo ? `<div class="chip modo">${ICO[MODOS[modoAtivo].ico]}<b>Modo: ${esc(MODOS[modoAtivo].nome)}</b><button data-rm-modo aria-label="Sair do modo">${ICO.fechar}</button></div>` : '') + anexos.map(a => chipHTML(a, true)).join('');
+  const tutor = tutorLigado(atual) && modoAtivo !== 'tutor';
+  const c = $('#chips'); c.hidden = !anexos.length && !modoAtivo && !tutor;
+  c.innerHTML = (tutor ? `<div class="chip modo">${ICO.tutor}<b>Me ensina ligado</b><button data-rm-tutor aria-label="Desligar o Me ensina">${ICO.fechar}</button></div>` : '') + (modoAtivo ? `<div class="chip modo">${ICO[MODOS[modoAtivo].ico]}<b>Modo: ${esc(MODOS[modoAtivo].nome)}</b><button data-rm-modo aria-label="Sair do modo">${ICO.fechar}</button></div>` : '') + anexos.map(a => chipHTML(a, true)).join('');
   const rm = c.querySelector('[data-rm-modo]'); if (rm) rm.onclick = () => definirModo(null);
+  const rt = c.querySelector('[data-rm-tutor]'); if (rt) rt.onclick = desligarTutor;
   c.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => { e.stopPropagation(); anexos = anexos.filter(a => a.nome !== b.dataset.rm); desenharChips(); ajustar(); });
   ligarVerAnexos(c, anexos, true);
   ajustar();

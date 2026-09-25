@@ -117,5 +117,16 @@ for (let d = 10; d <= 260; d += 20) { await toque('touchMove', topo2.x, topo2.y 
 await toque('touchEnd'); await espera(600);
 ok('do tamanho normal, puxar para baixo fecha', await js(`!document.querySelector('.dlg-fundo:not(.saindo) .dlg.mais')`));
 // o topo da folha é opaco: o conteúdo que rola por baixo não aparece nas laterais
+// um tremor de poucos pixels (rápido) não fecha a folha — só um puxão de verdade
+await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); abrirMais(); 1`); await espera(700);
+const t3 = await js(`(() => { const b = document.querySelector('.dlg.mais .dlg-topo').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 12 }; })()`);
+await toque('touchStart', t3.x, t3.y); await espera(16); await toque('touchMove', t3.x, t3.y + 20); await espera(16); await toque('touchEnd'); await espera(500);
+ok('arrastar só um pouquinho (rápido) não fecha a folha', await js(`!!document.querySelector('.dlg-fundo:not(.saindo) .dlg.mais')`));
+// raciocínio aberto antes de começar: anel girando; quando o texto chega, ele sai
+await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); folhaPensa = null; abrirFolhaPensa('', null); 1`); await espera(500);
+const esperaPensa = await js(`(() => { const a = document.querySelector('.pens-anel'); return !!a && getComputedStyle(a).animationName === 'girar'; })()`);
+await js(`atualizarFolhaPensa('Primeiro passo do raciocínio.'); 1`); await espera(100);
+ok('raciocínio ainda vazio mostra o anel girando e some quando o texto chega', esperaPensa && await js(`!document.querySelector('.pens-espera') && /Primeiro passo/.test(document.querySelector('.pens-txt').textContent)`));
+await js(`folhaPensa && folhaPensa.fechar(); 1`); await espera(400);
 ok('o topo da folha cobre as laterais (conteúdo não vaza por cima)', await js(`(() => { abrirConhecimentos(); const t = document.querySelector('.dlg.conh .dlg-topo'); const s = getComputedStyle(t); return s.position === 'sticky' && /24px/.test(s.boxShadow) && s.clipPath !== 'none'; })()`));
 resumo();

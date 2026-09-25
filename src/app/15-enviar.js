@@ -119,7 +119,12 @@ function textoParaModelo(texto, lista) {
    resposta atual terminar (dá para tirar da fila antes) */
 let filaEnvio = [];
 function enfileirar(texto, lista) {
-  const conv = atual; if (!conv) return;
+  if (!atual) {   // "Nova conversa" aberta enquanto outra responde: a mensagem já cria a conversa dela
+    const base = (texto || lista.map(a => a.nome).join(', ') || 'Conversa').replace(/\s+/g, ' ').trim();
+    atual = { id: novoId(), titulo: (base.match(/^.{0,60}?[.!?](?=\s|$)/) || [base.slice(0, 60)])[0].replace(/[.!?]+$/, '') || 'Conversa', criada: Date.now(), atualizada: Date.now(), msgs: [] };
+    marcarAberta(atual); conversas.unshift(atual); $('#tituloAtual').textContent = atual.titulo; $('#conversa').innerHTML = ''; desenharLista();
+  }
+  const conv = atual;
   const el = document.createElement('div'); el.className = 'msg eu na-fila';
   el.innerHTML = (texto ? `<div class="txt">${esc(texto)}</div>` : '') + (lista.length ? `<div class="anexos-msg">${lista.map(a => chipHTML(a)).join('')}</div>` : '')
     + '<div class="fila-tag"><span>Na fila · vai quando esta resposta terminar</span><button type="button">Tirar da fila</button></div>';
@@ -127,6 +132,9 @@ function enfileirar(texto, lista) {
   el.querySelector('.fila-tag button').onclick = () => { filaEnvio = filaEnvio.filter(x => x !== item); el.remove(); };
   filaEnvio.push(item); coluna().appendChild(el); rolar(true);
 }
+const agendarFila = () => { if (filaEnvio.length && !geracao) setTimeout(andarFila, 80); };
+// ao abrir uma conversa, as mensagens dela que estão na fila voltam para a tela
+function redesenharFila(conv) { filaEnvio.filter(x => x.conv === conv).forEach(x => coluna().appendChild(x.el)); }
 async function andarFila() {
   if (geracao) return;
   const item = filaEnvio.shift(); if (!item) return;
@@ -138,6 +146,7 @@ async function andarFila() {
 // lista: anexos que não vêm da caixa (pergunta editada na própria bolha, item da fila); aí a caixa fica como está
 async function enviar(texto, origem) {
   texto = String(texto || '').trim();
+  pararSugestoes();
   const daCaixa = !origem; origem = origem || anexos;
   if (!texto && !origem.length) return;
   if (geracao) {   // a IA ainda responde: vai para a fila
@@ -166,7 +175,8 @@ async function enviar(texto, origem) {
     conversas.unshift(atual); $('#tituloAtual').textContent = atual.titulo;
   }
   const m = { role: 'user', texto, llm: textoParaModelo(texto || (fotos.length && !lista.length ? (fotos.length === 1 ? 'Descreva e explique esta foto.' : 'Descreva e explique estas fotos.') : ''), lista) };
-  if (modoAtivo) { m.modo = modoAtivo; m.llm = MODOS[modoAtivo].instrucao + '\n\n' + m.llm; definirModo(null); }
+  if (modoAtivo) { m.modo = modoAtivo; m.llm = MODOS[modoAtivo].instrucao + '\n\n' + m.llm; if (modoAtivo === 'tutor') atual.tutor = true; definirModo(null); }
+  marcarDiaDeEstudo();
   if (lista.length) m.anexos = lista;
   if (fotos.length) {
     m.imagens = fotos.map(a => ({ nome: a.nome, miniatura: a.miniatura }));
@@ -178,17 +188,24 @@ async function enviar(texto, origem) {
   conversas = [atual, ...conversas.filter(c => c !== atual)];
   // "grave um áudio", "tire uma foto"…: o app responde e já faz (a permissão do sistema aparece em seguida), mesmo sem IA
   const acao = !todos.length && !m.modo && acaoPedida(texto);
-  if (acao) { addEu(m, true); desenharLista(); salvar(); executarAcao(acao); return; }
+  if (acao) { addEu(m, true); desenharLista(); salvar(); executarAcao(acao); agendarFila(); return; }
   if (ESCOLHER) { m.pendente = true; addEu(m, true); desenharLista(); salvar(true); if (escolhendoId) return; if (MODELO_INICIAL) ligarInicial(); else abrirSeletorModelo('enviar'); return; }
   addEu(m, true); desenharLista(); salvar();
-  if (!todos.length && !m.modo && tratarMemoria(texto)) return;   // "lembre que…" / "esqueça…": o app responde na hora
+  if (!todos.length && !m.modo && tratarMemoria(texto)) { agendarFila(); return; }   // "lembre que…" / "esqueça…": o app responde na hora
   await responder(atual);
+  agendarFila();
 }
 
 ICO.ramificar = '<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10"/><path d="M6 12c0-3 3-3 6-3h4"/></svg>';
 // gera de novo a partir de uma resposta: ela e tudo depois dela saem; a pergunta anterior é respondida outra vez
+// IA desligada (abertura fria) ou ainda ligando: avisa em vez de apagar a resposta e ficar sem nada
+function iaIndisponivel() {
+  if (ESCOLHER) { toast('A IA ainda está desligada: mande uma mensagem para ligá-la e depois gere de novo.', 3500); return true; }
+  if (!online) { toast('A IA está ligando; tente de novo em alguns segundos.', 3000); return true; }
+  return false;
+}
 async function regenerarDe(m) {
-  const c = atual; if (!c || geracao) return;
+  const c = atual; if (!c || geracao || iaIndisponivel()) return;
   let i = c.msgs.indexOf(m); if (i < 0) return;
   if (c.msgs[i].role === 'assistant') c.msgs.splice(i); else c.msgs.splice(i + 1);
   while (c.msgs.length && c.msgs[c.msgs.length - 1].role !== 'user') c.msgs.pop();
@@ -204,7 +221,7 @@ function ramificar(m) {
   conversas.unshift(ramo); salvar(); abrir(ramo.id); toast('Conversa ramificada: continue daqui sem mexer na original.', 3500);
 }
 async function continuar() {
-  const c = atual; if (!c || geracao) return;
+  const c = atual; if (!c || geracao || iaIndisponivel()) return;
   const m = c.msgs[c.msgs.length - 1]; if (!m || m.role !== 'assistant') return;
   await responder(c, m);
 }
@@ -311,7 +328,7 @@ async function responder(conv, continuacao) {
   const ctrl = new AbortController();
   geracao = { conv, ctrl, el: alvo };
   PLATAFORMA.ocupado(true);
-  $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar';
+  $('#enviar').classList.add('gerando'); $('#enviar').disabled = false; $('#enviar').title = 'Parar'; $('#enviar').setAttribute('aria-label', 'Parar a resposta');
   // a conversa mostra o passo (pesquisa, leitura do arquivo) no lugar da palavra animada
   const mostrarPasso = t => { if (giro) { giro.passo(t); rolar(); } };
   const voltarAoGiro = () => { if (giro && !comEsquema) giro.livre(); };
@@ -319,6 +336,7 @@ async function responder(conv, continuacao) {
   // já está em andamento, então o passo aparece na conversa e o botão de parar vale
   if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) ) voltarAoGiro();
   SISTEMA += textoResumo(conv);
+  if (tutorLigado(conv)) SISTEMA += '\n\n' + INSTRUCAO_TUTOR;   // "Me ensina": a conversa inteira no modo tutor
   // Conhecimento (13-conhecimento.js): os pacotes que combinam com a pergunta entram com as instruções e os trechos
   if (!comEsquema && texto.trim()) {
     const ks = conhecimentosPara(texto);
@@ -331,7 +349,7 @@ async function responder(conv, continuacao) {
     if (dl) {
       voltarAoGiro(); SISTEMA += '\n\n' + dl.texto;
       // a resposta começa pelas frases do app (números exatos); o motor continua o texto delas, como no Continuar
-      if (dl.inicio && !pensar) { msg.texto = msg.llm = dl.inicio + '\n\n'; historico.push({ role: 'assistant', content: msg.texto }); }
+      if (dl.inicio && !pensar) msg.texto = msg.llm = dl.inicio + '\n\n';   // entra no histórico no fim (depois da última montagem)
       if (dl.painel) { msg.lugar = dl.painel; if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlPainelLugar(dl.painel); [...c.children].forEach(card => { alvo.parentNode.insertBefore(card, alvo); ligarPainelLugar(card); }); rolar(); } }
     }
   }
@@ -372,6 +390,8 @@ async function responder(conv, continuacao) {
   await medirTokens(textosDe(historico));
   historico = montarHistorico(conv, maxTokens, SISTEMA);
   registrarUso(conv, historico.uso, blocoWeb);
+  const prefixo = !continuacao && dl && dl.inicio && msg.texto;   // o motor continua a partir das frases do app
+  if (prefixo) historico.push({ role: 'assistant', content: msg.texto });
   // o raciocínio vai para a folha (aberta ou não): nunca ocupa a conversa
   const aoPensar = pensar ? p => { pensTxt += p; atualizarFolhaPensa(pensTxt); } : undefined;
   // leitura em voz alta enquanto a resposta chega (Aparência → Ler em voz alta: toda resposta)
@@ -444,7 +464,7 @@ async function responder(conv, continuacao) {
     // as sugestões do fim começam pelo mesmo texto de sistema e o mesmo histórico: o motor reaproveita o que já leu
     Object.defineProperty(conv, '_prompt', { value: { sistema: SISTEMA, max: maxTokens }, writable: true, configurable: true, enumerable: false });
     const r = dl && dl.completo && msg.texto ? { fim: 'stop' } : await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
-      { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : dl && dl.inicio ? 400 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
+      { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : dl && dl.inicio ? 400 : maxTokens, continuar: !!continuacao || !!prefixo, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);
@@ -457,7 +477,7 @@ async function responder(conv, continuacao) {
     clearTimeout(tTimer); cancelAnimationFrame(tRaf); tTimer = tRaf = 0;
     geracao = null;
     PLATAFORMA.ocupado(false);
-    $('#enviar').classList.remove('gerando'); $('#enviar').title = 'Enviar'; ajustar();
+    $('#enviar').classList.remove('gerando'); $('#enviar').title = 'Enviar'; $('#enviar').setAttribute('aria-label', 'Enviar'); ajustar();
   }
   novo = novo.replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
   // explicação de algoritmo com uma lista de números inventada pela IA: em vez de cortar a resposta no meio, avisa no fim

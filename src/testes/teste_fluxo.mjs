@@ -44,7 +44,47 @@ r.conhecimento = await js(`JSON.stringify({ tag: (document.querySelector('.msg.i
 await js(`barraGravacao('gravando', '0:03'); 1`);
 r.soAudio = await js(`JSON.stringify({ classe: $('#caixa').classList.contains('so-audio'), altura: $('#caixa').offsetHeight, entradaVisivel: $('#entrada').offsetHeight > 0 })`);
 await js(`barraGravacao(null); pref('conhecimentos', ''); conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// ajustes que atravessam a abertura fria: vão no arquivo de conversas e voltam ao carregar
+r.prefs = await js(`(async () => {
+  let gravado = ''; const s0 = PLATAFORMA.salvar, c0 = PLATAFORMA.carregar;
+  PLATAFORMA.salvar = t => { gravado = t; return Promise.resolve(true); };
+  pref('tamanhoResposta', 'curtas'); salvar(true); await new Promise(r => setTimeout(r, 50));
+  const tinha = JSON.parse(gravado).some(x => x.__prefs && x.__prefs.tamanhoResposta === 'curtas');
+  localStorage.removeItem('tamanhoResposta');
+  PLATAFORMA.carregar = () => Promise.resolve(gravado); await carregarHistorico();
+  const voltou = pref('tamanhoResposta') === 'curtas', semItemFantasma = !conversas.some(c => c.__prefs);
+  PLATAFORMA.salvar = s0; PLATAFORMA.carregar = c0; localStorage.removeItem('tamanhoResposta');
+  return JSON.stringify({ tinha, voltou, semItemFantasma });
+})()`);
+// "Nova conversa" aberta enquanto outra responde: a mensagem cria a conversa dela e entra na fila (não some)
+await js(`$('#entrada').value = 'Uma pergunta longa'; ajustar(); $('#enviar').click(); 1`); await espera(300);
+await js(`nova(); $('#entrada').value = 'Outra conversa'; ajustar(); $('#enviar').click(); 1`); await espera(200);
+r.filaNova = await js(`JSON.stringify({ fila: filaEnvio.length, titulo: atual && atual.titulo, caixa: $('#entrada').value })`);
+for (let i = 0; i < 40 && !(await js(`!geracao && filaEnvio.length === 0`)); i++) await espera(250);
+await espera(600);
+r.filaNovaFim = await js(`JSON.stringify(atual.msgs.map(m => m.role[0] + ':' + m.texto.slice(0, 20)))`);
+await js(`conversas = conversas.filter(c => !/Uma pergunta longa|Outra conversa/.test(c.titulo)); nova(); 1`);
+// tela inicial com sugestões; "Me ensina" liga o tutor na conversa; "Estudar isto" vira flashcards
+await js(`nova(); 1`); await espera(200);
+r.inicio = await js(`document.querySelectorAll('#boasvindas .inicio-sug button').length`);
+await js(`window.__sis = []; const g0 = PLATAFORMA.gerar; PLATAFORMA.gerar = (m, op, a, s) => { window.__sis.push({ tutor: /MODO "ME ENSINA"/.test(m[0].content), esquema: !!(op && op.esquema) }); return g0(m, op, a, s); }; definirModo('tutor'); $('#entrada').value = 'Equação do 2º grau'; ajustar(); $('#enviar').click(); 1`);
+for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
+await espera(500);
+r.tutor = await js(`JSON.stringify({ conv: !!atual.tutor, noPedido: window.__sis.filter(x => !x.esquema).pop().tutor, chip: !!document.querySelector('#chips [data-rm-tutor]') })`);
+await js(`atual.msgs[atual.msgs.length - 1].texto = 'Uma resposta longa o bastante para estudar: ' + 'a fotossíntese transforma luz em energia. '.repeat(4); abrir(atual.id); 1`); await espera(300);
+await js(`document.querySelector('.msg.ia:last-of-type .acao[title="Estudar isto"]').click(); 1`); await espera(400);
+await js(`[...document.querySelectorAll('.menu button, .dlg .op')].find(b => /flashcards/.test(b.textContent)).click(); 1`);
+for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
+await espera(400);
+r.estudar = await js(`JSON.stringify({ modo: atual.msgs.filter(m => m.role === 'user').pop().modo, esquema: window.__sis.some(x => x.esquema) })`);
+await js(`conversas = conversas.filter(c => c !== atual); nova(); 1`);
 const J = x => JSON.parse(x);
+ok('tela inicial com 4 sugestões para começar', r.inicio === 4, r.inicio);
+ok('"Me ensina" liga o tutor na conversa, vai no pedido e mostra o chip', J(r.tutor).conv && J(r.tutor).noPedido && J(r.tutor).chip, r.tutor);
+ok('"Estudar isto" → flashcards manda a resposta no modo flashcards (com esquema)', J(r.estudar).modo === 'flashcards' && J(r.estudar).esquema, r.estudar);
+ok('ajustes vão no arquivo de conversas e voltam ao abrir (sem virar conversa)', J(r.prefs).tinha && J(r.prefs).voltou && J(r.prefs).semItemFantasma, r.prefs);
+ok('mensagem mandada em "Nova conversa" durante uma resposta cria a conversa e entra na fila', J(r.filaNova).fila === 1 && J(r.filaNova).titulo === 'Outra conversa' && J(r.filaNova).caixa === '', r.filaNova);
+ok('...e é respondida quando a outra termina', J(r.filaNovaFim).length === 2 && J(r.filaNovaFim)[0] === 'u:Outra conversa', r.filaNovaFim);
 ok('respondendo, caixa vazia: o botão é parar', r.gerandoBotao);
 ok('com texto na caixa, o botão manda para a fila', r.botaoViraFila);
 ok('a mensagem entra na fila (bolha "na fila") e a caixa esvazia', J(r.naFila).fila === 1 && J(r.naFila).bolha && J(r.naFila).caixa === '', r.naFila);

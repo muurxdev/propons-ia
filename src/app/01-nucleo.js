@@ -135,20 +135,20 @@ function folhaArrastavel(fundo, folha, fechar) {
   function terminar(y) {
     const d = y - g.y0, v = velocidade(), m = g; g = null;
     if (m.modo === 'crescer') {
-      const vai = -d > 48 || v < -0.35;
+      const vai = -d > 48 || (v < -0.35 && -d > 24);   // puxão rápido vale, mas não um tremor de poucos pixels
       folha.classList.toggle('cheia', vai);
       assentar({ height: (vai ? alturaMax() : m.h0) + 'px' }, () => { if (!vai) { folha.style.height = ''; folha.style.maxHeight = ''; } });
       return;
     }
     if (m.modo === 'encolher') {
       const h = m.h0 - Math.max(0, d);
-      if (h < m.hBase && (m.hBase - h > Math.min(120, m.hBase * 0.28) || v > 1.1)) { fechar(); return; }   // desceu além do normal: fecha
-      const volta = h < (m.h0 + m.hBase) / 2 || v > 0.35;   // desceu o bastante (ou rápido): volta ao tamanho normal
+      if (h < m.hBase && (m.hBase - h > Math.min(120, m.hBase * 0.28) || (v > 1.1 && m.hBase - h > 24))) { fechar(); return; }   // desceu além do normal: fecha
+      const volta = h < (m.h0 + m.hBase) / 2 || (v > 0.35 && d > 24);   // desceu o bastante (ou rápido): volta ao tamanho normal
       folha.classList.toggle('cheia', !volta);
       assentar({ height: (volta ? m.hBase : m.h0) + 'px', transform: '' }, () => { if (volta) { folha.style.height = ''; folha.style.maxHeight = ''; } });
       return;
     }
-    if (d > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); return; }
+    if (d > Math.min(120, folha.offsetHeight * 0.28) || (v > 0.6 && d > 30)) { fechar(); return; }
     assentar({ transform: '' });
   }
   // o toque que arrastou não vira clique no botão embaixo do dedo
@@ -304,7 +304,7 @@ function copiarTexto(t) {
   return Promise.resolve(copiaVelha(t));
 }
 function copiaVelha(t) { const a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0'; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch (e) {} a.remove(); }
-function tamanhoBonito(b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' KB' : (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB'; }
+function tamanhoBonito(b) { const f = (v, c) => v.toFixed(c).replace('.', ','); return b < 1024 ? b + ' B' : b < 1048576 ? f(b / 1024, b < 10240 ? 1 : 0) + ' KB' : f(b / 1048576, b < 10485760 ? 1 : 0) + ' MB'; }   // vírgula decimal, como no resto do app
 function gbBonito(b) { return b < 1073741824 ? Math.max(1, Math.round(b / 1048576)) + ' MB' : (b / 1073741824).toFixed(1).replace('.', ',') + ' GB'; }
 const langDoArquivo = n => ({ py: 'python', pyw: 'python', js: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'typescript', jsx: 'javascript', java: 'java', kt: 'kotlin',
   c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', cs: 'csharp', go: 'go', rs: 'rust', php: 'php', rb: 'ruby', swift: 'swift', sql: 'sql', html: 'html', htm: 'html',

@@ -172,11 +172,19 @@ function acoes(d, m, ultima) {
     const bc = document.createElement('button'); bc.className = 'acao'; bc.title = 'Copiar resposta'; bc.setAttribute('aria-label', 'Copiar resposta'); bc.innerHTML = ICO.copiar;
     bc.onclick = () => copiarTexto(m.texto).then(() => { bc.innerHTML = ICO.ok; bc.classList.add('feito'); setTimeout(() => { bc.innerHTML = ICO.copiar; bc.classList.remove('feito'); }, 1400); });
     a.appendChild(bc);
+    if (!m.cartoes && !m.quiz && !m.redacao && m.texto.length > 120) {   // transformar a resposta em flashcards, quiz ou resumo
+      const be = document.createElement('button'); be.className = 'acao'; be.title = 'Estudar isto'; be.setAttribute('aria-label', 'Estudar isto: flashcards, quiz ou resumo'); be.innerHTML = ICO.tutor;
+      be.onclick = e => { e.stopPropagation(); estudarIsto(m, be); }; a.appendChild(be);
+    }
     if (PLATAFORMA.temFala) {
       const bl = document.createElement('button'); bl.className = 'acao ler'; bl._msg = m; bl.innerHTML = ICO.tocar; bl.title = 'Ouvir a resposta'; bl.setAttribute('aria-label', bl.title);
       bl.onclick = () => lerMensagem(m); a.appendChild(bl);
       if (falaAtual && falaAtual.msg === m) setTimeout(() => marcarLendo(m, 'tocando'), 0);
     }
+  }
+  if (m.interno && m.erro) {   // erro: o botão que a mensagem de erro pede
+    const bt = document.createElement('button'); bt.className = 'acao continuar'; bt.innerHTML = ICO.recarregar + '<span>Tentar de novo</span>';
+    bt.onclick = () => regenerarDe(m); a.appendChild(bt);
   }
   if (!m.interno) {   // qualquer resposta: gerar de novo (a partir dela) e ramificar a conversa até aqui
     const br = document.createElement('button'); br.className = 'acao recarregar'; br.title = ultima ? 'Gerar de novo' : 'Gerar de novo a partir daqui (o que vem depois é refeito)'; br.setAttribute('aria-label', br.title); br.innerHTML = ICO.recarregar;

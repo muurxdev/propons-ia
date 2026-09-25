@@ -2,7 +2,7 @@
    Instruções próprias, tamanho das respostas, nível de estudo, esforço de cada modelo, compactar sozinho e Enter.
    Tudo fica no aparelho e entra no texto de sistema (a bolinha de contexto conta como "Instruções da Própons"). */
 ICO.respostas = '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg>';
-ICO.ajuda = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><circle cx="12" cy="16.3" r=".6" fill="currentColor"/></svg>';
+ICO.ajuda = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/></svg>';
 const TAMANHOS_RESPOSTA = [['curtas', 'Curtas'], ['normais', 'Normais'], ['detalhadas', 'Detalhadas']];
 const NIVEIS_ESTUDO = [['livre', 'Não dizer'], ['fundamental', 'Fundamental'], ['medio', 'Ensino médio'], ['enem', 'ENEM e vestibular'], ['faculdade', 'Faculdade']];
 function textoPreferencias() {
@@ -80,7 +80,7 @@ const AJUDA = {
   'Tamanho das respostas': ['Tamanho das respostas', 'Curtas: direto ao ponto. Detalhadas: explica o porquê, dá exemplo e resume no fim. Pedir na conversa sempre vale mais que isto.'],
   'Seu nível de estudo': ['Seu nível de estudo', 'A IA ajusta a linguagem e a profundidade: no Fundamental explica do zero; na Faculdade vai direto ao técnico.'],
   'Esforço de cada modelo': ['Esforço', 'Baixo responde rápido e curto. Médio equilibra. Alto raciocina antes de responder (acerta bem mais contas e armadilhas, demora mais). Auto raciocina só quando a pergunta pede.'],
-  'Compactar sozinho': ['Compactar sozinho', 'A memória da IA tem limite (a bolinha ao lado do microfone mostra quanto já foi usado). Cheia, as mensagens antigas viram um resumo para a IA não esquecer o assunto.'],
+  'Compactar sozinho': ['Compactar sozinho', 'A memória da IA tem limite (o ⋯ no topo → Memória da conversa mostra quanto já foi usado). Cheia, as mensagens antigas viram um resumo para a IA não esquecer o assunto.'],
   'Enter envia': ['Enter envia', 'Liga ou desliga o envio com a tecla Enter.'],
   'Aceleração por GPU': ['Placa de vídeo', 'Com uma placa de vídeo, a IA pode responder várias vezes mais rápido. A Própons mede processador e placa e usa o mais rápido; se a placa falhar, volta para o processador sozinha.'],
   'API na rede local': ['API na rede local', 'Deixa outros aparelhos da sua rede (outro PC, um script) usarem esta IA, no formato da OpenAI e com chave. Desligada, nada fora deste aparelho fala com ela.'],
@@ -89,7 +89,7 @@ const AJUDA = {
   'Fotos': ['Fotos', 'O módulo de visão deixa a IA ler fotos e prints. É baixado na primeira foto e fica guardado.'],
   'Backup': ['Backup', 'Guarda todas as conversas num arquivo (.json) para levar a outro aparelho ou guardar. Importar junta com as que já existem.'],
   'Limpeza': ['Limpeza', 'Apaga conversas deste aparelho. Conversas fixadas não saem.'],
-  'Privacidade': ['Privacidade', 'Tudo fica no aparelho. A internet só é usada para baixar o app e os modelos e, se você ligar, para a pesquisa na internet.'],
+  'Privacidade': ['Privacidade', 'Suas conversas e arquivos ficam no aparelho. A internet só é usada para baixar o app e os modelos, para a pesquisa (se você ligar), para os ícones dos sites nas fontes e, em perguntas de hora, clima ou lugar, para mandar só o nome da cidade ou as coordenadas ao serviço de previsão (dá para desligar em Respostas).'],
   'Automático': ['Atualização automática', 'Confere de tempos em tempos se há versão nova e avisa com um ponto em Ajustes.'],
   'Atualizar tudo': ['Atualizar tudo', 'Baixa e instala de uma vez o app e os componentes que tiverem versão nova.'],
   'Componentes': ['Componentes', 'Peças que a Própons usa por dentro: o motor da IA, a leitura de fotos e a transcrição.'],

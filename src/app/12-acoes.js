@@ -21,7 +21,7 @@ async function executarAcao(id) {
   const depois = fn => setTimeout(() => { try { fn(); } catch (e) {} }, 350);
   const ultimaIa = () => { for (let i = atual.msgs.length - 1; i >= 0; i--) { const x = atual.msgs[i]; if (x.role === 'assistant' && x.texto && !x.interno) return x; } return null; };
   if (id === 'gravar') {
-    if (!PLATAFORMA.temTranscricao) { respostaLocal('Neste aparelho não dá para gravar direto na conversa. Mande um arquivo de áudio pelo **+ → Áudio** que eu transcrevo.'); return; }
+    if (!PLATAFORMA.temTranscricao) { respostaLocal('Neste aparelho não dá para gravar direto na conversa. Mande um arquivo de áudio pelo **+ → Arquivos** que eu transcrevo.'); return; }
     respostaLocal('Pode falar: estou gravando. Toque em **✓** quando terminar e o texto aparece na caixa para você revisar antes de mandar.');
     depois(() => { alvoTranscricao = null; iniciarGravacao(); });
   } else if (id === 'foto') {

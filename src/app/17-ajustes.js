@@ -94,7 +94,7 @@ function desenharAba() {
   Promise.resolve(r).then(() => { if ($('#corpoConfig') !== c || abaAtual !== pagina) return; const nova = c.dataset.pagina !== pagina; c.dataset.pagina = pagina; enfeitarPagina(c, nova); });
 }
 function seg(nome, opcoes, atualV) {
-  return `<div class="seg" data-seg="${nome}" role="radiogroup">${opcoes.map(([v, r]) => `<button data-v="${v}" role="radio" aria-checked="${v === atualV}" class="${v === atualV ? 'on' : ''}">${r}</button>`).join('')}</div>`;
+  return `<div class="seg${opcoes.length > 4 ? ' muitos' : ''}" data-seg="${nome}" role="radiogroup">${opcoes.map(([v, r]) => `<button data-v="${v}" role="radio" aria-checked="${v === atualV}" class="${v === atualV ? 'on' : ''}">${r}</button>`).join('')}</div>`;
 }
 function ligarSeg(c, nome, f) { c.querySelectorAll(`[data-seg="${nome}"] button`).forEach(b => b.onclick = () => { c.querySelectorAll(`[data-seg="${nome}"] button`).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); f(b.dataset.v); desenharNav(); }); }
 function ligarCopiar(c) { c.querySelectorAll('[data-copiar]').forEach(b => b.onclick = () => copiarTexto($('#' + b.dataset.copiar).textContent).then(() => toast('Copiado.'))); }
@@ -170,7 +170,7 @@ async function abaModelo(c) {
       const st = b ? Math.floor(b.pct * 100) + '%' : v.atual ? (v.baixado ? 'Em uso' : 'Escolhida') : v.baixado ? 'Baixada' : gbBonito(v.tamanho);
       const botoes = b ? '' : (!v.atual && v.baixado ? `<button class="btn" data-voz="usar" data-id="${v.id}">Usar</button>` : '') + (!v.baixado ? `<button class="btn" data-voz="baixar" data-id="${v.id}">Baixar</button>` : `<button class="btn link" data-voz="apagar" data-id="${v.id}">Apagar</button>`);
       return `<div class="lm${v.atual ? ' on' : ''}"><span class="mico">${ICO.microfone}</span><span class="pt"><b>${esc(v.nome)}</b><small>${esc(v.descricao)} · ${gbBonito(v.tamanho)}</small></span><span class="st">${st}</span>${botoes}</div>`;
-    }).join('')}</div><p class="info" style="margin-top:8px">Grave com o 🎤 ao lado de enviar ou mande um arquivo pelo "+" → Áudio (qualquer tamanho). O texto aparece na caixa para você conferir.</p></div>` : ''}
+    }).join('')}</div><p class="info" style="margin-top:8px">Grave com o 🎤 ao lado de enviar ou mande um arquivo pelo "+" → Arquivos (qualquer tamanho). O texto aparece na caixa para você conferir.</p></div>` : ''}
     <div class="secao" style="margin-top:18px"><h4>Armazenamento</h4><div class="cartao">
       ${livre ? `<div class="uso"><i style="width:${Math.max(usado ? 1.5 : 0, Math.min(100, usado / (usado + livre) * 100)).toFixed(1)}%"></i></div>` : ''}
       <div class="linha-info"><span>Modelos baixados</span><b>${usado ? gbBonito(usado) : 'nenhum'}</b></div>

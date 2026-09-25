@@ -1,4 +1,4 @@
-/* ---------------- medidor de contexto: a bolinha ao lado do microfone ----------------
+/* ---------------- contexto: quanto da memória da IA a conversa ocupa (⋯ no topo → Memória da conversa) ----------------
    Enche conforme a memória da IA (nCtx) vai sendo ocupada pela conversa: laranja acima de 70 %, vermelho acima de 90 %.
    Tocar abre a folha "Contexto" com cada parte. Os números saem da mesma montarHistorico que monta o que vai para a IA,
    então o que a bolinha mostra é o que a IA recebe. Na mesma folha, "Compactar conversa" troca as mensagens antigas

@@ -47,7 +47,7 @@ function posicionarPop(f, folha, ancora, lado) {
   const x = c ? c.left + (c.width - w) / 2 : lado === 'fim' ? r.right - w : r.left;
   const origem = c ? 'center' : 'left';
   folha.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px';
-  if (paraCima) { folha.style.bottom = (innerHeight - r.top + 6) + 'px'; folha.style.transformOrigin = 'bottom ' + origem; }
+  if (paraCima) { folha.style.bottom = (innerHeight - (c ? c.top : r.top) + 8) + 'px'; folha.style.transformOrigin = 'bottom ' + origem; }
   else { folha.style.top = (r.bottom + 6) + 'px'; folha.style.transformOrigin = 'top ' + origem; }
 }
 // janela redimensionada ou tablet girado: os menus flutuantes acompanham o botão

@@ -159,29 +159,29 @@ function agendarCartao(c, q) {   // q: 0 errei · 3 difícil · 4 bom · 5 fáci
   c.ultima = Date.now();
 }
 function exportarAnki(cartoes) {
-  const limpo = t => String(t).replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
+  const limpo = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
   PLATAFORMA.salvarArquivo('flashcards-propons.txt', '#separator:tab\n#html:true\n' + cartoes.map(c => `${limpo(c.frente)}\t${limpo(c.verso)}`).join('\n') + '\n', 'text/plain').then(r => r !== false && toast('Arquivo pronto para importar no Anki.')).catch(e => toast('Não foi possível exportar: ' + e.message));
 }
-function abrirRevisao() {
-  const b = baralho(); const fila = paraRevisar(b);
+function abrirRevisao(treino) {
+  const b = baralho(); const fila = treino || paraRevisar(b);
   if (!fila.length) { toast('Nenhum cartão para revisar agora.'); return; }
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha revisao">${topoCentro('Revisar')}<div class="rv"></div></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
-  let i = 0, feitos = 0, certos = 0;
+  let i = 0, feitos = 0, certos = 0; const errados = [];
   const desenhar = () => {
     const rv = folha.querySelector('.rv');
-    if (i >= fila.length) { rv.innerHTML = `<div class="rv-fim"><b>${feitos} ${feitos === 1 ? 'cartão revisado' : 'cartões revisados'}</b><p class="info">${certos} de ${feitos} lembrados. Os que você errou voltam em 10 minutos; os outros, em ${fila.length ? 'alguns dias' : ''}.</p><button class="btn primario" data-rv="fim">Concluir</button></div>`; rv.querySelector('[data-rv="fim"]').onclick = sair; return; }
+    if (i >= fila.length) { rv.innerHTML = `<div class="rv-fim"><b>${feitos} ${feitos === 1 ? 'cartão revisado' : 'cartões revisados'}</b><p class="info">${certos} de ${feitos} lembrados. Os que você errou voltam em 10 minutos; os outros, em ${fila.length ? 'alguns dias' : ''}.</p><div class="rv-fim-botoes">${errados.length ? `<button class="btn" data-rv="refazer">${ICO.recarregar}Refazer os ${errados.length} que errei</button>` : ''}<button class="btn primario" data-rv="fim">Concluir</button></div></div>`; rv.querySelector('[data-rv="fim"]').onclick = sair; const rf = rv.querySelector('[data-rv="refazer"]'); if (rf) rf.onclick = () => { const l = errados.slice().sort(() => Math.random() - 0.5); sair(); setTimeout(() => abrirRevisao(l), 260); }; return; }
     const c = fila[i];
     rv.innerHTML = `<p class="info rv-conta">${i + 1} de ${fila.length}${c.tema ? ' · ' + esc(c.tema) : ''}</p><div class="rv-cartao"><div class="rv-frente">${esc(c.frente)}</div><div class="rv-verso" hidden>${esc(c.verso)}</div></div>
       <div class="rv-botoes"><button class="btn primario" data-rv="mostrar">Mostrar resposta</button></div>
       <div class="rv-botoes rv-notas" hidden><button class="btn" data-q="0">Errei</button><button class="btn" data-q="3">Difícil</button><button class="btn" data-q="4">Bom</button><button class="btn" data-q="5">Fácil</button></div>`;
     rv.querySelector('[data-rv="mostrar"]').onclick = () => { rv.querySelector('.rv-verso').hidden = false; rv.querySelector('[data-rv="mostrar"]').parentNode.hidden = true; rv.querySelector('.rv-notas').hidden = false; };
     rv.querySelectorAll('[data-q]').forEach(bt => bt.onclick = () => {
-      const q = +bt.dataset.q; agendarCartao(c, q); feitos++; if (q >= 3) certos++;
-      const b2 = baralho(); const alvo = b2.cartoes.find(x => x.id === c.id); if (alvo) Object.assign(alvo, c); b2.revisoes = (b2.revisoes || 0) + 1; if (q >= 3) b2.acertos = (b2.acertos || 0) + 1; salvarBaralho(b2);
+      const q = +bt.dataset.q; if (!treino) agendarCartao(c, q); feitos++; if (q >= 3) certos++; else errados.push(c);
+      const b2 = baralho(); const alvo = b2.cartoes.find(x => x.id === c.id); if (alvo && !treino) Object.assign(alvo, c); b2.revisoes = (b2.revisoes || 0) + 1; if (q >= 3) b2.acertos = (b2.acertos || 0) + 1; salvarBaralho(b2);
       i++; desenhar();
     });
   };

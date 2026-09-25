@@ -31,7 +31,8 @@ document.addEventListener('keydown', e => {
 window.__proponsVoltar = () => {
   if (fecharDialogo()) return true;
   if (fecharTela()) return true;
-  if (gravacao || cancelarTranscricao) { $('#cancelarGrav').click(); return true; }
+  if (gravacao) { pararGravacao(true); return true; }   // não joga fora uma aula gravada por um toque em Voltar
+  if (cancelarTranscricao) return true;                 // transcrevendo: Voltar não cancela sem querer (o X cancela)
   if (document.querySelector('.painel-fundo:not(.saindo)')) { voltarPainel(); return true; }
   if (!$('#lateral').classList.contains('fechada') && estreita()) { fecharLateral(); return true; }
   return false;
@@ -72,7 +73,28 @@ function mostrarFaixa(html, rotuloSim, fSim, rotuloNao = 'Agora não', fNao) {
 }
 
 /* ---------------- aparência ---------------- */
-const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} };
+// preferências que valem no app inteiro (vão no arquivo de conversas); as de fora (permissão de localização desta
+// página, datas de checagem) ficam só aqui
+const PREF_LOCAL = /^(localOk|perm:|ultimaVerificacao$)/;
+let avisouCota = false;
+const pref = (k, v) => {
+  try {
+    if (v === undefined) return localStorage.getItem(k);
+    localStorage.setItem(k, v);
+    if (!PREF_LOCAL.test(k) && typeof salvar === 'function' && conversasCarregadas) salvar();
+  } catch (e) {
+    if (!avisouCota && /quota/i.test((e && e.name) + (e && e.message))) { avisouCota = true; toast('O espaço para ajustes deste aparelho encheu: apague arquivos grandes do Conhecimento.', 6000); }
+  }
+};
+function prefsCompartilhadas() {
+  const o = {};
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && !PREF_LOCAL.test(k) && k !== 'conversas') o[k] = localStorage.getItem(k); } } catch (e) {}
+  return o;
+}
+function aplicarPrefsDoArquivo(o) {
+  if (!o || typeof o !== 'object') return;
+  try { for (const [k, v] of Object.entries(o)) if (typeof v === 'string' && !PREF_LOCAL.test(k) && v.length < 3000000) localStorage.setItem(k, v); } catch (e) {}
+}
 function aplicarTema() {
   const t = pref('tema') || 'sistema';
   const escuro = t === 'escuro' || (t === 'sistema' && matchMedia('(prefers-color-scheme: dark)').matches);

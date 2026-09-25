@@ -8,7 +8,7 @@ function validar(lista) {
     id: (() => { const id = /^[a-z0-9]{4,40}$/i.test(c.id) && !ids.has(c.id) ? c.id : novoId(); ids.add(id); return id; })(),
     titulo: txt(c.titulo).slice(0, 120) || 'Conversa',
     criada: +c.criada || Date.now(), atualizada: +c.atualizada || +c.criada || Date.now(),
-    ...(c.fixada ? { fixada: true } : {}), ...(c.aberta ? { aberta: true } : {}),
+    ...(c.fixada ? { fixada: true } : {}), ...(c.aberta ? { aberta: true } : {}), ...(c.tutor ? { tutor: true } : {}),
     // o que a conversa usou por último (modelo e esforço): ao voltar nela, a IA continua do mesmo jeito
     ...(/^[a-z]{2,20}$/.test(c.modelo) ? { modelo: c.modelo } : {}), ...(ESFORCO[c.esforco] ? { esforco: c.esforco } : {}),
     ...(txt(c.resumo).trim() ? { resumo: txt(c.resumo).slice(0, 3000) } : {}), ...(c.ctxUso && typeof c.ctxUso === 'object' ? { ctxUso: Object.fromEntries(['total', 'sistema', 'pesquisa', 'historico', 'anexos', 'omitidas', 'resposta'].map(k => [k, Math.max(0, Math.round(+c.ctxUso[k] || 0))])) } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
@@ -31,22 +31,29 @@ function validar(lista) {
     })),
   }));
 }
-let tSalvar = null;
+let tSalvar = null, conversasCarregadas = false;
 function salvar(agora) {
   if (salvarBloqueado) return;
   clearTimeout(tSalvar);
-  const f = () => PLATAFORMA.salvar(JSON.stringify(conversas)).catch(e => toast('As conversas não foram salvas (' + e.message + '). Veja se o disco tem espaço; a próxima mensagem tenta salvar de novo.', 6000));
+  // as preferências vão como um item a mais no fim (sem "msgs": versões antigas e a validação o ignoram)
+  const f = () => PLATAFORMA.salvar(JSON.stringify(conversasCarregadas ? [...conversas, { __prefs: prefsCompartilhadas() }] : conversas)).catch(e => toast('As conversas não foram salvas (' + e.message + '). Veja se o disco tem espaço; a próxima mensagem tenta salvar de novo.', 6000));
   if (agora) f(); else tSalvar = setTimeout(f, 250);
 }
 async function carregarHistorico() {
   let bruto = '[]';
   try { bruto = await PLATAFORMA.carregar(); } catch (e) { toast('Não consegui ler as conversas salvas. Elas continuam no aparelho: feche e abra a Própons IA; se persistir, use Ajustes → Conversas → Importar backup.', 7000); }
-  try { conversas = validar(JSON.parse(bruto || '[]')); }
+  try {
+    const lido = JSON.parse(bruto || '[]');
+    const p = Array.isArray(lido) && lido.find(x => x && x.__prefs);
+    if (p) { aplicarPrefsDoArquivo(p.__prefs); aplicarTema(); aplicarFonte(); }
+    conversas = validar(lido);
+  }
   catch (e) {
     conversas = []; salvarBloqueado = true;
     mostrarFaixa('O arquivo de conversas está danificado. Para não perder nada, as conversas novas não serão salvas até você decidir.', 'Começar do zero', () => { salvarBloqueado = false; salvar(true); });
   }
   conversas.sort((a, b) => b.atualizada - a.atualizada);
+  conversasCarregadas = true;
   desenharLista();
 }
 
@@ -116,10 +123,10 @@ document.addEventListener('click', e => { if (!e.target.closest('.menu')) fechar
 function menuConversa(botao, id, doTopo) {
   const c = conversas.find(x => x.id === id); if (!c) return;
   menuFlutuante(botao, [
-    ...(doTopo ? [[ICO.editar, 'Nova conversa', nova]] : []),
+    ...(doTopo ? [[ICO.editar, 'Nova conversa', nova], [ICO.esforco, 'Memória da conversa', () => abrirFolhaContexto()]] : []),
     [ICO.renomear, 'Renomear', () => renomear(id)],
     [ICO.fixar, c.fixada ? 'Desafixar' : 'Fixar no topo', () => { c.fixada = !c.fixada; salvar(); desenharLista(); }],
-    [ICO.pasta, c.pasta ? `Pasta: ${c.pasta}` : 'Mover para pasta…', async () => {
+    [ICO.pasta, c.pasta ? `Pasta: ${esc(c.pasta)}` : 'Mover para pasta…', async () => {
       const outras = [...new Set(conversas.map(x => x.pasta).filter(Boolean))].filter(p => p !== c.pasta);
       const nome = await perguntarTexto(`Pasta da conversa${outras.length ? ' (existem: ' + outras.slice(0, 5).join(', ') + ')' : ''}`, c.pasta || '');
       if (nome === null) return;
@@ -174,7 +181,7 @@ let fraseDaTela = '';
 function boasVindas() {
   const lista = new Date().getHours() < 5 ? FRASES_MADRUGADA : FRASES;
   fraseDaTela = lista[Math.floor(Math.random() * lista.length)];
-  return `<div id="boasvindas"><h1><span class="sd">${saudacao()},</span> <span class="fr">${esc(fraseDaTela)}</span></h1></div>`;
+  return `<div id="boasvindas">${htmlSequencia()}<h1><span class="sd">${saudacao()},</span> <span class="fr">${esc(fraseDaTela)}</span></h1>${htmlSugestoesInicio()}</div>`;
 }
 // se a hora virar com a tela inicial aberta, a saudação acompanha
 setInterval(() => { const h = document.querySelector('#boasvindas .sd'); if (h && h.textContent !== saudacao() + ',') h.textContent = saudacao() + ','; }, 60000);
@@ -183,7 +190,7 @@ function nova() {
   if (atual) atual.rascunho = '';   // o que estava na caixa vai junto para a conversa nova
   atual = null; cancelarEdicao(); marcarAberta(null);
   $('#tituloAtual').textContent = 'Própons IA';
-  $('#conversa').innerHTML = boasVindas();
+  $('#conversa').innerHTML = boasVindas(); ligarSugestoesInicio($('#conversa')); desenharChips();
   desenharLista(); atualizarMedidor(); if (!estreita()) $('#entrada').focus();
 }
 function abrir(id) {
@@ -191,7 +198,7 @@ function abrir(id) {
   fecharTela();
   if (atual && atual !== c) { atual.msgs.forEach(m => { if (m._envio) m._envio = null; }); atual.rascunho = $('#entrada').value; }   // fotos cheias só da conversa aberta; o rascunho fica guardado
   const trocou = atual !== c;
-  atual = c; cancelarEdicao(); marcarAberta(c);
+  atual = c; cancelarEdicao(); marcarAberta(c); desenharChips();
   $('#tituloAtual').textContent = c.titulo;
   // as mensagens são montadas fora da página (uma coluna solta) e entram de uma vez: um reflow só, não um por mensagem
   $('#conversa').innerHTML = ''; const col = document.createElement('div'); col.className = 'col'; colDestacada = col;
@@ -203,6 +210,7 @@ function abrir(id) {
     });
   } finally { colDestacada = null; }
   if (geracao && geracao.conv === c && geracao.el) col.appendChild(geracao.el.parentNode);
+  if (typeof redesenharFila === 'function') filaEnvio.filter(x => x.conv === c).forEach(x => col.appendChild(x.el));   // a fila desta conversa
   $('#conversa').appendChild(col); atualizarMedidor();
   if (trocou) { $('#entrada').value = c.rascunho || ''; ajustar(); }
   rolar(true); desenharLista();
@@ -272,7 +280,7 @@ function ligarVerAnexos(el, lista, podeRemover) {
 }
 function verAnexo(a, podeRemover) {
   // a foto guardada na conversa é a miniatura; se ainda estiver na biblioteca desta sessão, usa a grande
-  const daBiblioteca = biblioteca.find(i => i.tipo === 'imagem' && i.nome === a.nome) || {};
+  const daBiblioteca = biblioteca.find(i => i.tipo === 'imagem' && i.nome === a.nome && (!a.tam || !i.tam || i.tam === a.tam) && (!a.miniatura || !i.miniatura || i.miniatura === a.miniatura)) || {};
   const cheio = a.dataUrl || daBiblioteca.dataUrl || a.miniatura || '';
   const eFoto = a.tipo === 'imagem' || (!a.conteudo && !!cheio);
   const texto = String(a.conteudo || '');
@@ -304,7 +312,7 @@ function verAnexo(a, podeRemover) {
 function fotoEmTelaCheia(src, nome) {
   const v = document.createElement('div'); v.className = 'foto-cheia';
   v.innerHTML = `<img src="${esc(src)}" alt="${esc(nome || '')}"><button class="icone" aria-label="Fechar">${ICO.fechar}</button>`;
-  const sair = () => { v.remove(); document.removeEventListener('keydown', esc2); };
+  const sair = () => { v.remove(); document.removeEventListener('keydown', esc2, true); };
   const esc2 = e => { if (e.key === 'Escape') { e.stopPropagation(); sair(); } };
   v.onclick = sair; document.addEventListener('keydown', esc2, true);
   document.body.appendChild(v);

@@ -1,7 +1,50 @@
-## Novidades da 1.24.1
+## Novidades da 1.25.0
 
-- **Menus com dois tamanhos, como os do Claude:** puxe para cima e o menu cresce com o dedo até a tela cheia; da tela cheia, puxando para baixo ele volta ao tamanho normal (não fecha mais de uma vez); do tamanho normal, puxar para baixo fecha. Soltando, ele assenta no tamanho mais perto, levando em conta a velocidade do gesto, com uma animação que desacelera no fim.
-- **O topo dos menus ficou sólido:** o conteúdo que rola por baixo (como os cartões do Conhecimento) não aparece mais apagado nas beiradas de cima, e uma linha fina separa o título quando a lista está rolada.
+Esta versão vem de uma auditoria completa: pesquisa do que ChatGPT, Claude, Gemini, NotebookLM, Khanmigo, Quizlet, Anki, Duolingo e os apps de IA local fazem, revisão do código inteiro e revisão visual de 36 telas no celular e no PC, nos dois temas. O relatório e o plano estão em `docs/auditoria-2026-09.md`.
+
+- **"Me ensina" (em Modos de estudo):** a IA vira tutora na conversa inteira. Ela pergunta o que você já sabe, dá uma dica por vez e só mostra a resposta completa se você pedir. Um chip "Me ensina ligado" na caixa desliga quando quiser.
+- **Estudar isto:** um botão embaixo de cada resposta transforma a resposta em flashcards, quiz, resumo ou em um "me ensina passo a passo".
+- **Tela inicial com sugestões para começar** (matérias sorteadas) e **sequência de dias estudando**. Um dia de descanso por semana não quebra a sequência.
+- **Revisão de flashcards com "Refazer os que errei"** no fim, embaralhados e sem bagunçar a agenda.
+- **Raciocínio aberto antes de começar:** mostra um anel girando e linhas que brilham até o texto chegar.
+- **Menus com dois tamanhos, como os do Claude:**
+  - puxe para cima e ele vai até a tela cheia;
+  - da tela cheia, puxar para baixo volta ao tamanho normal;
+  - do normal, puxar para baixo fecha.
+  - Um tremor de poucos pixels não fecha mais o menu.
+  - O topo dos menus ficou sólido, com uma linha fina quando a lista está rolada.
+- **Correções vindas da auditoria:**
+  - os ajustes (tema, esforço, memória, baralho, Conhecimento) não se perdem mais quando a IA liga;
+  - a mensagem mandada em "Nova conversa" com outra resposta em andamento não some;
+  - "Gerar de novo" com a IA desligada não apaga a resposta;
+  - Voltar no Android durante uma gravação transcreve em vez de jogar fora;
+  - a fila não trava e reaparece ao voltar para a conversa;
+  - erros ganham o botão "Tentar de novo";
+  - as frases de clima e hora chegam certas ao modelo;
+  - a miniatura abre a foto certa;
+  - o Esc volta a funcionar depois de ver uma foto;
+  - fechado um caminho de injeção de HTML pelo nome da pasta;
+  - a exportação para o Anki funciona com `<` e `&`;
+  - textos antigos atualizados; "Memória da conversa" voltou pelo ⋯ do topo.
+- **Visual:**
+  - opção escolhida e interruptores visíveis no tema escuro;
+  - no PC, os menus não cobrem mais a caixa de texto;
+  - margens iguais em todas as folhas;
+  - citações sem sublinhado;
+  - ícone de ajuda "i";
+  - botão de enviar vazado quando está vazio;
+  - cartão do clima mais compacto;
+  - áreas de toque maiores;
+  - flashcard que vira com animação;
+  - "Acertou" em verde e "Errou" em vermelho;
+  - folhas destacadas do fundo;
+  - números com vírgula;
+  - letras gregas e setas com rótulo no LaTeX.
+- **Acessibilidade:**
+  - o botão Parar é anunciado como "Parar";
+  - o tempo do giro não é lido a cada segundo;
+  - a conversa é uma região viva;
+  - o campo de mensagem tem rótulo.
 
 ## Novidades da 1.24.0
 

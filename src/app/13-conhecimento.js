@@ -54,7 +54,7 @@ function abrirConhecimentos() {
         <button class="conh-abrir" data-editar><span class="conh-ico">${ICO.conhecimento}</span><span class="pt"><b>${esc(k.nome)}</b><small>${esc(k.sempre ? 'Usado em toda resposta' : (k.quando || 'Sem "quando usar"'))}${(k.refs || []).length ? ` · ${k.refs.length} ${k.refs.length === 1 ? 'arquivo' : 'arquivos'}` : ''}</small></span></button>
         <button class="interruptor so-chave" role="switch" aria-checked="${k.ativo !== false}" aria-label="Ligar ${esc(k.nome)}" data-ligar><span class="chave"></span></button></div>`).join('')}</div>`
         : `<div class="conh-vazio"><span class="conh-ico grande">${ICO.conhecimento}</span><b>Nenhum conhecimento ainda</b><small>Crie um do zero ou comece por um modelo abaixo.</small></div>`}
-      <button class="btn primario conh-novo" data-novo>${ICO.mais2 || '+'} Novo conhecimento</button>
+      <button class="btn primario conh-novo" data-novo><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 5v14M5 12h14"/></svg>Novo conhecimento</button>
       <h4 class="conh-sub">Começar de um modelo</h4>
       <div class="conh-modelos">${MODELOS_CONHECIMENTO.map((m, i) => `<button class="conh-modelo" data-modelo="${i}"${l.some(k => k.nome === m.nome) ? ' disabled' : ''}><b>${esc(m.nome)}</b><small>${esc(m.instrucoes.slice(0, 90))}…</small><span>${l.some(k => k.nome === m.nome) ? 'Adicionado' : 'Adicionar'}</span></button>`).join('')}</div>`;
     corpo.querySelectorAll('[data-ligar]').forEach(b => b.onclick = () => {
@@ -96,7 +96,8 @@ function editarConhecimento(k, depois) {
     try {
       const texto = /\.pdf$/i.test(arq.name) ? (await extrairPdf(arq)).texto : /\.docx$/i.test(arq.name) ? (await extrairDocx(arq)).texto : await arq.text();
       if (!texto.trim()) { toast('Esse arquivo não tem texto.'); return; }
-      k.refs = (k.refs || []).concat({ nome: arq.name, texto: texto.slice(0, 400000) }).slice(-5); refs();
+      if (texto.length > 150000) toast(`"${arq.name}" é grande: guardei os primeiros 150 mil caracteres.`, 4000);
+      k.refs = (k.refs || []).concat({ nome: arq.name, texto: texto.slice(0, 150000) }).slice(-3); refs();
     } catch (er) { toast(`Não consegui ler "${arq.name}".`, 3500); }
   };
   folha.querySelector('[data-sempre]').onclick = e => { const b = e.currentTarget; k.sempre = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', k.sempre); };

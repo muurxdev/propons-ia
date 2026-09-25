@@ -7,6 +7,7 @@ function semLatex(src) {
   const mapa = (t, M) => t && [...t].every(c => M[c]) ? [...t].map(c => M[c]).join('') : null;
   const CMD = { rightarrow: '→', to: '→', longrightarrow: '⟶', leftarrow: '←', Rightarrow: '⇒', Leftarrow: '⇐', Leftrightarrow: '⇔', leftrightarrow: '↔', implies: '⇒', iff: '⇔',
     times: '×', cdot: '·', div: '÷', pm: '±', mp: '∓', leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', approx: '≈', equiv: '≡', sim: '∼', propto: '∝', infty: '∞',
+    eta: 'η', zeta: 'ζ', kappa: 'κ', nu: 'ν', xi: 'ξ', Xi: 'Ξ', chi: 'χ', psi: 'ψ', Psi: 'Ψ', iota: 'ι', upsilon: 'υ', vartheta: 'ϑ', Lambda: 'Λ', Theta: 'Θ', Pi: 'Π',
     pi: 'π', alpha: 'α', beta: 'β', gamma: 'γ', Gamma: 'Γ', delta: 'δ', Delta: 'Δ', epsilon: 'ε', varepsilon: 'ε', theta: 'θ', lambda: 'λ', mu: 'μ', rho: 'ρ', sigma: 'σ', Sigma: 'Σ',
     tau: 'τ', phi: 'φ', varphi: 'φ', Phi: 'Φ', omega: 'ω', Omega: 'Ω', sum: 'Σ', prod: '∏', int: '∫', oint: '∮', partial: '∂', nabla: '∇', in: '∈', notin: '∉', subset: '⊂', subseteq: '⊆',
     cup: '∪', cap: '∩', emptyset: '∅', forall: '∀', exists: '∃', neg: '¬', land: '∧', lor: '∨', angle: '∠', degree: '°', circ: '°', perp: '⊥', parallel: '∥', cdots: '⋯', ldots: '…', dots: '…',
@@ -39,6 +40,10 @@ function semLatex(src) {
           out += (idx === '3' ? '∛' : idx === '4' ? '∜' : idx ? (mapa(idx, SUP) || idx) + '√' : '√') + (/^[\w.]+$/.test(A) ? A : `(${A})`);
         } else if (/^(text|mathrm|mathbf|mathit|operatorname|textbf|textit|mathsf|boldsymbol|vec|hat|bar|overline|underline)$/.test(nome)) {
           let a; [a, i] = grupo(t, i); out += conv(a);
+        } else if (nome === 'xrightarrow' || nome === 'xleftarrow') {   // seta com rótulo: ─luz→
+          if (t[i] === '[') { const f = t.indexOf(']', i); i = f + 1; }
+          let a; [a, i] = grupo(t, i); const A = conv(a).trim();
+          out += nome === 'xrightarrow' ? (A ? ` ─${A}→ ` : ' → ') : (A ? ` ←${A}─ ` : ' ← ');
         } else if (nome === 'mathbb') {
           let a; [a, i] = grupo(t, i); out += BB[a] || a;
         } else if (nome === 'left' || nome === 'right' || nome === 'big' || nome === 'Big' || nome === 'bigl' || nome === 'bigr' || nome === 'displaystyle') {

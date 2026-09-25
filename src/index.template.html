@@ -190,6 +190,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .txt blockquote{margin:.6em 0;padding:.1em 0 .1em 14px;border-left:3px solid var(--line);color:var(--muted)}
 .txt hr{border:0;border-top:1px solid var(--line);margin:1em 0}
 .txt a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.txt a.cit{text-decoration:none}
 .txt code{font-family:var(--mono);font-size:.87em}
 .txt :not(pre)>code{background:var(--code);border:1px solid var(--line);padding:1px 5px;border-radius:8px;overflow-wrap:anywhere}
 .txt pre{position:relative;background:var(--code);border:1px solid var(--line);border-radius:var(--r2);padding:38px 16px 14px;overflow-x:auto;font-size:var(--t-sm);line-height:1.55;margin:.7em 0}
@@ -398,12 +399,21 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 @media (prefers-reduced-motion:reduce){.giro .giro-marca{animation:none}}
 /* no fim, se pensou: a marca parada, "Pensou por N s" e a flechinha que abre o raciocínio */
 .pensa-linha{display:inline-flex;align-items:center;gap:4px;padding:2px 0;cursor:pointer}
+.msg.ia>.pensa-linha{display:flex;width:max-content;margin-bottom:10px}
 .pensa-rotulo{font-size:var(--fs);color:var(--muted)}
 .pensa-seta{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:transparent;transition:background var(--t2),color var(--t2),transform var(--t3) var(--padrao)}
 .pensa-seta svg{width:15px;height:15px}
 .pensa-linha:hover .pensa-seta{background:var(--hover)}
 .pensa-seta[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent);transform:rotate(180deg)}
 .pensa-folha .pens-txt{margin:2px 6px 10px;max-height:52vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:var(--t-md)/1.65 var(--sans);color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:var(--r2);padding:12px}
+/* raciocínio que ainda não começou: anel girando e linhas com brilho passando (some quando o texto chega) */
+.pens-espera{display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--sans);font-size:var(--t-md);margin-bottom:14px}
+.pens-anel{width:18px;height:18px;flex:none;border-radius:50%;border:2.5px solid var(--accent-soft);border-top-color:var(--accent);animation:girar .8s linear infinite}
+.pens-linhas{display:flex;flex-direction:column;gap:9px}
+.pens-linhas i{display:block;height:10px;border-radius:6px;background:linear-gradient(90deg,var(--hover) 25%,var(--line) 50%,var(--hover) 75%);background-size:200% 100%;animation:brilhoLinha 1.3s ease-in-out infinite}
+.pens-linhas i:nth-child(2){width:86%;animation-delay:.15s} .pens-linhas i:nth-child(3){width:62%;animation-delay:.3s}
+@keyframes brilhoLinha{from{background-position:120% 0}to{background-position:-80% 0}}
+@media (prefers-reduced-motion:reduce){.pens-anel,.pens-linhas i{animation:none}}
 .pensa-pe{margin:0 8px 6px;font-size:var(--t-xs)}
 /* raciocínio antigo (recolhível) */
 .pensando{margin:4px 0 8px;border:1px solid var(--line);border-radius:var(--r1);background:var(--surface);font-size:var(--t-sm);color:var(--muted)}
@@ -536,7 +546,7 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #enviar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);flex:none;transition:background var(--t1),opacity var(--t1),transform var(--t1)}
 #enviar:hover{background:var(--accent-hover)}
 #enviar:active{transform:scale(.94)}
-#enviar:disabled{background:var(--line);color:var(--faint);cursor:default}
+#enviar:disabled{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line);color:var(--faint);cursor:default}
 #enviar svg{width:17px;height:17px;stroke-width:2.4}
 #enviar .parar{display:none;width:12px;height:12px;background:currentColor;border-radius:8px}
 #enviar.gerando .parar{display:block} #enviar.gerando svg{display:none}
@@ -750,6 +760,8 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .dlg .dlg-txt p{margin:.4em 0}
 .dlg .botoes{justify-content:flex-end}
 .folha{padding:0 8px calc(var(--sb) + 10px)}
+@media (max-width:760px){ .dlg.folha{padding:0 12px calc(var(--sb) + 12px)} }
+.fonte-nota,.pensa-pe{margin-left:6px!important;margin-right:6px!important}
 .dlg:focus,.painel:focus{outline:none}   /* a folha recebe o foco só para o teclado entrar nela: sem contorno */
 .dlg{touch-action:none}                 /* menu curto: o dedo arrasta a folha de qualquer ponto */
 .dlg.rola,.dlg .pens-txt{touch-action:pan-y}   /* o que rola dentro da folha aceita o dedo; no topo, puxar para baixo fecha */           /* menu comprido: o dedo rola o conteúdo; a alça arrasta a folha */
@@ -759,7 +771,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .folha button.op:hover{background:var(--hover)}
 .folha button.op.perigo{color:var(--danger)}
 .folha button.op svg{width:20px;height:20px}
-.toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--surface);color:var(--muted);border:1px solid var(--line);padding:9px 16px;border-radius:var(--r4);font-size:var(--t-sm);box-shadow:0 8px 24px rgba(0,0,0,.28);animation:aparece var(--t1) ease;max-width:min(90vw,420px);text-align:center;backdrop-filter:blur(8px)}
+.toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:9px 16px;border-radius:var(--r4);font-size:var(--t-sm);box-shadow:0 8px 24px rgba(0,0,0,.28);animation:aparece var(--t1) ease;max-width:min(90vw,420px);text-align:center;backdrop-filter:blur(8px)}
 
 /* "+": câmera, fotos, arquivos, modelo */
 /* folhas no estilo do app do Claude: X à esquerda, título no centro, cartões e linhas */
@@ -818,6 +830,58 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .btn-mini{display:inline-block;padding:6px 12px;border-radius:var(--r4);background:var(--accent);color:var(--accent-ink);font-size:var(--t-sm);font-weight:600}
 .lm .selo{font-size:var(--t-xs);padding:1px 6px;margin-left:4px}
 .lm:disabled{opacity:.5}
+/* ---- auditoria de design (1.25.0) ---- */
+/* 1) opção escolhida clara no tema escuro (antes ficava mais escura que o trilho) */
+:root[data-tema="escuro"] .seg button.on,:root[data-tema="escuro"] .bib-abas button.on{background:#383841;box-shadow:0 1px 2px rgba(0,0,0,.5)}
+/* 2) interruptor desligado visível no escuro */
+:root[data-tema="escuro"] .chave{background:#3d3d47;box-shadow:inset 0 0 0 1px #4b4b56}
+/* 4) popovers do PC um pouco mais largos: valores como "2,6 GB" não quebram */
+@media (min-width:761px){ .dlg-fundo.pop .dlg{width:min(380px,calc(100vw - 16px))} }
+/* 7) ajuda discreta */
+.ajuda{opacity:.72}
+/* 9) cartão de clima compacto no celular: 4 colunas */
+@media (max-width:520px){ .lugar-grade{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px} .lugar-dado{padding:6px 7px} .lugar-dado small{font-size:var(--t-xs)} .lugar-dado b{font-size:var(--t-sm)} }
+/* 10) alvos de toque de pelo menos 40 px no celular */
+@media (max-width:760px){
+  .copiar{padding:8px 10px}
+  .seletor-modelo,.fontes-t{height:40px}
+  .ajuda,.pensa-seta{width:34px;height:34px}
+  .seg button{min-height:42px}
+  .item .mais{width:40px;height:40px}
+  /* 14) muitas opções (nível de estudo): uma linha que rola para o lado, sem quebrar torto */
+  #corpoConfig .seg.muitos{flex-wrap:nowrap;overflow-x:auto}
+  #corpoConfig .seg.muitos button{flex:none}
+}
+/* 15) flashcard: frente e verso centralizados e virada animada; duas colunas no celular */
+.fc{text-align:center}
+.fc.virado .fc-verso{animation:vira var(--t2) var(--entra)}
+@keyframes vira{from{transform:rotateY(80deg);opacity:0}}
+@media (max-width:760px){ .fc-grid{grid-template-columns:1fr 1fr} .fc{min-height:88px} }
+/* 16) "Acertou" verde e "Errou" vermelho no quiz */
+.qz.respondida:has(.alt.errada) .qz-exp b{color:var(--danger)}
+.qz.respondida:not(:has(.alt.errada)) .qz-exp b{color:var(--ok)}
+/* 18) folhas um tom acima do fundo no escuro (não se confundem com a tela) */
+:root[data-tema="escuro"] .dlg,:root[data-tema="escuro"] .painel{background:#1c1c21}
+:root[data-tema="escuro"] .dlg-topo{background:#1c1c21;box-shadow:0 0 0 24px #1c1c21}
+/* 19) fundo escurecido mais leve no tema claro */
+:root:not([data-tema="escuro"]) .dlg-fundo,:root:not([data-tema="escuro"]) .painel-fundo{background:rgba(10,10,14,.28)}
+/* 21) texto de apoio das folhas menor que o conteúdo */
+.dlg .dlg-txt,.folha>.info{font-size:var(--t-sm);color:var(--muted)}
+/* 24) no PC, copiar/editar da pergunta aparecem ao passar o mouse */
+@media (hover:hover) and (min-width:761px){ .msg.eu>.acoes{opacity:0;transition:opacity var(--t1)} .msg.eu:hover>.acoes,.msg.eu:focus-within>.acoes{opacity:1} }
+/* 25) linha de código comprida: um degradê à direita mostra que rola */
+.txt pre{position:relative}
+.txt pre code{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
+.rv-fim-botoes{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:16px}
+.rv-fim-botoes .btn svg{width:16px;height:16px}
+/* 13) sugestões para começar, na tela inicial */
+.inicio-sug{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:560px;margin-top:6px}
+.inicio-sug button{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;text-align:left;max-width:100%;border:1px solid var(--line);border-radius:var(--r4);background:var(--surface);color:var(--ink);font-size:var(--t-sm);transition:background var(--t1),border-color var(--t1);animation:sugEntra .35s cubic-bezier(.2,.8,.2,1) both}
+.inicio-sug button:hover{background:var(--hover);border-color:var(--accent)}
+.inicio-sug button svg{width:15px;height:15px;color:var(--accent)}
+.inicio-sug button:nth-child(2){animation-delay:50ms} .inicio-sug button:nth-child(3){animation-delay:100ms} .inicio-sug button:nth-child(4){animation-delay:150ms}
+.sequencia{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:var(--r4);background:var(--accent-soft);color:var(--accent);font-size:var(--t-sm);font-weight:600}
+@media (prefers-reduced-motion:reduce){ .inicio-sug button,.fc.virado .fc-verso{animation:none} }
 /* ---- biblioteca (estilo Nira) ---- */
 /* tela: cabeçalho com contagem, busca + ordem e abas presas no topo, lista em linhas (capa ou quadradinho do formato,
    título em 2 linhas, meta, trecho, nota), espaço usado no fim; a barra da seleção fica embaixo, fora da rolagem */
@@ -1073,7 +1137,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   .bib-ficha{grid-template-columns:1fr 1fr;margin:0 4px 12px}
   .bib-acoes{margin:0 4px 4px}
   .bib-previa{margin:2px 4px 10px}
-  .toast{bottom:calc(88px + var(--sb))}
+  .toast{bottom:calc(118px + var(--sb))}
 }
 @keyframes sobe{from{transform:translateY(100%)}}
 /* PC e tablet: diálogos no centro, menus flutuando ao lado do botão, ajustes numa janela; nada sobe de baixo */
@@ -1123,7 +1187,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
     <button class="icone" id="menuTopo" title="Opções da conversa" aria-label="Opções da conversa" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.6"><circle cx="5" cy="12" r=".8"/><circle cx="12" cy="12" r=".8"/><circle cx="19" cy="12" r=".8"/></svg></button>
   </header>
   <div id="faixa"></div>
-  <div id="conversa"></div>
+  <div id="conversa" role="log" aria-label="Conversa" aria-relevant="additions"></div>
   <section class="tela" id="tela" hidden></section>
   <div class="compor">
     <button id="descer" hidden aria-label="Ir para o fim da conversa"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
@@ -1136,9 +1200,9 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
         <span class="onda" id="onda"></span>
         <button class="redondo enviar" id="pararGrav" title="Transcrever" aria-label="Parar e transcrever para a caixa"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
-      <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" enterkeyhint="send"></textarea>
+      <textarea id="entrada" rows="1" placeholder="Pergunte alguma coisa" aria-label="Mensagem para a IA" enterkeyhint="send"></textarea>
       <div class="linha">
-        <button class="icone" id="anexar" title="Câmera, fotos, arquivos, áudio e biblioteca" aria-label="Adicionar: câmera, fotos, arquivos, áudio e biblioteca" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="icone" id="anexar" title="Câmera, fotos, arquivos, conhecimento e modos de estudo" aria-label="Adicionar: câmera, fotos, arquivos, conhecimento e modos de estudo" aria-expanded="false"><svg viewBox="0 0 24 24" style="stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg></button>
         <button class="seletor-modelo" id="seletorModelo" title="Modelo de IA" aria-label="Escolher o modelo de IA"><span id="logoSeletor" class="logo-seletor"></span><span id="nomeModelo">Modelo</span><span class="pill" id="pillEsforco" role="button" tabindex="0" title="Nível de esforço" hidden></span></button>
         <button class="bt-web" id="btPesquisa" title="Pesquisa na internet ligada — toque para desligar" aria-label="Desligar a pesquisa na internet" aria-pressed="false" hidden><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="x"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
         <span class="espaco"></span>

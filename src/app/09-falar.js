@@ -32,7 +32,7 @@ async function garantirVoz() {
   if (v.baixado) return true;
   if (!await confirmar('Transcrever áudio', `<p>Para transformar fala em texto, a IA usa a <b>${esc(v.nome)}</b> (${gbBonito(v.tamanho)}), baixada uma vez só. Depois funciona sem internet.</p><p>Dá para trocar pela voz mais precisa em Ajustes → Modelos de IA.</p>`, 'Baixar')) return false;
   try { baixando[v.id] = { pct: 0, feito: 0, total: v.tamanho }; await PLATAFORMA.baixarVoz(v.id); }
-  catch (e) { delete baixando[v.id]; toast('A voz para transcrever não foi baixada (' + e.message + '). Confira a internet e tente de novo em Ajustes → Voz.', 6000); return false; }
+  catch (e) { delete baixando[v.id]; toast('A voz para transcrever não foi baixada (' + e.message + '). Confira a internet e tente de novo em Ajustes → Modelos de IA.', 6000); return false; }
   toast('Baixando a voz…', 2500);
   return new Promise(res => { esperaVoz = { id: v.id, res }; setTimeout(() => { if (esperaVoz && esperaVoz.res === res) { esperaVoz = null; res(false); } }, 30 * 60000); });   // nunca fica esperando para sempre
 }
@@ -45,7 +45,7 @@ function montarOnda() {
 const nivelDaOnda = rms => { const db = 20 * Math.log10(rms + 1e-6); return Math.max(0.1, Math.min(1, (db + 58) / 46)); };   // -58 dB (silêncio) → 10%, -12 dB (voz alta) → 100%
 async function iniciarGravacao() {
   if (gravacao || transcrevendo) return;   // dá para gravar enquanto a IA responde: o texto vai para a caixa e depois para a fila
-  if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Este aparelho não permite gravar aqui. Use "+" → Áudio para mandar um arquivo.', 4500); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Este aparelho não permite gravar aqui. Use "+" → Arquivos para mandar um arquivo de áudio.', 4500); return; }
   if (!(await garantirVoz())) return;
   let fluxo;
   try { fluxo = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } }); }
