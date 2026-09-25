@@ -188,7 +188,7 @@ function ligarRemota(c) {
       setTimeout(() => location.reload(), 900);
     } catch (e) {
       bl.disabled = false;
-      est.textContent = /Failed to fetch|NetworkError|Load failed/i.test(e.message) ? 'Não achei o PC nesse endereço. Confira se o PC está ligado, na mesma rede, com a API na rede local ligada.' : 'Não deu: ' + e.message + '.';
+      est.textContent = /Failed to fetch|NetworkError|Load failed|timed out|TimeoutError|aborted/i.test(e.message + ' ' + e.name) ? 'Não achei o PC nesse endereço. Confira se o PC está ligado, na mesma rede, com a API na rede local ligada.' : 'Não deu: ' + e.message + '.';
     }
   };
   const bd = c.querySelector('#remDesligar'); if (bd) bd.onclick = () => { PLATAFORMA.definirRemota(null); toast('Voltando para os modelos deste aparelho…'); setTimeout(() => location.reload(), 700); };

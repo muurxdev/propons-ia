@@ -92,22 +92,27 @@ if (!semTroca) {
     ok(`${nome} responde`, m.texto.length > 10, `${tps ? tps.toFixed(1) : '?'} tokens/s · RAM do motor ${ram} MB · ${m.texto.slice(0, 90)}`);
   }
 }
-// API na rede local + "Usar a IA de outro aparelho": a página (outra origem) chama o motor pelo IP da rede com a chave —
-// é o que o celular faz. Confere o CORS com Authorization (o padrão do llama-server não libera) e o teste do app.
+// Área de código → Rodar: Python e Node do PC, numa cópia do projeto (com import entre arquivos e o teclado)
 {
-  const r = await js(`PLATAFORMA.ligarApi(true).then(() => 'ok', e => 'erro: ' + e.message)`);
-  const prontoApi = r === 'ok' && await pronto(300);
-  const si = await js('PLATAFORMA.sistema()');
-  const ip = si && si.api && (si.api.enderecos || [])[0], porta = si && si.api && si.api.porta;
-  if (prontoApi && ip) {
-    const url = `http://${ip}:${porta}`;
-    const remoto = await js(`PLATAFORMA.testarRemota('${url}', PLATAFORMA.chave).then(n => 'ok: ' + n, e => 'erro: ' + e.message)`);
-    const errada = await js(`PLATAFORMA.testarRemota('${url}', 'chave-errada').then(n => 'ok: ' + n, e => 'erro: ' + e.message)`);
-    const gerou = await js(`fetch('${url}/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + PLATAFORMA.chave }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Diga só: oi' }], max_tokens: 8 }) }).then(r => r.status + ' ' + (r.headers.get('access-control-allow-origin') || '')).catch(e => 'erro: ' + e.message)`);
-    ok('IA de outro aparelho: a página chama o motor pelo IP da rede com a chave (CORS com Authorization)', /^ok: /.test(remoto) && /^200/.test(gerou), remoto + ' · ' + gerou);
-    ok('IA de outro aparelho: chave errada é recusada', /chave errada/.test(errada), errada);
-  } else ok('IA de outro aparelho: API na rede local ligou', false, r + ' · ' + JSON.stringify(si && si.api));
-  await js(`PLATAFORMA.ligarApi(false).then(() => 1, () => 0)`); await pronto(300);
+  const py = await js(`PLATAFORMA.rodarCodigo({ arquivos: [{ nome: 'util/conta.py', conteudo: 'def dobro(x):\\n    return 2 * x\\n' }, { nome: 'util/__init__.py', conteudo: '' }, { nome: 'main.py', conteudo: 'from util.conta import dobro\\nn = int(input())\\nprint("dobro:", dobro(n), "ç")\\n' }], principal: 'main.py', entrada: '21' }).then(r => JSON.stringify(r), e => 'erro: ' + e.message)`);
+  ok('Rodar: Python com import entre arquivos e o que digitar', /"saida":"dobro: 42 ç/.test(py) && /"codigo":0/.test(py), py.slice(0, 200));
+  const err = await js(`PLATAFORMA.rodarCodigo({ arquivos: [{ nome: 'x.py', conteudo: 'print(1/0)' }], principal: 'x.py' }).then(r => JSON.stringify(r), e => 'erro: ' + e.message)`);
+  ok('Rodar: o erro do Python volta (para a IA corrigir), sem o caminho da pasta temporária', /ZeroDivisionError/.test(err) && !/propons-rodar/.test(err), err.slice(0, 200));
+  const nd = await js(`PLATAFORMA.rodarCodigo({ arquivos: [{ nome: 'a.js', conteudo: 'console.log([1,2,3].map(x => x * 2).join(","))' }], principal: 'a.js' }).then(r => JSON.stringify(r), e => 'erro: ' + e.message)`);
+  ok('Rodar: JavaScript com o Node do PC', /"saida":"2,4,6/.test(nd) || /Node.js não está instalado/.test(nd), nd.slice(0, 160));
+  const laco = await js(`PLATAFORMA.rodarCodigo({ arquivos: [{ nome: 'l.py', conteudo: 'while True: pass' }], principal: 'l.py' }).then(r => JSON.stringify(r), e => 'erro: ' + e.message)`);
+  ok('Rodar: laço infinito é parado em 20 s', /"esgotou":true/.test(laco), laco.slice(0, 160));
+}
+// "Usar a IA de outro aparelho": a página (outra origem) chama o motor com a chave — é o que o celular faz com o PC.
+// localhost ≠ 127.0.0.1 para o navegador (outra origem, mesmo CORS da rede) e não passa pelo firewall do runner.
+// Confere o CORS com Authorization (o padrão do llama-server não libera) e o teste do app (saúde + chave).
+{
+  const porta = await js('location.port'), url = `http://localhost:${porta}`;
+  const remoto = await js(`PLATAFORMA.testarRemota('${url}', PLATAFORMA.chave).then(n => 'ok: ' + n, e => 'erro: ' + e.message)`);
+  const errada = await js(`PLATAFORMA.testarRemota('${url}', 'chave-errada').then(n => 'ok: ' + n, e => 'erro: ' + e.message)`);
+  const gerou = await js(`fetch('${url}/v1/chat/completions', { method: 'POST', signal: AbortSignal.timeout(60000), headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + PLATAFORMA.chave }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Diga só: oi' }], max_tokens: 8 }) }).then(r => r.status + ' ' + (r.headers.get('access-control-allow-origin') || '')).catch(e => 'erro: ' + e.message)`);
+  ok('IA de outro aparelho: outra origem chama o motor com a chave (CORS com Authorization)', /^ok: /.test(remoto) && /^200/.test(gerou), remoto + ' · ' + gerou);
+  ok('IA de outro aparelho: chave errada é recusada', /chave errada/.test(errada), errada);
 }
 fs.writeFileSync(`${saida}/resultado.json`, JSON.stringify({ res, diag, sistema: s }, null, 1));
 ws.close();

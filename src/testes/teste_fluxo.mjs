@@ -88,6 +88,24 @@ for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
 await espera(600);
 r.prefixo = await js(`(() => { const p = window.__pedidos.filter(x => !x.esquema); const a = p[0].msgs, b = p[p.length - 1].msgs; return JSON.stringify({ n: p.length, sistemaIgual: a[0].content === b[0].content, perguntaIgual: a[1].content === b[1].content, temContexto: /^<contexto>/.test(b[b.length - 1].content), curtaGuardada: /direta e curta/.test(a[1].content) }); })()`);
 await js(`definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// Área de código: JavaScript roda isolado (saída, erro, tempo esgotado, teclado); o agente edita só um trecho e busca
+r.codigo = await js(`(async () => {
+  const ok1 = await rodarNoWorker('const a = 2; console.log("soma", a + 3); console.log([1,2])', '');
+  const erro = await rodarNoWorker('nao_existe()', '');
+  const laco = await rodarNoWorker('while (true) {}', '');
+  const tecl = await rodarNoWorker('const n = prompt(); console.log("oi " + n)', 'Ana');
+  const semRede = await rodarNoWorker('console.log(typeof fetch)', '');
+  // agente: arquivo interno, a IA de mentira manda "editar" com um trecho
+  const p0 = pref('projeto'); pref('projeto', JSON.stringify({ arquivos: [{ nome: 'main.js', conteudo: 'function soma(a, b) {\\n  return a - b;\\n}\\nconsole.log(soma(2, 3));\\n', lang: 'javascript' }], aberto: 'main.js' }));
+  const g0 = PLATAFORMA.gerar; let vez = 0;
+  PLATAFORMA.gerar = async (m, op, aoToken) => { vez++; aoToken(JSON.stringify(vez === 1 ? { resposta: 'Vou procurar.', acoes: [{ tipo: 'buscar', arquivo: '*', texto: 'return a' }] } : { resposta: 'Corrigi o sinal.', acoes: [{ tipo: 'editar', arquivo: 'main.js', trechos: [{ procurar: 'return a - b;', trocar: 'return a + b;' }] }] })); return { fim: 'stop' }; };
+  const o0 = online; online = true; acoesPendentes = [];
+  await rodarAgente('corrija a soma', () => {}, null);
+  const pend = acoesPendentes.map(a => ({ tipo: a.tipo, arquivo: a.arquivo, novo: a.conteudo }));
+  const busca = await buscarNoProjeto('return a');
+  PLATAFORMA.gerar = g0; online = o0; pref('projeto', p0 || ''); acoesPendentes = []; novaSessaoCodigo();
+  return JSON.stringify({ ok1, erro: erro.codigo, laco: laco.esgotou, tecl: tecl.saida, semRede: semRede.saida, vezes: vez, pend, busca });
+})()`);
 // conversa por voz: a transcrição é enviada sozinha e, com a resposta pronta, a Própons volta a escutar
 r.voz = await js(`(async () => {
   const esperar = ms => new Promise(r => setTimeout(r, ms));
@@ -145,6 +163,8 @@ await espera(400);
 r.continuou = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1], d = [...document.querySelectorAll('.msg.ia')].pop(); return JSON.stringify({ pensou: !!m.pensou, tempo: m.tempo, linha: !!d.querySelector('.ia-status .pensa-linha'), texto: m.texto.slice(-20), giroSolto: !!document.querySelector('.giro') }); })()`);
 await js(`PLATAFORMA.gerar = window.__g0; definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
 const J = x => JSON.parse(x);
+ok('Área de código: JavaScript roda isolado (saída, erro, laço parado, teclado, sem rede)', (o => o.ok1.saida === 'soma 5\n[1,2]' && o.ok1.codigo === 0 && o.erro === 1 && o.laco && o.tecl === 'oi Ana' && o.semRede === 'undefined')(J(r.codigo)), r.codigo.slice(0, 300));
+ok('Área de código: o agente busca e depois edita só o trecho (a mudança espera para aplicar)', (o => o.vezes === 2 && o.pend.length === 1 && o.pend[0].tipo === 'escrever' && /return a \+ b;/.test(o.pend[0].novo) && /main\.js:2/.test(o.busca))(J(r.codigo)), JSON.stringify(J(r.codigo).pend) + ' ' + J(r.codigo).busca);
 ok('conversa por voz: envia a fala sozinha e volta a escutar depois da resposta', (o => o.chip && o.enviada === 'Pergunta falada' && o.escutouDeNovo >= 1)(J(r.voz)), r.voz);
 ok('cadeado: cria o PIN confirmando, trava, recusa o errado e abre com o certo', (o => o.sha && o.criado === '2468' && o.travou && /errado/.test(o.errado) && o.abriu)(J(r.cadeado)), r.cadeado);
 ok('gráfico de função: cartão antes do texto, curva desenhada e raízes calculadas no pedido', (o => o.ordem.indexOf('grafico-card') >= 0 && o.ordem.indexOf('grafico-card') < o.ordem.indexOf('txt') && o.curva && o.raizes && o.guardado)(J(r.grafico)), r.grafico);

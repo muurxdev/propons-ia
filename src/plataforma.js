@@ -200,8 +200,9 @@ const baseLocal = (location.protocol.startsWith('http') && location.hostname !==
     definirRemota(r) { try { if (r && r.ligada) localStorage.setItem('iaRemota', JSON.stringify(r)); else localStorage.removeItem('iaRemota'); } catch (e) {} },
     async testarRemota(url, chaveR) {
       const u = String(url || '').trim().replace(/\/+$/, ''), h = chaveR ? { Authorization: 'Bearer ' + chaveR } : {};
-      const s = await fetch(u + '/health', { cache: 'no-store' }); if (!s.ok) throw new Error('o aparelho respondeu HTTP ' + s.status);
-      const r = await fetch(u + '/v1/models', { headers: h, cache: 'no-store' });
+      // prazo curto: endereço errado ou firewall que descarta não pode deixar o botão esperando para sempre
+      const s = await fetch(u + '/health', { cache: 'no-store', signal: AbortSignal.timeout(8000) }); if (!s.ok) throw new Error('o aparelho respondeu HTTP ' + s.status);
+      const r = await fetch(u + '/v1/models', { headers: h, cache: 'no-store', signal: AbortSignal.timeout(8000) });
       if (r.status === 401) throw new Error('chave errada');
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json(); const m = j && j.data && j.data[0] && j.data[0].id;
@@ -331,6 +332,9 @@ const baseLocal = (location.protocol.startsWith('http') && location.hostname !==
     usarVoz(id) { return pedir('usarVoz', { id }, 5000); },
     apagarVoz(id) { return pedir('apagarVoz', { id }, 15000); },
     compartilhar(texto) { return pedir('compartilhar', { texto }, 60000); },
+    // Área de código → Rodar (só o app do Windows por enquanto): { arquivos:[{nome,conteudo}], principal, entrada }
+    podeRodar: tipo === 'windows',
+    rodarCodigo(d) { return pedir('rodarCodigo', d, 60000); },
     // o que chegou de outro app pelo "compartilhar" do sistema (Android): { texto?, imagem? (data: URL), nome? } ou null
     pegarCompartilhado() { return tipo === 'android' ? pedir('compartilhado', {}, 10000) : Promise.resolve(null); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },

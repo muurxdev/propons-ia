@@ -170,6 +170,17 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .gf-ctl input{flex:1;accent-color:var(--accent);min-width:0}
 .gf-ctl output{font:var(--t-sm) var(--mono);color:var(--ink);min-width:42px;text-align:right}
 .chip .chip-acao{font-size:var(--t-xs);font-weight:600;color:var(--accent);padding:2px 8px;border-radius:var(--r4);background:var(--accent-soft)}
+/* Área de código → Rodar: a saída do programa como um terminal */
+.cod-saida{border:1px solid var(--line);border-radius:var(--r2);background:var(--code);overflow:hidden;max-width:100%}
+.cod-saida.erro{border-color:color-mix(in srgb,var(--danger) 45%,var(--line))}
+.cs-topo{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:var(--t-sm);color:var(--muted)}
+.cs-topo svg{width:12px;height:12px;fill:var(--ok);stroke:none}.cod-saida.erro .cs-topo svg{fill:var(--danger)}
+.cs-topo code{color:var(--ink);font:var(--t-sm) var(--mono)}.cs-topo span{margin-left:auto;white-space:nowrap}
+.cod-saida pre{margin:0;padding:10px 12px;max-height:280px;overflow:auto;font:var(--t-sm)/1.5 var(--mono);white-space:pre-wrap;word-break:break-word;color:var(--ink)}
+.cod-saida.erro pre{color:color-mix(in srgb,var(--danger) 70%,var(--ink))}
+.cs-pe{padding:0 12px 10px}
+.cs-rodar{margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r4);background:var(--accent-soft);color:var(--accent);font-size:var(--t-xs);font-weight:600}
+.cs-rodar svg{width:10px;height:10px;fill:currentColor;stroke:none}
 /* cadeado: a tela do PIN cobre tudo */
 .cadeado{position:fixed;inset:0;z-index:200;background:var(--bg);display:grid;place-items:center;padding:calc(var(--st) + 16px) 16px calc(var(--sb) + 16px);animation:aparece var(--t2) ease}
 .cadeado.saindo{opacity:0;transition:opacity .2s}

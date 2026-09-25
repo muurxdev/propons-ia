@@ -1114,6 +1114,7 @@ class Janela : Form
                     if (Loja.Empacotado()) { AbrirLoja(); dados = Dic("loja", true); break; }
                     dados = await Atualizar(Arg(args, "versao")); break;
                 case "abrirLoja": AbrirLoja(); dados = true; break;
+                case "rodarCodigo": dados = await Task.Run(delegate { return RodarCodigo(args); }); break;
                 default: throw new Exception("ação desconhecida: " + acao);
             }
         }
@@ -1222,6 +1223,92 @@ class Janela : Form
             return Dic("texto", texto, "segundos", (DateTime.Now - t0).TotalSeconds);
         }
         finally { ManterAcordado(false); }
+    }
+
+    /* Área de código → Rodar: o projeto (os arquivos de texto que a página manda) vai para uma pasta temporária e o
+       arquivo principal roda com o Python ou o Node instalados no PC — nunca na pasta de verdade da pessoa. Só quando a
+       pessoa toca em "Rodar"; 20 s no máximo (o processo e os filhos morrem junto com o app, pelo Job), saída limitada. */
+    static string AcharNoPath(params string[] nomes)
+    {
+        string path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (string nome in nomes)
+            foreach (string dir in path.Split(';'))
+            {
+                try
+                {
+                    if (dir.Trim().Length == 0) continue;
+                    string c = Path.Combine(dir.Trim().Trim('"'), nome);
+                    if (File.Exists(c)) return c;   // o atalho da Microsoft Store sem Python responde com um aviso: ele aparece na saída
+                }
+                catch { }
+            }
+        return null;
+    }
+    static Dictionary<string, object> RodarCodigo(Dictionary<string, object> args)
+    {
+        string principal = (Arg(args, "principal") ?? "").Replace('\\', '/');
+        string entrada = Arg(args, "entrada") ?? "";
+        string ext = Path.GetExtension(principal).ToLowerInvariant();
+        string exe = null, argumentos = null;
+        if (ext == ".py")
+        {
+            exe = AcharNoPath("python.exe", "python3.exe");
+            if (exe != null) argumentos = "-X utf8 \"" + principal + "\"";
+            else { exe = AcharNoPath("py.exe"); if (exe != null) argumentos = "-3 -X utf8 \"" + principal + "\""; }
+            if (exe == null) throw new Exception("o Python não está instalado neste PC (python.org ou Microsoft Store)");
+        }
+        else if (ext == ".js" || ext == ".mjs" || ext == ".cjs")
+        {
+            exe = AcharNoPath("node.exe");
+            if (exe == null) throw new Exception("o Node.js não está instalado neste PC (nodejs.org)");
+            argumentos = "\"" + principal + "\"";
+        }
+        else throw new Exception("este tipo de arquivo ainda não roda aqui (só Python e JavaScript)");
+        string dirTemp = Path.Combine(Path.GetTempPath(), "propons-rodar", Guid.NewGuid().ToString("N").Substring(0, 12));
+        Directory.CreateDirectory(dirTemp);
+        try
+        {
+            object arqsO; args.TryGetValue("arquivos", out arqsO);
+            System.Collections.IEnumerable lista = arqsO as System.Collections.IEnumerable;
+            int n = 0;
+            if (lista != null)
+                foreach (object o in lista)
+                {
+                    Dictionary<string, object> a = o as Dictionary<string, object>; if (a == null) continue;
+                    string nome = (Arg(a, "nome") ?? "").Replace('\\', '/').TrimStart('/');
+                    if (nome.Length == 0 || nome.Contains("..") || nome.Contains(":") || ++n > 200) continue;
+                    string destino = Path.GetFullPath(Path.Combine(dirTemp, nome.Replace('/', Path.DirectorySeparatorChar)));
+                    if (!destino.StartsWith(dirTemp, StringComparison.OrdinalIgnoreCase)) continue;
+                    Directory.CreateDirectory(Path.GetDirectoryName(destino));
+                    File.WriteAllText(destino, Arg(a, "conteudo") ?? "", new UTF8Encoding(false));
+                }
+            ProcessStartInfo psi = new ProcessStartInfo(exe, argumentos);
+            psi.WorkingDirectory = dirTemp; psi.UseShellExecute = false; psi.CreateNoWindow = true;
+            psi.RedirectStandardOutput = true; psi.RedirectStandardError = true; psi.RedirectStandardInput = true;
+            psi.StandardOutputEncoding = Encoding.UTF8; psi.StandardErrorEncoding = Encoding.UTF8;
+            psi.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8"; psi.EnvironmentVariables["PYTHONUTF8"] = "1";
+            StringBuilder saida = new StringBuilder(), erros = new StringBuilder();
+            const int MAX = 20000;
+            DateTime t0 = DateTime.Now; bool esgotou = false; int codigo;
+            using (Process p = new Process { StartInfo = psi })
+            {
+                p.OutputDataReceived += delegate (object s, DataReceivedEventArgs e) { if (e.Data != null) lock (saida) if (saida.Length < MAX) saida.AppendLine(e.Data); };
+                p.ErrorDataReceived += delegate (object s, DataReceivedEventArgs e) { if (e.Data != null) lock (erros) if (erros.Length < MAX) erros.AppendLine(e.Data); };
+                p.Start(); Job.Prender(p);
+                p.BeginOutputReadLine(); p.BeginErrorReadLine();
+                try { if (entrada.Length > 0) p.StandardInput.Write(entrada.Replace("\r\n", "\n").Replace("\n", Environment.NewLine) + (entrada.EndsWith("\n") ? "" : Environment.NewLine)); p.StandardInput.Close(); } catch { }
+                if (!p.WaitForExit(20000)) { esgotou = true; try { p.Kill(); } catch { } p.WaitForExit(3000); }
+                else p.WaitForExit();   // termina de ler a saída
+                codigo = p.HasExited ? p.ExitCode : -1;
+            }
+            string sai, err; lock (saida) sai = saida.ToString(); lock (erros) err = erros.ToString();
+            // o caminho da pasta temporária não interessa a ninguém nas mensagens de erro
+            sai = sai.Replace(dirTemp + Path.DirectorySeparatorChar, "").Replace(dirTemp, ".");
+            err = err.Replace(dirTemp + Path.DirectorySeparatorChar, "").Replace(dirTemp, ".");
+            return Dic("saida", sai, "erros", err, "codigo", codigo, "esgotou", esgotou, "segundos", Math.Round((DateTime.Now - t0).TotalSeconds, 1),
+                "comando", Path.GetFileNameWithoutExtension(exe) + " " + principal);
+        }
+        finally { try { Directory.Delete(dirTemp, true); } catch { } }
     }
 
     // primeira abertura: baixa o modelo escolhido, liga a IA e abre o chat

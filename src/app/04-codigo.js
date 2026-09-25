@@ -1,7 +1,7 @@
 /* ---------------- Área de código (estilo Claude Code, em qualquer aparelho) ----------------
-   Um projeto de arquivos guardado no aparelho: criar/editar/apagar arquivos, pedir mudanças à IA (ela devolve o
-   arquivo inteiro e a gente mostra o diff para aceitar ou recusar), salvar no disco e mandar um arquivo para o chat.
-   Sem rodar código: o que a IA escreve você aceita, recusa ou exporta. */
+   Um projeto de arquivos guardado no aparelho (ou uma pasta de verdade): criar/editar/apagar arquivos, pedir mudanças à
+   IA (ela lê, busca, reescreve ou edita só um trecho, e a gente mostra o diff para aceitar ou recusar), rodar o
+   programa (04-rodar.js) e mandar o erro de volta para ela corrigir. Nada é gravado sem você aplicar. */
 ICO.codigo = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2.6l1.9 5.1 5-2.2-3.4 4.2 5 2.3-5.4.5 1.7 5.1-4.1-3.5-3.5 4 1-5.3-5.4.7 4.7-2.8-3.8-3.9 5.2 1.9z"/></svg>';
 ICO.mais = ICO.mais || '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
 ICO.salvar = '<svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M9 4v5h6V4"/><path d="M8 13h8v7H8z"/></svg>';
@@ -54,7 +54,9 @@ function htmlDiff(d) {
 const ESQ_AGENTE = { type: 'object', properties: {
   resposta: { type: 'string' },
   acoes: { type: 'array', maxItems: 6, items: { type: 'object', properties: {
-    tipo: { type: 'string', enum: ['ler', 'criar', 'escrever', 'apagar'] }, arquivo: { type: 'string' }, conteudo: { type: 'string' },
+    tipo: { type: 'string', enum: ['ler', 'buscar', 'criar', 'escrever', 'editar', 'apagar'] }, arquivo: { type: 'string' }, conteudo: { type: 'string' },
+    texto: { type: 'string' },
+    trechos: { type: 'array', maxItems: 8, items: { type: 'object', properties: { procurar: { type: 'string' }, trocar: { type: 'string' } }, required: ['procurar', 'trocar'], additionalProperties: false } },
   }, required: ['tipo', 'arquivo'], additionalProperties: false } } }, required: ['resposta', 'acoes'], additionalProperties: false };
 // a Área de código é só do computador (Windows, Mac, Linux): a pasta vem do seletor de pastas do navegador
 const TEM_PASTA = typeof window.showDirectoryPicker === 'function';
@@ -174,7 +176,7 @@ async function compactarCodigo(c, avisar) {
   const guardar = 4, velhas = c.msgs.slice(0, -guardar);
   if (velhas.length < 2) { if (avisar) toast('Ainda não há histórico para compactar.'); return false; }
   if (!online) { if (avisar) toast('A IA ainda está ligando.'); return false; }
-  const texto = velhas.map(m => (m.role === 'user' ? 'Pedido: ' : 'Própons: ') + String(m.texto || '').slice(0, 1200)
+  const texto = velhas.map(m => m.role === 'saida' ? saidaParaIA(m).slice(0, 1200) : (m.role === 'user' ? 'Pedido: ' : 'Própons: ') + String(m.texto || '').slice(0, 1200)
     + (m.acoes && m.acoes.length ? '\n[arquivos: ' + m.acoes.map(a => a.tipo + ' ' + a.arquivo).join(', ') + ']' : '')).join('\n');
   let resumo = '';
   try {
@@ -204,9 +206,12 @@ const salvarMeusMoldes = l => pref('moldesCodigo', JSON.stringify(l.slice(0, 30)
 
 const SISTEMA_CODIGO = `Você é a Própons IA no modo programação: ajuda a escrever e corrigir código nos arquivos do aparelho.
 Responda SEMPRE em JSON com "resposta" (o que você vai fazer ou explicar, em português do Brasil, curto) e "acoes" (lista, pode ser vazia).
-Cada ação: {"tipo":"ler"|"criar"|"escrever"|"apagar","arquivo":"caminho/do/arquivo","conteudo":"…"}.
+Cada ação: {"tipo":"ler"|"buscar"|"criar"|"escrever"|"editar"|"apagar","arquivo":"caminho/do/arquivo",...}.
 - "ler": use quando precisar ver um arquivo antes de mudar. Você recebe o conteúdo e continua na próxima rodada.
+- "buscar": {"arquivo":"*","texto":"nome_da_funcao"} procura o texto em todos os arquivos e devolve as linhas achadas.
 - "criar"/"escrever": mande o arquivo INTEIRO já pronto em "conteudo" (sem cercas de código). Nunca use "…" nem "resto igual".
+- "editar": para mudar só um pedaço de um arquivo que você já leu, mande "trechos": [{"procurar":"linhas exatas de hoje","trocar":"como devem ficar"}]. O "procurar" tem de ser copiado igual do arquivo (com os espaços).
+- Quando a pessoa mandar a saída de um programa que deu erro, leia o arquivo, ache a causa e corrija.
 - "apagar": só quando a pessoa pedir claramente.
 Mexa apenas nos arquivos necessários. Se faltar informação, pergunte em "resposta" e deixe "acoes" vazia.`;
 let agenteOcupado = false, acoesPendentes = [];   // [{tipo, arquivo, conteudo, antes}]
@@ -265,11 +270,12 @@ function telaCodigo(alvoTela) {
       r.innerHTML = `<summary>${ICO.compactar}Resumo do que já foi feito${ch.compactadas ? ` (${ch.compactadas} mensagens)` : ''}</summary><div class="txt">${md(ch.resumo)}</div>`;
       c.appendChild(r);
     }
-    for (const m of ch.msgs) {
+    for (const [i, m] of ch.msgs.entries()) {
+      if (m.role === 'saida') { const s = document.createElement('div'); s.className = 'cod-msg ia'; s.innerHTML = htmlSaidaCodigo(m, i); c.appendChild(s); continue; }
       const d = document.createElement('div'); d.className = 'cod-msg ' + (m.role === 'user' ? 'eu' : 'ia');
       d.innerHTML = m.role === 'user' ? `<span class="cod-seta" aria-hidden="true">&gt;</span><div class="txt">${esc(m.texto || '')}</div>`
         : `<div class="txt">${md(m.texto || '')}</div>`;
-      if (m.acoes && m.acoes.length) d.insertAdjacentHTML('beforeend', m.acoes.map(a => `<div class="cod-linha ${esc(a.tipo)}${a.feito ? ' feito' : ''}"><i aria-hidden="true"></i><b>${a.tipo === 'ler' ? 'Leu' : a.tipo === 'apagar' ? (a.feito ? 'Apagou' : 'Apagar') : a.feito ? 'Gravou' : (a.tipo === 'criar' ? 'Criar' : 'Alterar')}</b><code>${esc(a.arquivo)}</code></div>`).join(''));
+      if (m.acoes && m.acoes.length) d.insertAdjacentHTML('beforeend', m.acoes.map(a => `<div class="cod-linha ${esc(a.tipo)}${a.feito ? ' feito' : ''}"><i aria-hidden="true"></i><b>${a.tipo === 'ler' ? 'Leu' : a.tipo === 'apagar' ? (a.feito ? 'Apagou' : 'Apagar') : a.feito ? 'Gravou' : (a.tipo === 'criar' ? 'Criar' : 'Alterar')}</b><code>${esc(a.arquivo)}</code>${a.feito && a.tipo !== 'apagar' && podeRodar(a.arquivo) ? `<button class="cs-rodar" data-rodar="${esc(a.arquivo)}">${ICO.rodar}Rodar</button>` : ''}</div>`).join(''));
       c.appendChild(d); if (m.role !== 'user') enfeitar(d);
     }
     for (const a of acoesPendentes) {
@@ -282,6 +288,8 @@ function telaCodigo(alvoTela) {
         <div class="cod-dif-pe"><button class="btn primario" data-ap="${esc(a.arquivo)}">Aplicar</button><button class="btn" data-rec="${esc(a.arquivo)}">Recusar</button>${acoesPendentes.length > 1 ? '<button class="btn" data-ap-tudo>Aplicar tudo</button>' : ''}</div></div>`;
       c.appendChild(d);
     }
+    c.querySelectorAll('[data-rodar]').forEach(b => b.onclick = () => { if (!agenteOcupado) rodarArquivo(b.dataset.rodar, desenharChat); });
+    c.querySelectorAll('[data-corrigir]').forEach(b => b.onclick = () => { const m = codigoChat().msgs[+b.dataset.corrigir]; if (!m || agenteOcupado) return; rodarAgente(`O programa ${m.arquivo} deu erro ao rodar (a saída está acima). Leia o arquivo, ache a causa e corrija.`, desenharChat, desenharTopo); });
     c.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => aplicarAcoes([b.dataset.ap], desenharChat, desenharTopo));
     c.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => { acoesPendentes = acoesPendentes.filter(a => a.arquivo !== b.dataset.rec); desenharChat(); });
     const bt = c.querySelector('[data-ap-tudo]'); if (bt) bt.onclick = () => aplicarAcoes(acoesPendentes.map(a => a.arquivo), desenharChat, desenharTopo);
@@ -371,14 +379,32 @@ async function verArquivo(caminho) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha codigo">${topoCentro(nomeCurto(caminho), true)}
     <textarea class="cod-editor" spellcheck="false">${esc(conteudo)}</textarea>
-    <div class="bib-acoes"><button class="btn primario" data-gravar>${ICO.salvar}Salvar</button><button class="btn" data-baixar>${ICO.baixar}Baixar</button><button class="btn" data-chat>Mandar para o chat</button></div></div>`;
+    <div class="bib-acoes"><button class="btn primario" data-gravar>${ICO.salvar}Salvar</button>${podeRodar(caminho) ? `<button class="btn" data-rodar>${ICO.rodar}Rodar</button>` : ''}<button class="btn" data-baixar>${ICO.baixar}Baixar</button><button class="btn" data-chat>Mandar para o chat</button></div></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folhaArrastavel(f, folha, sair);
   folha.querySelector('[data-gravar]').onclick = async () => { try { await arqs.gravar(caminho, folha.querySelector('.cod-editor').value); toast('Salvo.'); sair(); atualizarTela('codigo'); } catch (e) { toast('Não deu para salvar: ' + e.message, 4000); } };
+  const br = folha.querySelector('[data-rodar]');
+  if (br) br.onclick = async () => {
+    // roda o que está no editor (grava antes, se mudou) e mostra a saída no chat de código
+    const novo = folha.querySelector('.cod-editor').value;
+    if (novo !== conteudo) { try { await arqs.gravar(caminho, novo); } catch (e) { toast('Não deu para salvar: ' + e.message, 4000); return; } }
+    sair(); await rodarArquivo(caminho); atualizarTela('codigo');
+  };
   folha.querySelector('[data-baixar]').onclick = () => PLATAFORMA.salvarArquivo(nomeCurto(caminho), folha.querySelector('.cod-editor').value, 'text/plain').then(r => r !== false && toast('Arquivo salvo.')).catch(e => toast('Não deu para salvar: ' + e.message, 4000));
   folha.querySelector('[data-chat]').onclick = () => { sair(); fecharTela(); anexos = anexos.filter(y => y.nome !== nomeCurto(caminho)); anexos.push({ nome: nomeCurto(caminho), tam: new Blob([conteudo]).size, lang: langDoArquivo(caminho) || 'texto', conteudo }); desenharChips(); ajustar(); $('#entrada').focus(); };
   pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
+}
+// "buscar" do agente: as linhas que têm o texto, em todos os arquivos (até 40)
+async function buscarNoProjeto(texto) {
+  const q = String(texto || '').toLowerCase(), achados = [];
+  if (!q.trim()) return '(busca vazia)';
+  for (const a of (await arqs.listar()).slice(0, 200)) {
+    let c = ''; try { c = await arqs.ler(a.nome); } catch (e) { continue; }
+    c.split('\n').forEach((l, i) => { if (achados.length < 40 && l.toLowerCase().includes(q)) achados.push(`${a.nome}:${i + 1}: ${l.trim().slice(0, 160)}`); });
+    if (achados.length >= 40) break;
+  }
+  return achados.length ? achados.join('\n') : '(nada encontrado)';
 }
 async function aplicarAcoes(nomes, desenharChat, desenharPasta) {
   const ch = codigoChat();
@@ -411,15 +437,29 @@ async function rodarAgente(pedido, desenharChat, desenharPasta) {
       const contexto = `Arquivos disponíveis (${arqs.origem === 'pasta' ? 'pasta ' + pastaNome : 'área do app'}):\n${lista.length ? lista.map(a => `- ${a.nome} (${tamanhoBonito(a.tam)})`).join('\n') : '(nenhum)'}`
         + (ch.resumo ? '\n\nResumo do que já foi feito nesta conversa:\n' + ch.resumo : '')
         + (Object.keys(lidos).length ? '\n\nConteúdo dos arquivos que você pediu:\n' + Object.entries(lidos).map(([n, c]) => `--- ${n} ---\n${c}`).join('\n\n') : '');
-      const hist = ch.msgs.slice(-8).map(m => ({ role: m.role, content: m.role === 'assistant' ? m.texto + (m.acoes && m.acoes.length ? '\n[ações: ' + m.acoes.map(a => a.tipo + ' ' + a.arquivo).join(', ') + ']' : '') : m.texto }));
+      const hist = ch.msgs.slice(-8).map(m => m.role === 'saida' ? { role: 'user', content: saidaParaIA(m) } : ({ role: m.role, content: m.role === 'assistant' ? m.texto + (m.acoes && m.acoes.length ? '\n[ações: ' + m.acoes.map(a => a.tipo + ' ' + a.arquivo).join(', ') + ']' : '') : m.texto }));
       let saida = '';
       await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA_CODIGO + '\n\n' + contexto }, ...hist], { temperatura: 0.2, exato: true, maxTokens: 4000, esquema: ESQ_AGENTE }, t => { saida += t; });
       const d = extrairJSON(saida);
       if (!d) throw new Error('resposta fora do formato');
-      const acoes = (Array.isArray(d.acoes) ? d.acoes : []).filter(a => a && a.arquivo && ['ler', 'criar', 'escrever', 'apagar'].includes(a.tipo)).slice(0, 6);
+      const acoes = (Array.isArray(d.acoes) ? d.acoes : []).filter(a => a && a.arquivo && ['ler', 'buscar', 'criar', 'escrever', 'editar', 'apagar'].includes(a.tipo)).slice(0, 6);
       const paraLer = acoes.filter(a => a.tipo === 'ler' && !(a.arquivo in lidos));
-      const mudancas = acoes.filter(a => a.tipo !== 'ler');
-      ch.msgs.push({ role: 'assistant', texto: String(d.resposta || '').slice(0, 4000), acoes: acoes.map(a => ({ tipo: a.tipo, arquivo: a.arquivo })) });
+      const buscas = acoes.filter(a => a.tipo === 'buscar' && a.texto && !(('busca: ' + a.texto) in lidos));
+      for (const b of buscas) lidos['busca: ' + b.texto] = await buscarNoProjeto(b.texto);
+      const falhas = [];
+      for (const a of acoes.filter(x => x.tipo === 'editar')) {
+        let atual = ''; try { atual = await arqs.ler(a.arquivo); } catch (e) { falhas.push(a.arquivo + ': o arquivo não existe (use "criar")'); continue; }
+        let novo = atual, ok = true;
+        for (const t of (Array.isArray(a.trechos) ? a.trechos : [])) {
+          const p = String(t.procurar || '');
+          if (!p || !novo.includes(p)) { ok = false; falhas.push(a.arquivo + ': não achei o trecho "' + p.slice(0, 80) + '"'); break; }
+          novo = novo.replace(p, () => String(t.trocar || ''));
+        }
+        if (ok) { a.tipo = 'escrever'; a.conteudo = novo; } else { a.tipo = 'falhou'; lidos[a.arquivo] = atual.slice(0, MAX_LER); }
+      }
+      if (falhas.length) lidos['avisos'] = 'Estas edições não foram aplicadas; leia o arquivo abaixo e mande de novo com o trecho exato:\n' + falhas.join('\n');
+      const mudancas = acoes.filter(a => ['criar', 'escrever', 'apagar'].includes(a.tipo));
+      ch.msgs.push({ role: 'assistant', texto: String(d.resposta || '').slice(0, 4000), acoes: acoes.filter(a => a.tipo !== 'falhou' && a.tipo !== 'buscar').map(a => ({ tipo: a.tipo, arquivo: a.arquivo })) });
       salvarCodigoChat(ch);
       for (const a of paraLer) { try { lidos[a.arquivo] = (await arqs.ler(a.arquivo)).slice(0, MAX_LER); } catch (e) { lidos[a.arquivo] = '(não encontrei este arquivo)'; } }
       if (mudancas.length) {
@@ -429,7 +469,7 @@ async function rodarAgente(pedido, desenharChat, desenharPasta) {
         }
         break;
       }
-      if (!paraLer.length) break;   // nada para ler e nada para mudar: a IA só respondeu
+      if (!paraLer.length && !buscas.length && !falhas.length) break;   // nada para ler e nada para mudar: a IA só respondeu
     }
   } catch (e) { const c2 = codigoChat(); c2.msgs.push({ role: 'assistant', texto: 'Não consegui completar: ' + e.message }); salvarCodigoChat(c2); }
   finally { if (pararP) pararP(); espera.remove(); agenteOcupado = false; desenharChat(); if (desenharPasta) await desenharPasta(); }
