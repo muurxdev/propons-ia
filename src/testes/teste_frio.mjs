@@ -10,6 +10,8 @@ const p = await conectar({ porta, saida, filtro: u => !/#k=/.test(u) });
 for (let i = 0; i < 60 && !(await p.js(`typeof ESCOLHER !== 'undefined' && typeof MODELO_INICIAL !== 'undefined' && !!$('#nomeModelo').textContent`)); i++) await espera(300);
 const tAbriu = (Date.now() - t0) / 1000;
 ok('abre no chat sem ligar a IA', await p.js(`ESCOLHER && !!MODELO_INICIAL && !!$('#entrada')`), `${tAbriu.toFixed(1)} s`);
+// o texto do HTML é "Modelo" até o começo da página rodar: espera o texto da abertura fria (até 6 s)
+for (let i = 0; i < 20 && (await p.js(`$('#nomeModelo').textContent`)) !== 'Selecionar modelo'; i++) await espera(300);
 const nome = await p.js(`$('#nomeModelo').textContent`);
 ok('enquanto a IA não ligou, a caixa pede para escolher o modelo', nome === 'Selecionar modelo', nome);
 await p.foto('fr1-aberto');
