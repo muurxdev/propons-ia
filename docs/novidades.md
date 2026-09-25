@@ -1,3 +1,16 @@
+## Novidades da 1.28.0
+
+- **Usar a IA do PC no celular:** no PC, ligue Ajustes → Modelos de IA → **API na rede local**. No celular, em Ajustes → Modelos de IA → **Usar a IA de outro aparelho**, cole o endereço e a chave e toque em "Testar e usar". O celular passa a usar o modelo do PC (maior e mais rápido), pela rede da casa, sem baixar nada. Dá para voltar aos modelos do celular no mesmo lugar.
+  - Como as perguntas vão pela rede da casa sem criptografia, use só numa rede em que você confia.
+  - O motor agora libera o cabeçalho de autorização para outra origem (antes, o navegador bloqueava o pedido).
+- **Área de código do PC:**
+  - **Rodar:** Python e JavaScript rodam com o Python/Node instalados no PC, numa cópia temporária do projeto (nunca na sua pasta), por até 20 s. Se o programa lê do teclado, o app pergunta o que digitar. Em qualquer aparelho, JavaScript roda isolado.
+  - **Corrigir pelo erro:** a saída aparece como um terminal. Se deu erro, "Pedir para a IA corrigir" manda o erro para ela, que lê o arquivo e propõe a correção.
+  - **Edição de trecho:** a IA pode mudar só um pedaço do arquivo, em vez de reescrever tudo. Isso é mais rápido e mais seguro com modelos pequenos. Se o trecho não bater, ela recebe o arquivo e tenta de novo.
+  - **Busca no projeto:** a IA procura um nome em todos os arquivos antes de mexer.
+- **Raciocínio que vazava para a resposta:** às vezes o modelo escrevia o raciocínio no próprio texto, terminando em `</think>`. Agora esse pedaço vai para a folha do raciocínio, e a resposta começa depois dele.
+- **Placar dos modelos no CI:** a disputa entre os modelos atuais e os candidatos de 2026 (Gemma 4, MiniCPM5, LFM2.5 e outras quantizações do Qwen3.5) roda no GitHub, no mesmo jeito que o app pergunta.
+
 ## Novidades da 1.27.0
 
 Segunda parte da auditoria #2: velocidade do motor e os primeiros módulos que a comunidade mais pede.

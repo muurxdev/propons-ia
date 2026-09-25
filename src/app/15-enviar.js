@@ -517,7 +517,16 @@ async function responder(conv, continuacao) {
     Object.defineProperty(conv, '_prompt', { value: { sistema: SISTEMA, max: maxTokens }, writable: true, configurable: true, enumerable: false });
     const r = dl && dl.completo && msg.texto ? { fim: 'stop' } : await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
       { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : dl && dl.inicio ? 400 : maxTokens, continuar: !!continuacao || !!prefixo, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
-        novo += t; if (!comEsquema) agendar();
+        novo += t;
+        // raciocínio que vazou para o texto (o modelo fechou um </think> que o motor não separou): vai para a folha
+        // do raciocínio e o texto recomeça depois dele
+        if (!comEsquema && novo.includes('</think>') && !novo.includes('<think>')) {
+          const k = novo.indexOf('</think>');
+          pensTxt += novo.slice(0, k); novo = novo.slice(k + 8).replace(/^\s+/, '');
+          mostrado = Math.min(mostrado, (inicio + novo).length); fixoEl = null;
+          if (pensar) atualizarFolhaPensa(pensTxt);
+        }
+        if (!comEsquema) agendar();
         if (pensar && !tPensou && pensTxt.trim() && giro) {
           tPensou = Math.max(1, Math.round((performance.now() - t0Resposta) / 1000));
           const s = status(), rot = 'Pensou por ' + tempoBonito(tPensou);
@@ -538,6 +547,7 @@ async function responder(conv, continuacao) {
     $('#enviar').classList.remove('gerando'); $('#enviar').title = 'Enviar'; $('#enviar').setAttribute('aria-label', 'Enviar'); ajustar();
   }
   novo = novo.replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
+  if (novo.includes('</think>')) { const k = novo.lastIndexOf('</think>'); pensTxt += novo.slice(0, k); novo = novo.slice(k + 8).replace(/^\s+/, ''); }
   // explicação de algoritmo com uma lista de números inventada pela IA: em vez de cortar a resposta no meio, avisa no fim
   if (sobreAlgoritmo && !continuacao && !erro && INVENTA.test(foraDeCodigo(novo))) {
     novo = novo.trimEnd() + '\n\n*Os números do exemplo acima são só ilustrativos. Para um passo a passo exato, me mande a lista — por exemplo: **bubble sort em [5, 2, 8, 1]**.*';

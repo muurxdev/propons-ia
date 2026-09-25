@@ -121,3 +121,26 @@ Reclamações que a Própons deve continuar evitando:
 - memória invasiva;
 - download que falha sem retomar;
 - bajulação e resposta inventada.
+
+## 8. Área de código do PC (feito na 1.28.0)
+
+Faltava o que mais importa numa ferramenta de programação com IA:
+- **rodar o programa** (Python/Node do PC numa cópia temporária do projeto; JavaScript isolado em qualquer aparelho);
+- **devolver o erro para a IA corrigir**;
+- **editar só um trecho**, em vez de reescrever o arquivo inteiro (mais lento e arriscado com modelo pequeno);
+- **buscar um nome no projeto** antes de mexer.
+
+A pasta de verdade da pessoa nunca é usada para rodar, e nada é gravado sem aplicar.
+
+## Situação das fases
+
+| Fase | Versão | Situação |
+|---|---|---|
+| 1 menus e limites | 1.26.0 | feito |
+| 2 ordem da resposta | 1.26.0 | feito |
+| 3 limpeza | 1.26.0 | feito (a junção dos dois visualizadores de anexo ficou de fora: servem a contextos diferentes) |
+| 4 velocidade | 1.27.0 | feito. Faltam o MTP (ver o placar) e `-tb`/Q4_0 no Android, que precisam de medição num celular de verdade |
+| 5 modelos | placar no CI | a disputa roda no `placar.yml`; troca de modelo só se ganhar |
+| 6 API | 1.28.0 | celular usa a IA do PC. Falta ligar a API no Android e no Mac |
+| 7 comunidade | 1.27.0 | feito o principal. Ficam para depois: resumo em áudio com 2 vozes, .apkg de verdade, cadernos por matéria e gravação de aula longa |
+| 8 área de código | 1.28.0 | feito |

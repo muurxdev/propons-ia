@@ -88,6 +88,18 @@ for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
 await espera(600);
 r.prefixo = await js(`(() => { const p = window.__pedidos.filter(x => !x.esquema); const a = p[0].msgs, b = p[p.length - 1].msgs; return JSON.stringify({ n: p.length, sistemaIgual: a[0].content === b[0].content, perguntaIgual: a[1].content === b[1].content, temContexto: /^<contexto>/.test(b[b.length - 1].content), curtaGuardada: /direta e curta/.test(a[1].content) }); })()`);
 await js(`definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// raciocínio que vaza para o texto ("… </think> Resposta") vai para a folha do raciocínio, não para a resposta
+r.vazou = await js(`(async () => {
+  const esperar = ms => new Promise(r => setTimeout(r, ms));
+  nova(); const g0 = PLATAFORMA.gerar;
+  PLATAFORMA.gerar = async (m, op, aoToken) => { for (const p of ['O contexto indica ', 'uma conta simples. ', '</think>', ' Resposta: 42.']) { await esperar(150); aoToken(p); } return { fim: 'stop' }; };
+  $('#entrada').value = 'Quanto é 6 vezes 7?'; ajustar(); $('#enviar').click();
+  for (let i = 0; i < 40 && (!atual || atual.msgs.length < 2 || geracao); i++) await esperar(200);
+  await esperar(500);
+  const m = atual.msgs[atual.msgs.length - 1], tela = document.querySelector('.msg.ia:last-of-type .txt').textContent;
+  PLATAFORMA.gerar = g0; conversas = conversas.filter(c => c !== atual); nova();
+  return JSON.stringify({ texto: m.texto, pensou: m.pensou || '', tela });
+})()`);
 // Área de código: JavaScript roda isolado (saída, erro, tempo esgotado, teclado); o agente edita só um trecho e busca
 r.codigo = await js(`(async () => {
   const ok1 = await rodarNoWorker('const a = 2; console.log("soma", a + 3); console.log([1,2])', '');
@@ -163,6 +175,7 @@ await espera(400);
 r.continuou = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1], d = [...document.querySelectorAll('.msg.ia')].pop(); return JSON.stringify({ pensou: !!m.pensou, tempo: m.tempo, linha: !!d.querySelector('.ia-status .pensa-linha'), texto: m.texto.slice(-20), giroSolto: !!document.querySelector('.giro') }); })()`);
 await js(`PLATAFORMA.gerar = window.__g0; definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
 const J = x => JSON.parse(x);
+ok('raciocínio vazado ("… </think>") sai da resposta e vai para o raciocínio', (o => o.texto === 'Resposta: 42.' && /conta simples/.test(o.pensou) && !/think|contexto/.test(o.tela))(J(r.vazou)), r.vazou);
 ok('Área de código: JavaScript roda isolado (saída, erro, laço parado, teclado, sem rede)', (o => o.ok1.saida === 'soma 5\n[1,2]' && o.ok1.codigo === 0 && o.erro === 1 && o.laco && o.tecl === 'oi Ana' && o.semRede === 'undefined')(J(r.codigo)), r.codigo.slice(0, 300));
 ok('Área de código: o agente busca e depois edita só o trecho (a mudança espera para aplicar)', (o => o.vezes === 2 && o.pend.length === 1 && o.pend[0].tipo === 'escrever' && /return a \+ b;/.test(o.pend[0].novo) && /main\.js:2/.test(o.busca))(J(r.codigo)), JSON.stringify(J(r.codigo).pend) + ' ' + J(r.codigo).busca);
 ok('conversa por voz: envia a fala sozinha e volta a escutar depois da resposta', (o => o.chip && o.enviada === 'Pergunta falada' && o.escutouDeNovo >= 1)(J(r.voz)), r.voz);
