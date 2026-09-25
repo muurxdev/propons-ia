@@ -105,4 +105,17 @@ await toque('touchEnd'); await espera(500);
 const cheia = await js(`(() => { const f = document.querySelector('.dlg.mais'); return { h: f.offsetHeight, cheia: f.classList.contains('cheia'), tela: innerHeight }; })()`);
 ok('puxar a folha para cima faz ela cobrir a tela', cheia.cheia && cheia.h > cheia.tela * 0.9 && cheia.h > alca.h, JSON.stringify([alca.h, cheia]));
 await foto('f5-cheia');
+// 10) da tela cheia, puxar para baixo volta ao tamanho normal (não fecha de uma vez); do normal, puxar fecha
+await toque('touchStart', alca.x, 30); await espera(30);
+for (let d = 10; d <= 300; d += 20) { await toque('touchMove', alca.x, 30 + d); await espera(16); }
+await toque('touchEnd'); await espera(600);
+const volta = await js(`(() => { const f = document.querySelector('.dlg-fundo:not(.saindo) .dlg.mais'); return f ? { h: f.offsetHeight, cheia: f.classList.contains('cheia') } : null; })()`);
+ok('da tela cheia, puxar para baixo volta ao tamanho normal (sem fechar)', !!volta && !volta.cheia && Math.abs(volta.h - alca.h) <= 4, JSON.stringify([alca.h, volta]));
+const topo2 = await js(`(() => { const b = document.querySelector('.dlg.mais .dlg-topo').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 12 }; })()`);
+await toque('touchStart', topo2.x, topo2.y); await espera(30);
+for (let d = 10; d <= 260; d += 20) { await toque('touchMove', topo2.x, topo2.y + d); await espera(16); }
+await toque('touchEnd'); await espera(600);
+ok('do tamanho normal, puxar para baixo fecha', await js(`!document.querySelector('.dlg-fundo:not(.saindo) .dlg.mais')`));
+// o topo da folha é opaco: o conteúdo que rola por baixo não aparece nas laterais
+ok('o topo da folha cobre as laterais (conteúdo não vaza por cima)', await js(`(() => { abrirConhecimentos(); const t = document.querySelector('.dlg.conh .dlg-topo'); const s = getComputedStyle(t); return s.position === 'sticky' && /24px/.test(s.boxShadow) && s.clipPath !== 'none'; })()`));
 resumo();

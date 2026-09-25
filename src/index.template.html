@@ -740,8 +740,9 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 /* diálogos e folhas (no celular sobem de baixo) */
 .dlg-fundo{position:fixed;inset:0;z-index:80;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0;animation:aparece var(--t2) ease;will-change:opacity}
 .dlg{width:min(480px,100%);min-width:0;max-height:88vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:var(--rf) var(--rf) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.28);padding:0 20px calc(var(--sb) + 18px);animation:sobe var(--t3) var(--entra);will-change:transform}
-.dlg-topo{position:sticky;top:0;z-index:1;background:var(--bg);display:flex;align-items:center;gap:8px;padding:22px 0 8px;margin-bottom:2px;cursor:grab}
+.dlg-topo{position:sticky;top:0;z-index:2;background:var(--bg);box-shadow:0 0 0 24px var(--bg);clip-path:inset(0 -24px);display:flex;align-items:center;gap:8px;padding:22px 0 8px;margin-bottom:2px;cursor:grab}
 .dlg-topo .alca{position:absolute;top:10px;left:50%;transform:translateX(-50%)}
+.dlg.rolada>.dlg-topo::after{content:'';position:absolute;left:-24px;right:-24px;bottom:0;height:1px;background:var(--line)}
 .dlg-topo h3{flex:1;min-width:0}
 .dlg-topo .icone{margin:-6px -8px -6px 0}
 .dlg h3{margin:0;font-size:var(--t-lg);font-weight:600}

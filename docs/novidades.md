@@ -1,3 +1,8 @@
+## Novidades da 1.24.1
+
+- **Menus com dois tamanhos, como os do Claude:** puxe para cima e o menu cresce com o dedo até a tela cheia; da tela cheia, puxando para baixo ele volta ao tamanho normal (não fecha mais de uma vez); do tamanho normal, puxar para baixo fecha. Soltando, ele assenta no tamanho mais perto, levando em conta a velocidade do gesto, com uma animação que desacelera no fim.
+- **O topo dos menus ficou sólido:** o conteúdo que rola por baixo (como os cartões do Conhecimento) não aparece mais apagado nas beiradas de cima, e uma linha fina separa o título quando a lista está rolada.
+
 ## Novidades da 1.24.0
 
 - **Conhecimento (no "+").** Ensine a Própons do seu jeito, como as skills do Claude: cada conhecimento tem nome, "quando usar", instruções e, se quiser, arquivos de referência (.txt, .md, .pdf, .docx). A IA escolhe sozinha os que combinam com a pergunta (ou você chama com /nome, ou marca "usar em toda resposta"), usa só os trechos dos arquivos ligados à pergunta e a resposta mostra qual conhecimento foi usado. Vem com três modelos prontos: Redação nota 1000, Matemática passo a passo e Revisão para prova.

@@ -86,119 +86,131 @@ function animarSaida(fundo, folha, depois) {
   fundo.style.transition = 'opacity .2s linear'; fundo.style.opacity = '0';   // opacidade é resolvida na placa
   setTimeout(() => { fundo.remove(); if (depois) depois(); }, 200);
 }
-/* arrastar a folha: para baixo sempre fecha (com ela acompanhando o dedo); para cima ela cresce até o fim,
-   e só cresce quando há conteúdo escondido — numa folha pequena, puxar para cima não faz nada. */
 function folhaArrastavel(fundo, folha, fechar) {
-  let y0 = null, dy = 0, t0 = 0, id = null, moveu = false, direcao = 0;
+  /* folha como as do sistema (e do app do Claude): dois tamanhos — o normal (o do conteúdo) e a tela cheia.
+     Puxar para cima cresce junto com o dedo até cobrir a tela; da tela cheia, puxar para baixo encolhe até o tamanho
+     normal (não fecha de uma vez); do tamanho normal, puxar para baixo fecha. Soltando, ela assenta no tamanho mais
+     perto, levando em conta a velocidade do gesto (um puxão rápido vale mais que a distância). */
   const temMais = () => folha.scrollHeight - folha.clientHeight > 8;
   const marcarRolagem = () => folha.classList.toggle('rola', temMais());
   marcarRolagem(); setTimeout(marcarRolagem, 60);
-  // para cima: a folha cresce junto com o dedo até cobrir a tela; soltando depois de um pouco, fica cheia
-  let h0 = 0;
+  // conteúdo rolado: aparece a linha fina embaixo do título (como nas folhas do sistema)
+  folha.addEventListener('scroll', () => folha.classList.toggle('rolada', folha.scrollTop > 4), { passive: true });
   const alturaMax = () => window.innerHeight - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--st')) || 0) - 10;
-  const crescer = d => { folha.style.maxHeight = 'none'; folha.style.height = Math.min(alturaMax(), h0 - Math.min(0, d)) + 'px'; };
-  const soltarCrescer = (d, v) => {
-    const cheia = -d > 48 || v < -0.35;
-    folha.style.transition = 'height .28s cubic-bezier(.05,.7,.1,1)';
-    folha.style.height = (cheia ? alturaMax() : h0) + 'px';
-    folha.classList.toggle('cheia', cheia);
-    setTimeout(() => { folha.style.transition = ''; if (!cheia) { folha.style.height = ''; folha.style.maxHeight = ''; } marcarRolagem(); }, 300);
+  const CURVA = 'cubic-bezier(.2,.9,.25,1)';   // desacelera no fim, como uma mola sem quicar
+  const cheia = () => folha.classList.contains('cheia');
+  let g = null;   // gesto em andamento: { modo: 'crescer' | 'encolher' | 'fechar', y0, h0, hBase, pontos }
+  function comecar(dir, y) {
+    if (dir < 0) { if (cheia()) return false; g = { modo: 'crescer', h0: folha.offsetHeight }; folha._hBase = g.h0; }
+    else if (cheia() && folha._hBase) g = { modo: 'encolher', h0: folha.offsetHeight, hBase: folha._hBase };
+    else g = { modo: 'fechar', h0: folha.offsetHeight };
+    g.y0 = y; g.pontos = [[y, performance.now()]];
+    folha.style.transition = 'none'; fundo.style.transition = 'none';
+    return true;
+  }
+  function mover(y) {
+    const d = y - g.y0;
+    g.pontos.push([y, performance.now()]); if (g.pontos.length > 6) g.pontos.shift();
+    pausarDesenho(200);
+    if (g.modo === 'crescer') { folha.style.maxHeight = 'none'; folha.style.height = Math.min(alturaMax(), g.h0 - Math.min(0, d)) + 'px'; return; }
+    if (g.modo === 'encolher') {
+      const h = g.h0 - Math.max(0, d);
+      if (h >= g.hBase) { folha.style.height = h + 'px'; folha.style.transform = ''; fundo.style.opacity = ''; return; }
+      const t = g.hBase - h;   // passou do tamanho normal: daí para baixo ela desce inteira, a caminho de fechar
+      folha.style.height = g.hBase + 'px'; folha.style.transform = `translateY(${t}px)`;
+      fundo.style.opacity = String(Math.max(0, 1 - t / g.hBase).toFixed(3));
+      return;
+    }
+    const t = Math.max(0, d);
+    folha.style.transform = `translateY(${t}px)`;
+    fundo.style.opacity = String(Math.max(0, 1 - t / Math.max(1, folha.offsetHeight)).toFixed(3));
+  }
+  // velocidade dos últimos instantes do gesto (px/ms; positivo = para baixo)
+  const velocidade = () => { const p = g.pontos; if (p.length < 2) return 0; const [y1, t1] = p[0], [y2, t2] = p[p.length - 1]; return (y2 - y1) / Math.max(1, t2 - t1); };
+  function assentar(estilo, depois) {
+    folha.style.transition = `height .34s ${CURVA}, transform .34s ${CURVA}`; fundo.style.transition = 'opacity .3s linear';
+    Object.assign(folha.style, estilo); fundo.style.opacity = '';
+    setTimeout(() => { folha.style.transition = ''; fundo.style.transition = ''; if (depois) depois(); marcarRolagem(); }, 360);
+  }
+  function terminar(y) {
+    const d = y - g.y0, v = velocidade(), m = g; g = null;
+    if (m.modo === 'crescer') {
+      const vai = -d > 48 || v < -0.35;
+      folha.classList.toggle('cheia', vai);
+      assentar({ height: (vai ? alturaMax() : m.h0) + 'px' }, () => { if (!vai) { folha.style.height = ''; folha.style.maxHeight = ''; } });
+      return;
+    }
+    if (m.modo === 'encolher') {
+      const h = m.h0 - Math.max(0, d);
+      if (h < m.hBase && (m.hBase - h > Math.min(120, m.hBase * 0.28) || v > 1.1)) { fechar(); return; }   // desceu além do normal: fecha
+      const volta = h < (m.h0 + m.hBase) / 2 || v > 0.35;   // desceu o bastante (ou rápido): volta ao tamanho normal
+      folha.classList.toggle('cheia', !volta);
+      assentar({ height: (volta ? m.hBase : m.h0) + 'px', transform: '' }, () => { if (volta) { folha.style.height = ''; folha.style.maxHeight = ''; } });
+      return;
+    }
+    if (d > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); return; }
+    assentar({ transform: '' });
+  }
+  // o toque que arrastou não vira clique no botão embaixo do dedo
+  const engolirClique = () => {
+    const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
+    folha.addEventListener('click', engolir, { capture: true, once: true });
+    setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
   };
+
+  // arrastar pela alça, pelo topo ou por uma folha curta (mouse, caneta ou dedo fora de algo que rola)
+  let py = null, pid = null;
   folha.addEventListener('pointerdown', e => {
     if (e.button > 0 || !estreita()) return;
     if (e.pointerType === 'touch' && rolador(e.target)) return;   // dedo sobre algo que rola: o arraste por toque (abaixo) decide
     const zona = e.target.closest('.p-arrastar, .dlg-topo, .p-topo, .p-nav-topo, .folha');
     if (!zona) return;
+    const naAlca = !!e.target.closest('.dlg-topo, .p-arrastar, .alca, .p-topo, .p-nav-topo');
     if (!e.target.closest('.folha') && e.target.closest('button, input, textarea, select, a')) return;
     // folha comprida: o dedo rola o conteúdo e só a alça arrasta; folha curta: qualquer ponto arrasta
-    if (temMais() && !e.target.closest('.dlg-topo, .p-arrastar, .alca')) return;
-    if (folha.scrollTop > 2) return;
-    y0 = e.clientY; dy = 0; t0 = performance.now(); id = e.pointerId; moveu = false; direcao = 0;
+    if (temMais() && !naAlca) return;
+    if (!naAlca && folha.scrollTop > 2) return;
+    py = e.clientY; pid = e.pointerId;
   });
   folha.addEventListener('pointermove', e => {
-    if (y0 === null || e.pointerId !== id) return;
-    const bruto = e.clientY - y0;
-    if (!direcao) {
-      if (Math.abs(bruto) < 7) return;
-      direcao = bruto < 0 ? -1 : 1;
-      if (direcao === -1) {
-        if (folha.classList.contains('cheia')) { y0 = null; direcao = 0; return; }   // já cobre a tela
-        h0 = folha.offsetHeight; folha.style.transition = 'none';
-      }
-      moveu = true;
-      try { folha.setPointerCapture(id); } catch (er) {}
-      folha.style.transition = 'none'; fundo.style.transition = 'none';
+    if (py === null || e.pointerId !== pid) return;
+    if (!g) {
+      const b = e.clientY - py; if (Math.abs(b) < 7) return;
+      if (!comecar(b < 0 ? -1 : 1, py)) { py = null; return; }
+      try { folha.setPointerCapture(pid); } catch (er) {}
     }
-    if (direcao === -1) { dy = bruto; pausarDesenho(200); crescer(bruto); return; }
-    dy = Math.max(0, bruto);
-    pausarDesenho(200);
-    folha.style.transform = `translateY(${dy}px)`;
-    fundo.style.opacity = String(Math.max(0, 1 - dy / Math.max(1, folha.offsetHeight)).toFixed(3));
+    mover(e.clientY);
   });
-  const soltar = () => {
-    if (y0 === null) { direcao = 0; return; }
-    const v = dy / Math.max(1, performance.now() - t0);
-    if (moveu) {
-      // o toque que arrastou não vira clique no botão embaixo do dedo
-      const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
-      folha.addEventListener('click', engolir, { capture: true, once: true });
-      setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
-      if (direcao === -1) { soltarCrescer(dy, dy / Math.max(1, performance.now() - t0)); y0 = null; direcao = 0; return; }
-      if (dy > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); y0 = null; direcao = 0; return; }
-      folha.style.transition = 'transform .24s cubic-bezier(.05,.7,.1,1)'; folha.style.transform = '';
-      fundo.style.transition = 'opacity .24s linear'; fundo.style.opacity = '';
-    }
-    y0 = null; direcao = 0;
-  };
-  folha.addEventListener('pointerup', soltar); folha.addEventListener('pointercancel', soltar);
+  const soltarPonteiro = e => { if (py === null) return; py = null; if (!g) return; engolirClique(); terminar(e.clientY); };
+  folha.addEventListener('pointerup', soltarPonteiro); folha.addEventListener('pointercancel', soltarPonteiro);
 
-  // menu comprido (ou com lista que rola, como os Ajustes): o dedo rola o conteúdo; com o conteúdo já no topo, puxar
-  // para baixo arrasta o menu inteiro de qualquer ponto, como uma folha do sistema
+  // menu comprido (ou com lista que rola, como os Ajustes): o dedo rola o conteúdo; com o conteúdo no topo, puxar
+  // para baixo arrasta o menu de qualquer ponto; puxar para cima cresce até a tela cheia antes de rolar
   const rolador = el => {
     for (let n = el; n && n !== fundo; n = n.parentElement)
       if (n.scrollHeight - n.clientHeight > 4 && /auto|scroll/.test(getComputedStyle(n).overflowY)) return n;
     return null;
   };
-  let tY = null, tDy = 0, tT0 = 0, tDir = 0, tRol = null;
+  let ty = null, tUlt = 0, tRol = null;
   folha.addEventListener('touchstart', e => {
-    tY = null;
-    if (!estreita() || e.touches.length !== 1 || y0 !== null) return;   // o arraste de cima (pointerdown vem antes) já pegou
-    if (e.target.closest('.dlg-topo, .p-arrastar, .alca, .p-topo, .p-nav-topo, input, textarea, select, [contenteditable]')) return;   // esses o arraste de cima já cuida
-    tRol = rolador(e.target) || folha;   // nada rola embaixo do dedo (página curta dos Ajustes): arrasta a folha direto
-    tY = e.touches[0].clientY; tDy = 0; tT0 = performance.now(); tDir = 0;
+    ty = null;
+    if (!estreita() || e.touches.length !== 1 || py !== null) return;   // o arraste de cima (pointerdown vem antes) já pegou
+    if (e.target.closest('.dlg-topo, .p-arrastar, .alca, .p-topo, .p-nav-topo, input, textarea, select, [contenteditable]')) return;
+    tRol = rolador(e.target) || folha;
+    ty = tUlt = e.touches[0].clientY;
   }, { passive: true });
   folha.addEventListener('touchmove', e => {
-    if (tY === null) return;
-    const bruto = e.touches[0].clientY - tY;
-    if (!tDir) {
-      if (Math.abs(bruto) < 6) return;
-      if (bruto < 0) {   // para cima: a folha cresce até cobrir a tela; já cheia, o dedo rola o conteúdo
-        if (folha.classList.contains('cheia') || (tRol !== folha && tRol.scrollTop > 0)) { tY = null; return; }
-        tDir = -1; h0 = folha.offsetHeight; folha.style.transition = 'none';
-      } else {
-        if (tRol.scrollTop > 0) { tY = null; return; }   // o dedo está rolando o conteúdo
-        tDir = 1; folha.style.transition = 'none'; fundo.style.transition = 'none';
-      }
+    if (ty === null) return;
+    const y = e.touches[0].clientY; tUlt = y;
+    if (!g) {
+      const b = y - ty; if (Math.abs(b) < 6) return;
+      if (b < 0 ? (cheia() || (tRol !== folha && tRol.scrollTop > 0)) : tRol.scrollTop > 0) { ty = null; return; }   // o dedo está rolando o conteúdo
+      if (!comecar(b < 0 ? -1 : 1, ty)) { ty = null; return; }
     }
     e.preventDefault();
-    if (tDir === -1) { tDy = bruto; pausarDesenho(200); crescer(bruto); return; }
-    tDy = Math.max(0, bruto);
-    pausarDesenho(200);
-    folha.style.transform = `translateY(${tDy}px)`;
-    fundo.style.opacity = String(Math.max(0, 1 - tDy / Math.max(1, folha.offsetHeight)).toFixed(3));
+    mover(y);
   }, { passive: false });
-  const soltarToque = () => {
-    if (tY === null || !tDir) { tY = null; return; }
-    const v = tDy / Math.max(1, performance.now() - tT0);
-    if (tDir === -1) { tY = null; tDir = 0; soltarCrescer(tDy, v); return; }
-    tY = null; tDir = 0;
-    const engolir = ev => { ev.stopPropagation(); ev.preventDefault(); };
-    folha.addEventListener('click', engolir, { capture: true, once: true });
-    setTimeout(() => folha.removeEventListener('click', engolir, { capture: true }), 350);
-    if (tDy > Math.min(120, folha.offsetHeight * 0.28) || v > 0.6) { fechar(); return; }
-    folha.style.transition = 'transform .24s cubic-bezier(.05,.7,.1,1)'; folha.style.transform = '';
-    fundo.style.transition = 'opacity .24s linear'; fundo.style.opacity = '';
-  };
+  const soltarToque = () => { if (ty === null) return; ty = null; if (!g) return; engolirClique(); terminar(tUlt); };
   folha.addEventListener('touchend', soltarToque); folha.addEventListener('touchcancel', soltarToque);
 }
 // folha aberta por cima de outra volta (seta) em vez de fechar (X); sozinha, fecha
