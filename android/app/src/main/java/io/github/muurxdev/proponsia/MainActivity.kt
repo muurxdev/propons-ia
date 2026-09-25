@@ -123,6 +123,8 @@ class MainActivity : Activity() {
             cacheMode = WebSettings.LOAD_NO_CACHE
             textZoom = 100
             setGeolocationEnabled(true)   // "que horas são aqui", clima: a página pede, o Android pergunta à pessoa
+            // a abertura fria (https://propons.local) fala com o PC da casa em http quando a pessoa usa a IA de outro aparelho
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
         web.setBackgroundColor(if (escuro()) Color.parseColor("#17171B") else Color.WHITE)
         web.addJavascriptInterface(Ponte(), "ProponsAndroid")

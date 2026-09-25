@@ -48,7 +48,9 @@ const anel = pct => `<span class="anel" style="--p:${Math.max(0, Math.min(100, M
    O app abre direto no chat, sem modelo. Ao mandar a primeira mensagem (ou tocar no seletor ao lado do "+"),
    sobe a lista de modelos; ao tocar em Baixar, aparece a bolinha com a %; quando termina, o app liga a IA,
    abre o chat de novo e a IA responde a mensagem que ficou esperando. */
-const ESCOLHER = !!window.PROPONS_ESCOLHER || /[#&]escolher\b/.test(location.hash);
+// usando a IA de outro aparelho, não há modelo deste aparelho para escolher nem motor local para ligar
+const ESCOLHER = (!!window.PROPONS_ESCOLHER || /[#&]escolher\b/.test(location.hash)) && !PLATAFORMA.usarRemota();
+const REMOTA = PLATAFORMA.usarRemota();
 // abertura fria: a IA ainda não foi ligada. Se já há um modelo baixado (MODELO_INICIAL), o chat abre normal e a IA liga
 // na primeira mensagem; se não há, a primeira mensagem abre a lista para escolher e baixar.
 const MODELO_INICIAL = window.PROPONS_MODELO || (location.hash.match(/[#&]modelo=([a-z]+)/) || [])[1] || null;
@@ -107,6 +109,7 @@ async function responderPendente() {
 
 /* ---------------- seletor de modelo (ao lado do "+", como no Claude) ---------------- */
 function atualizarSeletorModelo() {
+  if (REMOTA) { $('#nomeModelo').textContent = 'IA do ' + (PLATAFORMA.remota.nome || 'PC'); const lg0 = $('#logoSeletor'); if (lg0) lg0.innerHTML = ''; const p0 = $('#pillEsforco'); if (p0) { p0.textContent = ESFORCO[esforco()][0]; p0.hidden = false; } return; }
   const a = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual && m.baixado !== false);
   const curto = m => estreita() ? nomeCurtoModelo(m) : nomeModelo(m);
   $('#nomeModelo').textContent = ESCOLHER ? 'Selecionar modelo' : a ? curto(a) : 'Modelo';   // sem motor ligado, não mostra o modelo da vez passada
@@ -116,6 +119,12 @@ function atualizarSeletorModelo() {
 }
 async function abrirSeletorModelo(motivo) {
   document.querySelectorAll('.dlg.modelos').forEach(x => x.closest('.dlg-fundo').remove());
+  if (REMOTA) {   // a IA é a do outro aparelho: só o esforço e o caminho para voltar aos modelos deste
+    const r = PLATAFORMA.remota;
+    const v = await perguntar('IA de outro aparelho', `<p>As respostas vêm de <b>${esc(r.nome || 'outro aparelho')}</b> (${esc(r.url)}), pela rede da casa.</p><p>Para usar os modelos deste aparelho, desligue em Ajustes → Modelos de IA.</p>`, [['Esforço', 'esforco', ''], ['Ajustes', 'ajustes', 'primario']]);
+    if (v === 'esforco') abrirEsforco(() => {}); else if (v === 'ajustes') abrirConfig('modelo');
+    return;
+  }
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha modelos">${topoCentro(motivo === 'enviar' ? 'Escolha o modelo para responder' : 'Selecionar modelo')}
     ${ESCOLHER ? '<p class="info" style="margin:0 12px 10px;text-align:center">O modelo é baixado uma vez e depois funciona sem internet. Dá para trocar quando quiser.</p>' : ''}

@@ -69,8 +69,13 @@ const PLATAFORMA = (() => {
   // chave do motor (llama-server --api-key) vem no endereço: #k=...
   const chave = (location.hash.match(/[#&]k=([A-Za-z0-9_-]+)/) || [])[1] || '';
   // a página vem do motor (127.0.0.1) ou, na abertura fria do Windows, do site local propons.local — aí o motor tem endereço próprio
-const base = (location.protocol.startsWith('http') && location.hostname !== 'propons.local') ? '' : 'http://127.0.0.1:8765';
-  const cab = () => Object.assign({ 'Content-Type': 'application/json' }, chave ? { Authorization: 'Bearer ' + chave } : {});
+const baseLocal = (location.protocol.startsWith('http') && location.hostname !== 'propons.local') ? '' : 'http://127.0.0.1:8765';
+  /* IA de outro aparelho (Ajustes → Modelos → "Usar a IA de outro aparelho"): o celular manda as perguntas para o PC de
+     casa (API na rede local da Própons, formato OpenAI, com chave). Guardado só neste aparelho. */
+  let remota = null; try { const r = JSON.parse(localStorage.getItem('iaRemota') || 'null'); if (r && r.ligada && /^https?:\/\//.test(r.url)) remota = r; } catch (e) {}
+  const usarRemota = () => !!remota;
+  const base = () => remota ? remota.url.replace(/\/+$/, '') : baseLocal;
+  const cab = () => { const k = remota ? remota.chave : chave; return Object.assign({ 'Content-Type': 'application/json' }, k ? { Authorization: 'Bearer ' + k } : {}); };
 
   // lê um fluxo SSE do llama-server chamando aoDado(json) para cada evento
   async function lerSSE(r, aoDado) {
@@ -98,11 +103,11 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
      (/apply-template) e continua o texto bruto a partir do ponto exato onde parou (/completion) */
   async function continuarHTTP(mensagens, op, aoToken, sinal) {
     const parcial = mensagens[mensagens.length - 1].content;
-    const t = await fetch(base + '/apply-template', { method: 'POST', signal: sinal, headers: cab(),
+    const t = await fetch(base() + '/apply-template', { method: 'POST', signal: sinal, headers: cab(),
       body: JSON.stringify({ messages: mensagens.slice(0, -1).map(m => Array.isArray(m.content) ? { role: m.role, content: m.content.filter(c => c.type === 'text').map(c => c.text).join('\n') } : m), chat_template_kwargs: { enable_thinking: false } }) });
     if (!t.ok) throw await erroHTTP(t);
     const { prompt } = await t.json();
-    const r = await fetch(base + '/completion', { method: 'POST', signal: sinal, headers: cab(),
+    const r = await fetch(base() + '/completion', { method: 'POST', signal: sinal, headers: cab(),
       body: JSON.stringify({ prompt: prompt + parcial, stream: true, n_predict: op.maxTokens, ...amostragem(op), cache_prompt: true }) });
     if (!r.ok) throw await erroHTTP(r);
     let fim = 'stop', timings = null;
@@ -117,7 +122,7 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
   async function aquecerHTTP(mensagens, sinal) {
     const soTexto = mensagens.map(m => Array.isArray(m.content) ? { role: m.role, content: m.content.filter(c => c.type === 'text').map(c => c.text).join('\n') } : m);
     const formatar = async u => {
-      const r = await fetch(base + '/apply-template', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify({ messages: soTexto.concat({ role: 'user', content: u }) }) });
+      const r = await fetch(base() + '/apply-template', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify({ messages: soTexto.concat({ role: 'user', content: u }) }) });
       if (!r.ok) throw await erroHTTP(r);
       return (await r.json()).prompt || '';
     };
@@ -125,7 +130,7 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     let n = 0; while (n < a.length && a[n] === b[n]) n++;
     const corte = a.lastIndexOf('<|', n - 1);   // antes da marca que abre a pergunta (tokens especiais nunca se juntam ao texto)
     if (corte <= 0) return false;
-    const r = await fetch(base + '/completion', { method: 'POST', signal: sinal, headers: cab(),
+    const r = await fetch(base() + '/completion', { method: 'POST', signal: sinal, headers: cab(),
       body: JSON.stringify({ prompt: a.slice(0, corte), n_predict: 1, stream: true, cache_prompt: true, temperature: 0 }) });
     if (!r.ok) throw await erroHTTP(r);
     await lerSSE(r, () => {});
@@ -149,7 +154,7 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
       chat_template_kwargs: { enable_thinking: !!op.pensar }, timings_per_token: false };
     // modos de estudo: a resposta segue um esquema JSON (o motor força pela gramática — nunca vem JSON quebrado)
     if (op.esquema) corpo.response_format = { type: 'json_schema', json_schema: { name: 'resposta', schema: op.esquema } };
-    const r = await fetch(base + '/v1/chat/completions', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify(corpo) });
+    const r = await fetch(base() + '/v1/chat/completions', { method: 'POST', signal: sinal, headers: cab(), body: JSON.stringify(corpo) });
     if (!r.ok) throw await erroHTTP(r);
     let fim = null, timings = null;
     await lerSSE(r, j => {
@@ -186,22 +191,35 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
   return {
     tipo, chave,
     ao(nome, f) { (ouvintes[nome] = ouvintes[nome] || []).push(f); },
-    gerar(mensagens, op, aoToken, sinal) { return tipo === 'ios' ? gerarNativo(mensagens, op, aoToken, sinal) : gerarHTTP(mensagens, op, aoToken, sinal); },
+    gerar(mensagens, op, aoToken, sinal) { return tipo === 'ios' && !remota ? gerarNativo(mensagens, op, aoToken, sinal) : gerarHTTP(mensagens, op, aoToken, sinal); },
     // sem o /apply-template (iOS, motor embutido) não há como aquecer só o começo: não faz nada
-    aquecer(mensagens, sinal) { return tipo === 'ios' ? Promise.resolve(false) : aquecerHTTP(mensagens, sinal); },
+    aquecer(mensagens, sinal) { return tipo === 'ios' && !remota ? Promise.resolve(false) : aquecerHTTP(mensagens, sinal); },
+    // IA de outro aparelho: { url, chave, ligada } (guardada neste aparelho); testar confere se responde e com qual modelo
+    get remota() { return remota; },
+    usarRemota,
+    definirRemota(r) { try { if (r && r.ligada) localStorage.setItem('iaRemota', JSON.stringify(r)); else localStorage.removeItem('iaRemota'); } catch (e) {} },
+    async testarRemota(url, chaveR) {
+      const u = String(url || '').trim().replace(/\/+$/, ''), h = chaveR ? { Authorization: 'Bearer ' + chaveR } : {};
+      const s = await fetch(u + '/health', { cache: 'no-store' }); if (!s.ok) throw new Error('o aparelho respondeu HTTP ' + s.status);
+      const r = await fetch(u + '/v1/models', { headers: h, cache: 'no-store' });
+      if (r.status === 401) throw new Error('chave errada');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json(); const m = j && j.data && j.data[0] && j.data[0].id;
+      return String(m || 'modelo').split(/[\\/]/).pop().replace(/\.gguf$/i, '');
+    },
     async saude() {
-      if (tipo === 'ios') { try { const s = await pedir('estado', {}, 4000); return !!(s && s.pronto); } catch (e) { return false; } }
-      try { const r = await fetch(base + '/health', { cache: 'no-store' }); return r.ok; } catch (e) { return false; }
+      if (tipo === 'ios' && !remota) { try { const s = await pedir('estado', {}, 4000); return !!(s && s.pronto); } catch (e) { return false; } }
+      try { const r = await fetch(base() + '/health', { cache: 'no-store' }); return r.ok; } catch (e) { return false; }
     },
     async props() {
-      if (tipo === 'ios') return pedir('estado');
-      const r = await fetch(base + '/props', { headers: cab(), cache: 'no-store' }); return r.ok ? r.json() : null;
+      if (tipo === 'ios' && !remota) return pedir('estado');
+      const r = await fetch(base() + '/props', { headers: cab(), cache: 'no-store' }); return r.ok ? r.json() : null;
     },
     // quantos tokens um texto ocupa de verdade (o tokenizador do próprio modelo); null quando não dá (iOS, motor fora)
     async contarTokens(texto) {
-      if (tipo === 'ios') return null;
+      if (tipo === 'ios' && !remota) return null;
       try {
-        const r = await fetch(base + '/tokenize', { method: 'POST', headers: cab(), body: JSON.stringify({ content: texto }) });
+        const r = await fetch(base() + '/tokenize', { method: 'POST', headers: cab(), body: JSON.stringify({ content: texto }) });
         if (!r.ok) return null;
         const j = await r.json(); return Array.isArray(j.tokens) ? j.tokens.length : null;
       } catch (e) { return null; }

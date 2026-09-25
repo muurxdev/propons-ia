@@ -54,6 +54,10 @@ targets:
         NSSpeechRecognitionUsageDescription: A Própons IA transforma sua fala em texto no próprio iPhone para você mandar perguntas por voz.
         NSLocationWhenInUseUsageDescription: A Própons IA usa a localização só quando você pergunta sobre onde está (hora, clima, lugares por perto).
         LSSupportsOpeningDocumentsInPlace: true
+        # "Usar a IA de outro aparelho": o iPhone fala com o PC de casa pela rede (http no endereço local)
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: A Própons IA usa a rede da casa só quando você escolhe usar a IA do seu computador.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.muurxdev.proponsia

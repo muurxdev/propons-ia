@@ -1,0 +1,79 @@
+name: Placar dos modelos
+
+# Disputa de modelos no modo do app (Auto, texto de sistema fixo, contas conferidas): um job por modelo, em paralelo,
+# no processador do CI. Só manual ("Run workflow"). O resumo sai na página da execução e em Artifacts (placar-resumo).
+# Um modelo só entra no app se ganhar do atual da mesma faixa — sobretudo nas armadilhas — e for bem em português.
+on:
+  workflow_dispatch:
+    inputs:
+      modelos:
+        description: 'nome|url do GGUF no Hugging Face, um por linha ou separados por ; (vazio = a disputa padrão de treino/placar-ci.mjs)'
+        required: false
+        default: ''
+      vezes:
+        description: 'Rodadas por pergunta (1 é bem mais rápido; 3 mede a variação)'
+        required: false
+        default: '1'
+
+permissions:
+  contents: read
+
+jobs:
+  lista:
+    runs-on: ubuntu-latest
+    outputs:
+      matriz: ${{ steps.m.outputs.matriz }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22 }
+      - id: m
+        env: { MODELOS: "${{ inputs.modelos }}" }
+        run: node treino/placar-ci.mjs "$MODELOS" >> "$GITHUB_OUTPUT"
+
+  placar:
+    needs: lista
+    name: ${{ matrix.modelo.nome }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        modelo: ${{ fromJson(needs.lista.outputs.matriz) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22 }
+      - name: Motor (llama.cpp da mesma versão do app)
+        run: |
+          LLAMA=$(grep -m1 '^LLAMA=' linux/build.sh | cut -d'"' -f2)
+          curl -fsSL --retry 3 -o /tmp/llama.tgz "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA/llama-$LLAMA-bin-ubuntu-x64.tar.gz"
+          mkdir -p /tmp/llama && tar -xzf /tmp/llama.tgz -C /tmp/llama
+      - name: Modelo
+        env: { URL: "${{ matrix.modelo.url }}" }
+        run: curl -fsSL --retry 3 --retry-all-errors -o /tmp/modelo.gguf "$URL" && ls -la /tmp/modelo.gguf
+      - name: Placar
+        env: { NOME: "${{ matrix.modelo.nome }}", VEZES: "${{ inputs.vezes }}" }
+        run: bash treino/placar-ci.sh "$NOME" /tmp/modelo.gguf "$VEZES"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: placar-${{ matrix.modelo.nome }}
+          path: |
+            treino/avaliacao/resultado-*.md
+            /tmp/motor-*.log
+
+  resumo:
+    needs: placar
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { path: resultados, pattern: 'placar-*' }
+      - run: node treino/placar-resumo.mjs resultados >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: placar-resumo, path: resultados/placar-resumo.md }

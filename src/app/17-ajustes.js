@@ -161,6 +161,38 @@ function cartaoModelo(m, ram, rec) {
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;
 }
+/* "Usar a IA de outro aparelho": o celular (ou outro PC) usa o modelo do PC de casa, pela rede. No PC: Ajustes →
+   Modelos de IA → API na rede local mostra o endereço e a chave. */
+function htmlRemota() {
+  const r = PLATAFORMA.remota;
+  return `<div class="secao"><h4>Usar a IA de outro aparelho</h4><div class="cartao">
+    <p class="info" style="margin-top:0!important">Use o modelo do seu PC (mais rápido e maior) neste aparelho, pela rede da casa. No PC: Ajustes → Modelos de IA → ligue <b>API na rede local</b> e copie o endereço e a chave.</p>
+    <label class="bib-campo"><span>Endereço</span><input class="campo-texto" id="remUrl" placeholder="http://192.168.0.10:8765" autocomplete="off" spellcheck="false" inputmode="url" value="${esc(r ? r.url : pref('iaRemotaUrl') || '')}"></label>
+    <label class="bib-campo"><span>Chave</span><input class="campo-texto" id="remChave" autocomplete="off" spellcheck="false" value="${esc(r ? r.chave : '')}"></label>
+    <div class="botoes">${r ? '<button class="btn perigo" id="remDesligar">Voltar para os modelos deste aparelho</button>' : '<button class="btn primario" id="remLigar">Testar e usar</button>'}</div>
+    <p class="info" id="remEstado">${r ? 'Em uso: ' + esc(r.nome || r.url) + '. As perguntas vão pela rede da casa (sem criptografia): use só na sua rede.' : 'As perguntas vão pela rede da casa sem criptografia: use só numa rede em que você confia.'}</p></div></div>`;
+}
+function ligarRemota(c) {
+  const est = c.querySelector('#remEstado');
+  const bl = c.querySelector('#remLigar'); if (bl) bl.onclick = async () => {
+    let url = c.querySelector('#remUrl').value.trim(); const chaveR = c.querySelector('#remChave').value.trim();
+    url = url.replace(/\/v1\/?$/, '');   // o PC mostra o endereço com /v1 no fim
+    if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
+    if (!/:\d+$/.test(url.replace(/\/+$/, ''))) url = url.replace(/\/+$/, '') + ':8765';
+    bl.disabled = true; est.textContent = 'Testando…';
+    try {
+      const nome = await PLATAFORMA.testarRemota(url, chaveR);
+      pref('iaRemotaUrl', url);
+      PLATAFORMA.definirRemota({ url, chave: chaveR, nome: 'PC', modelo: nome, ligada: true });
+      est.textContent = 'Funcionou (' + nome + '). Abrindo de novo com a IA do PC…';
+      setTimeout(() => location.reload(), 900);
+    } catch (e) {
+      bl.disabled = false;
+      est.textContent = /Failed to fetch|NetworkError|Load failed/i.test(e.message) ? 'Não achei o PC nesse endereço. Confira se o PC está ligado, na mesma rede, com a API na rede local ligada.' : 'Não deu: ' + e.message + '.';
+    }
+  };
+  const bd = c.querySelector('#remDesligar'); if (bd) bd.onclick = () => { PLATAFORMA.definirRemota(null); toast('Voltando para os modelos deste aparelho…'); setTimeout(() => location.reload(), 700); };
+}
 async function abaModelo(c) {
   if (!sistemaCache) c.innerHTML = '<p class="info">Carregando…</p>';
   const s = await lerSistema();
@@ -172,7 +204,9 @@ async function abaModelo(c) {
   const usado = modelos.reduce((t, m) => t + (m.baixado ? m.tamanho : 0) + (m.visaoBaixada ? m.visaoTamanho : 0), 0) + (s.vozes || []).reduce((t, v) => t + (v.baixado ? v.tamanho : 0), 0), livre = s.discoLivre || 0;
   const rolagem = c.scrollTop;
   c.innerHTML = `<p class="info">Os modelos ficam guardados neste aparelho e funcionam sem internet. Os maiores respondem melhor (principalmente código), mas são mais lentos e usam mais memória.</p>
+    ${REMOTA ? htmlRemota() : ''}
     ${modelos.map(m => cartaoModelo(m, ram, rec)).join('')}
+    ${!REMOTA && !(s.api && s.api.ligada) ? htmlRemota() : ''}
     ${PLATAFORMA.temVisao && !web ? `<div class="secao" style="margin-top:18px"><h4>Fotos</h4><div class="cartao"><button class="interruptor" id="swVisao" role="switch" aria-checked="${!!s.visaoLigada}"><span class="pt"><b>Ler fotos (visão)</b><small>${s.visaoAtiva ? 'Ligada: a IA entende fotos e prints' : 'Desligada: liga sozinha quando você manda uma foto'}</small></span><span class="chave"></span></button></div></div>` : ''}
     ${s.gpu && !web ? `<div class="secao" style="margin-top:18px"><h4>Aceleração por GPU</h4><div class="cartao"><button class="interruptor" id="swGpu" role="switch" aria-checked="${!!s.gpu.ligada}"><span class="pt"><b>Usar a placa de vídeo (Vulkan)</b><small>${descricaoGpu(s.gpu)}</small></span><span class="chave"></span></button>${s.gpu.baixada && !s.gpu.ligada && !baixando['gpu-vulkan'] ? `<button class="btn link" data-gpu="apagar" style="margin:8px 12px 10px">Apagar o módulo (${gbBonito(43658240)})</button>` : ''}</div></div>` : ''}
     ${s.api && s.api.suporte ? `<div class="secao" style="margin-top:18px"><h4>API na rede local</h4><div class="cartao"><button class="interruptor" id="swApi" role="switch" aria-checked="${!!s.api.ligada}"><span class="pt"><b>Deixar outros aparelhos usarem esta IA</b><small>${s.api.ligada ? 'Ligada: compatível com a API da OpenAI, na sua rede Wi-Fi' : 'Desligada (só este computador)'}</small></span><span class="chave"></span></button>
@@ -194,7 +228,7 @@ async function abaModelo(c) {
       <div class="cmd"><code id="cmdModelo">propons-ia --modelo normal</code><button class="icone" data-copiar="cmdModelo" aria-label="Copiar">${ICO.copiar}</button></div>
       <p class="info" style="margin-top:12px">Para apagar um modelo e liberar espaço:</p><div class="cmd"><code id="cmdApagar">propons-ia --apagar-modelo avancado</code><button class="icone" data-copiar="cmdApagar" aria-label="Copiar">${ICO.copiar}</button></div></div>` : ''}`;
   c.scrollTop = rolagem;
-  ligarCopiar(c);
+  ligarCopiar(c); ligarRemota(c);
   c.querySelectorAll('[data-acao]').forEach(b => b.onclick = () => acaoModelo(b.dataset.acao, modelos.find(x => x.id === b.dataset.id), ram));
   c.querySelectorAll('[data-voz]').forEach(b => b.onclick = async () => {
     const v = s.vozes.find(x => x.id === b.dataset.id); if (!v) return;

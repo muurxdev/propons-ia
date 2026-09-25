@@ -92,6 +92,23 @@ if (!semTroca) {
     ok(`${nome} responde`, m.texto.length > 10, `${tps ? tps.toFixed(1) : '?'} tokens/s · RAM do motor ${ram} MB · ${m.texto.slice(0, 90)}`);
   }
 }
+// API na rede local + "Usar a IA de outro aparelho": a página (outra origem) chama o motor pelo IP da rede com a chave —
+// é o que o celular faz. Confere o CORS com Authorization (o padrão do llama-server não libera) e o teste do app.
+{
+  const r = await js(`PLATAFORMA.ligarApi(true).then(() => 'ok', e => 'erro: ' + e.message)`);
+  const prontoApi = r === 'ok' && await pronto(300);
+  const si = await js('PLATAFORMA.sistema()');
+  const ip = si && si.api && (si.api.enderecos || [])[0], porta = si && si.api && si.api.porta;
+  if (prontoApi && ip) {
+    const url = `http://${ip}:${porta}`;
+    const remoto = await js(`PLATAFORMA.testarRemota('${url}', PLATAFORMA.chave).then(n => 'ok: ' + n, e => 'erro: ' + e.message)`);
+    const errada = await js(`PLATAFORMA.testarRemota('${url}', 'chave-errada').then(n => 'ok: ' + n, e => 'erro: ' + e.message)`);
+    const gerou = await js(`fetch('${url}/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + PLATAFORMA.chave }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Diga só: oi' }], max_tokens: 8 }) }).then(r => r.status + ' ' + (r.headers.get('access-control-allow-origin') || '')).catch(e => 'erro: ' + e.message)`);
+    ok('IA de outro aparelho: a página chama o motor pelo IP da rede com a chave (CORS com Authorization)', /^ok: /.test(remoto) && /^200/.test(gerou), remoto + ' · ' + gerou);
+    ok('IA de outro aparelho: chave errada é recusada', /chave errada/.test(errada), errada);
+  } else ok('IA de outro aparelho: API na rede local ligou', false, r + ' · ' + JSON.stringify(si && si.api));
+  await js(`PLATAFORMA.ligarApi(false).then(() => 1, () => 0)`); await pronto(300);
+}
 fs.writeFileSync(`${saida}/resultado.json`, JSON.stringify({ res, diag, sistema: s }, null, 1));
 ws.close();
 const falhas = res.filter(r => !r[0]).length;
