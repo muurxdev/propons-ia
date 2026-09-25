@@ -108,6 +108,7 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ativa = java.lang.ref.WeakReference(this); encerrado = false
         web = WebView(this)
         val raiz = FrameLayout(this).apply { addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)) }
         setContentView(raiz)
@@ -120,6 +121,7 @@ class MainActivity : Activity() {
             mediaPlaybackRequiresUserGesture = true
             cacheMode = WebSettings.LOAD_NO_CACHE
             textZoom = 100
+            setGeolocationEnabled(true)   // "que horas são aqui", clima: a página pede, o Android pergunta à pessoa
         }
         web.setBackgroundColor(if (escuro()) Color.parseColor("#17171B") else Color.WHITE)
         web.addJavascriptInterface(Ponte(), "ProponsAndroid")
@@ -146,10 +148,18 @@ class MainActivity : Activity() {
         web.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(req: PermissionRequest) {
                 val audio = PermissionRequest.RESOURCE_AUDIO_CAPTURE
-                if (req.origin?.host != "127.0.0.1" || !req.resources.contains(audio)) { req.deny(); return }
+                if ((req.origin?.host != "127.0.0.1" && req.origin?.host != "propons.local") || !req.resources.contains(audio)) { req.deny(); return }
                 if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) { req.grant(arrayOf(audio)); return }
                 pedidoMicrofone = req
                 requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), PEDIDO_MICROFONE)
+            }
+            // localização: só a própria página; o Android mostra a janelinha dele (precisa/aproximada)
+            override fun onGeolocationPermissionsShowPrompt(origin: String?, cb: android.webkit.GeolocationPermissions.Callback?) {
+                val host = try { Uri.parse(origin ?: "").host } catch (_: Exception) { null }
+                if (host != "127.0.0.1" && host != "propons.local") { cb?.invoke(origin, false, false); return }
+                if (temLocalizacao()) { cb?.invoke(origin, true, false); return }
+                pedidoLocal = origin to cb
+                requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), PEDIDO_LOCAL)
             }
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 escolhaArquivos?.onReceiveValue(null)
@@ -465,7 +475,7 @@ class MainActivity : Activity() {
     // vigia: se o motor cair (ex.: Android fechou o processo), religa na mesma porta
     private fun vigiar(p: Process) = thread(isDaemon = true) {
         try { p.waitFor() } catch (_: Exception) {}
-        if (desligando || trocando || p !== motor) return@thread
+        if (desligando || encerrado || trocando || p !== motor) return@thread
         val agora = System.currentTimeMillis(); quedas.addLast(agora); while (quedas.isNotEmpty() && agora - quedas.first() > 180_000) quedas.removeFirst()
         if (quedas.size > 5) { evento("motor", JSONObject().put("estado", "erro").put("mensagem", "O motor está caindo repetidamente. Use o modelo Leve em Configurações.")); return@thread }
         evento("motor", JSONObject().put("estado", "reiniciando"))
@@ -585,6 +595,7 @@ class MainActivity : Activity() {
                             "notificar" -> { if (!emPrimeiroPlano) ServicoDownload.avisar(this@MainActivity, args.optString("titulo", "Própons IA"), args.optString("texto")); true }
                             "falar" -> { val tx = args.optString("texto"); val i = args.optString("id"); ui.post { falar(tx, i) }; true }
                             "pararFala" -> { ui.post { pararFala() }; true }
+                            "abrirConfig" -> { val r = args.optString("recurso"); ui.post { abrirConfigApp(r) }; true }
                             else -> throw Exception("ação desconhecida: $acao")
                         }
                         responder(id, dados)
@@ -867,14 +878,20 @@ class MainActivity : Activity() {
     @Volatile private var ttsPronto = false
     private val ttsFila = ArrayList<Pair<String, String>>()   // falas pedidas antes de o sintetizador ficar pronto
     private fun falar(texto: String, id: String) {
+        pegarFoco()
         if (tts == null) {
             synchronized(ttsFila) { ttsFila.add(texto to id) }
             tts = android.speech.tts.TextToSpeech(this) { st ->
                 if (st == android.speech.tts.TextToSpeech.SUCCESS) {
                     tts?.let { x -> if (x.setLanguage(java.util.Locale("pt", "BR")) < 0) x.setLanguage(java.util.Locale.getDefault()) }
+                    // a voz sai como mídia (volume de mídia, fone/Bluetooth), não como notificação
+                    tts?.setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build())
                     tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                        override fun onStart(u: String?) {}
-                        override fun onDone(u: String?) { evento("fala", JSONObject().put("id", u ?: "").put("estado", "fim")) }
+                        override fun onStart(u: String?) { evento("fala", JSONObject().put("id", u ?: "").put("estado", "inicio")) }
+                        // a palavra que está sendo dita agora: a página pinta de roxo no mesmo ritmo da voz
+                        override fun onRangeStart(u: String?, ini: Int, fim: Int, quadro: Int) { evento("fala", JSONObject().put("id", u ?: "").put("estado", "palavra").put("ini", ini).put("fim", fim)) }
+                        override fun onDone(u: String?) { evento("fala", JSONObject().put("id", u ?: "").put("estado", "fim")); ui.postDelayed({ if (tts?.isSpeaking != true) soltarFoco() }, 400) }
                         @Deprecated("Deprecated in Java") override fun onError(u: String?) { evento("fala", JSONObject().put("id", u ?: "").put("estado", "erro")) }
                     })
                     ttsPronto = true
@@ -888,23 +905,39 @@ class MainActivity : Activity() {
         }
         if (ttsPronto) tts?.speak(texto, android.speech.tts.TextToSpeech.QUEUE_ADD, null, id) else synchronized(ttsFila) { ttsFila.add(texto to id) }
     }
-    private fun pararFala() { synchronized(ttsFila) { ttsFila.clear() }; tts?.stop() }
+    private fun pararFala() { synchronized(ttsFila) { ttsFila.clear() }; tts?.stop(); soltarFoco() }
+    // foco de áudio: enquanto lê, a música de outro app abaixa (e volta ao terminar)
+    private var focoAudio: android.media.AudioFocusRequest? = null
+    private fun pegarFoco() {
+        if (focoAudio != null) return
+        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        val r = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build()).build()
+        try { am.requestAudioFocus(r); focoAudio = r } catch (_: Exception) {}
+    }
+    private fun soltarFoco() {
+        val r = focoAudio ?: return; focoAudio = null
+        try { (getSystemService(AUDIO_SERVICE) as android.media.AudioManager).abandonAudioFocusRequest(r) } catch (_: Exception) {}
+    }
 
     private fun ocupado(sim: Boolean) {
         val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
         if (travaResposta == null) travaResposta = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ProponsIA:resposta").apply { setReferenceCounted(false) }
         try { if (sim) travaResposta?.acquire(10 * 60 * 1000L) else travaResposta?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
         respondendo = sim
-        if (!sim) pararServicoResposta() else if (!emPrimeiroPlano) iniciarServicoResposta()
+        if (emPrimeiroPlano) pararServicoResposta() else segundoPlano()
     }
     // com o app em segundo plano (tela apagada ou outro app), um serviço em primeiro plano mantém o processo vivo até
     // a resposta terminar; em primeiro plano não precisa (e não queremos notificação à toa)
     @Volatile private var respondendo = false
     @Volatile private var servicoResposta = false
-    private fun iniciarServicoResposta() {
-        if (servicoResposta) return
+    // fora da tela: com a IA ligada (ou respondendo), o serviço segura o processo e a notificação diz o que está havendo;
+    // desligada e parada, não há o que segurar
+    private fun segundoPlano() {
+        if (!respondendo && motor?.isAlive != true) { pararServicoResposta(); return }
+        if (servicoResposta) { ServicoResposta.atualizar(this, respondendo); return }
         servicoResposta = true
-        try { ServicoResposta.iniciar(this) } catch (e: Exception) { servicoResposta = false; Log.w("ProponsIA", "serviço da resposta: ${e.message}") }
+        try { ServicoResposta.iniciar(this, respondendo) } catch (e: Exception) { servicoResposta = false; Log.w("ProponsIA", "serviço da resposta: ${e.message}") }
     }
     private fun pararServicoResposta() {
         if (!servicoResposta) return
@@ -918,11 +951,21 @@ class MainActivity : Activity() {
         prefs.edit().putBoolean("pediuNotificacoes", true).apply()
         ui.post { try { requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 3) } catch (_: Exception) {} }
     }
-    override fun onPause() { super.onPause(); emPrimeiroPlano = false; if (respondendo) iniciarServicoResposta() }   // saiu do app respondendo: segura o processo
+    override fun onPause() { super.onPause(); emPrimeiroPlano = false; segundoPlano() }   // saiu do app: a IA continua ligada e a conversa no lugar
 
     private var pedidoMicrofone: PermissionRequest? = null
+    private var pedidoLocal: Pair<String?, android.webkit.GeolocationPermissions.Callback?>? = null
+    private fun temLocalizacao() = checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+        checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    // permissão negada de vez: a página explica e abre a tela do app nas configurações do Android
+    private fun abrirConfigApp(recurso: String) {
+        val i = if (recurso == "notificacao") Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        try { startActivity(i) } catch (_: Exception) { try { startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) {} }
+    }
     override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
         super.onRequestPermissionsResult(codigo, permissoes, resultados)
+        if (codigo == PEDIDO_LOCAL) { val p = pedidoLocal; pedidoLocal = null; if (p != null) p.second?.invoke(p.first, temLocalizacao(), false); return }
         if (codigo != PEDIDO_MICROFONE) return
         val r = pedidoMicrofone; pedidoMicrofone = null
         if (resultados.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) r?.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else r?.deny()
@@ -978,7 +1021,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        if (isFinishing) { desligando = true; pararMotor() }
+        if (isFinishing) { desligando = true; pararMotor(); pararServicoResposta() }
+        if (ativa?.get() === this) ativa = null
         try { tts?.stop(); tts?.shutdown() } catch (_: Exception) {}
         ocupado(false)
         web.destroy()
@@ -988,12 +1032,16 @@ class MainActivity : Activity() {
     companion object {
         // estado do motor por processo (sobrevive à recriação da Activity)
         @Volatile var motor: Process? = null
+        // a Activity aberta agora (a notificação "Desligar a IA" fecha o app por ela)
+        @Volatile var ativa: java.lang.ref.WeakReference<MainActivity>? = null
+        @Volatile var encerrado = false   // a pessoa fechou o app (recentes ou "Desligar a IA"): o vigia não religa
         @Volatile var porta = 8765
         val chave: String = ByteArray(18).also { SecureRandom().nextBytes(it) }.let { android.util.Base64.encodeToString(it, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING) }
         const val PEDIDO_ARQUIVOS = 1
         const val PEDIDO_SALVAR = 2
         const val PEDIDO_CAMERA = 4
         const val PEDIDO_MICROFONE = 5
+        const val PEDIDO_LOCAL = 6
         const val ACAO_INSTALACAO = "io.github.muurxdev.proponsia.INSTALACAO"
     }
 }

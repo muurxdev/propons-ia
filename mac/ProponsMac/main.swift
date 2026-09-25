@@ -523,6 +523,11 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
                 _ = ativa
                 return r
             }.value
+        case "abrirConfig":   // permissão negada: abre Privacidade e Segurança na parte certa
+            let rec = a["recurso"] as? String ?? ""
+            let parte = rec == "microfone" ? "Privacy_Microphone" : rec == "camera" ? "Privacy_Camera" : rec == "localizacao" ? "Privacy_LocationServices" : "Privacy"
+            if let u = URL(string: "x-apple.systempreferences:com.apple.preference.security?" + parte) { NSWorkspace.shared.open(u) }
+            return true
         case "notificar":   // resposta pronta com a janela em segundo plano (avisar só mostra se o app não está ativo)
             avisar(a["titulo"] as? String ?? "Própons IA", a["texto"] as? String ?? "")
             return true

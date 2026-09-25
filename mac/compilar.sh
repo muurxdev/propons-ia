@@ -77,6 +77,8 @@ cat > "$APP/Contents/Info.plist" <<EOF
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>A Própons IA usa o microfone quando você toca em 🎤 para transformar sua fala em texto (no próprio Mac).</string>
   <key>NSCameraUsageDescription</key><string>A Própons IA usa a câmera quando você toca em Câmera para mandar uma foto para a IA ler.</string>
+  <key>NSLocationUsageDescription</key><string>A Própons IA usa a localização só quando você pergunta sobre onde está (hora, clima, lugares por perto).</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>A Própons IA usa a localização só quando você pergunta sobre onde está (hora, clima, lugares por perto).</string>
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>
 EOF

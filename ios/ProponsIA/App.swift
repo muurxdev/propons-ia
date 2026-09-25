@@ -287,6 +287,9 @@ final class Ponte: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUID
             if acharModelo(m) == nil { responder(id, true) } else { erro(id, "não foi possível apagar o arquivo") }
         case "verificarModelos": DispatchQueue.global(qos: .userInitiated).async { self.responder(id, self.verificarModelos()) }
         case "abrirLoja": abrirLoja(id)
+        case "abrirConfig":   // permissão negada: a tela da Própons IA nos Ajustes do iPhone
+            if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) }
+            responder(id, true)
         case "compartilhar": compartilharTexto(id: id, texto: args["texto"] as? String ?? "")
         // transcrição: a página manda o áudio em partes; o reconhecimento de fala do iOS (no aparelho) faz o texto
         case "audioInicio":

@@ -3,7 +3,7 @@ const GB = 1073741824;
 let abaAtual = 'modelo';
 const PAGINAS = [
   [['modelo', 'Modelos de IA', ICO.chip], ['atualizacoes', 'Atualizações', ICO.atualizar]],
-  [['respostas', 'Respostas', ICO.respostas], ['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria], ['permissoes', 'Permissões', ICO.escudo]],
+  [['respostas', 'Respostas', ICO.respostas], ['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria]],
   [['diagnostico', 'Diagnóstico', ICO.diagnostico], ['sobre', 'Sobre', ICO.sobre]],
 ];
 const TITULOS = Object.fromEntries(PAGINAS.flat().map(([k, t]) => [k, t]));
@@ -38,7 +38,6 @@ function subtitulo(k) {
     case 'conversas': return `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · backup e limpeza`;
     case 'memoria': { const n = memoria().length; return n ? `${n} ${n === 1 ? 'coisa que a IA sabe' : 'coisas que a IA sabe'} sobre você` : 'O que a IA sabe sobre você'; }
     case 'estudo': { const b = baralho(), n = paraRevisar(b).length; return b.cartoes.length ? `${n ? n + ' para revisar hoje' : 'nada para revisar hoje'} · ${b.cartoes.length} cartões` : 'Flashcards, quiz e redação'; }
-    case 'permissoes': return 'Câmera, microfone, avisos e arquivos';
     case 'diagnostico': return 'Testar tudo e medir a velocidade';
     case 'sobre': return 'Própons IA ' + VERSAO;
   }
@@ -90,7 +89,7 @@ $('#abrirConfig').onclick = () => abrirConfig();
 
 function desenharAba() {
   const c = $('#corpoConfig'); if (!c) return;
-  const pagina = abaAtual, r = ({ respostas: abaRespostas, geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, permissoes: abaPermissoes, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
+  const pagina = abaAtual, r = ({ respostas: abaRespostas, geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
   // (!) nas seções e entrada suave dos blocos só na primeira vez que a página aparece (redesenhos não piscam)
   Promise.resolve(r).then(() => { if ($('#corpoConfig') !== c || abaAtual !== pagina) return; const nova = c.dataset.pagina !== pagina; c.dataset.pagina = pagina; enfeitarPagina(c, nova); });
 }
@@ -109,7 +108,7 @@ function abaGeral(c) {
       : `<div class="secao"><h4>Atalhos</h4><p class="info">Enter envia · Shift+Enter quebra linha · ↑ edita a última pergunta · Ctrl+B histórico · Ctrl+K buscar · Ctrl+Shift+O nova conversa · Ctrl+, ajustes</p></div>`}`;
   ligarSeg(c, 'tema', v => { pref('tema', v); aplicarTema(); });
   ligarSeg(c, 'fonte', v => { pref('fonte', v); aplicarFonte(); });
-  ligarSeg(c, 'lerRespostas', v => { pref('lerRespostas', v); if (v === 'sim' && !falaAtual) { falaAtual = { msg: {}, ultimoId: '', narrando: false, terminou: true, fimIds: new Set() }; falarFrases(['Leitura em voz alta ligada.']); } });
+  ligarSeg(c, 'lerRespostas', v => { pref('lerRespostas', v); if (v === 'sim' && !falaAtual) falarAviso('Leitura em voz alta ligada.'); });
   ligarSeg(c, 'avisarPronto', v => { pref('avisarPronto', v); if (v === 'sim') PLATAFORMA.notificar('Própons IA', 'Pronto: é assim que eu vou avisar quando a resposta terminar.'); });
 }
 
@@ -465,7 +464,7 @@ async function checarAtualizacao() {
     if (!/^\d+\.\d+\.\d+$/.test(v)) return null;
     ultimaVerificacao = Date.now(); pref('ultimaVerificacao', String(ultimaVerificacao));
     const asset = (j.assets || []).find(a => a.name === ARQUIVO_DA_PLATAFORMA[PLATAFORMA.tipo]);
-    atualizacao = maior(v, VERSAO) ? { versao: v, url: j.html_url, notas: String(j.body || ''), tamanho: asset ? asset.size : 0 } : false;
+    atualizacao = maior(v, VERSAO) ? { versao: v, url: j.html_url, notas: String(j.body || ''), tamanho: asset ? asset.size : 0, data: j.published_at || '' } : false;
     marcarPontos(); desenharNav();
     return atualizacao;
   } catch (e) { return null; }
@@ -477,10 +476,62 @@ function tempoAtras(ts) {
 }
 // notas da versão (vêm de docs/novidades.md): sem o título e sem a tabela de downloads
 // só a seção da versão nova; itens marcados como de outra plataforma ("- **PC:**", "- **Celular:**") não aparecem
+/* novidades de uma versão: cada "- **Título.** texto" das notas vira um item com ícone e tipo (novo, melhoria,
+   correção, por dentro); aparecem as 4 primeiras e "Ver todas" abre o resto, com data, tamanho e o link do GitHub */
+const TIPOS_NOTA = {
+  novo: ['Novo', '<svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" fill="currentColor" stroke="none"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" fill="currentColor" stroke="none"/></svg>'],
+  melhora: ['Melhoria', '<svg viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-7"/><path d="M15 8h5v5"/></svg>'],
+  corrige: ['Correção', '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg>'],
+  dentro: ['Por dentro', '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.5 4.5l1.7 1.7M17.8 17.8l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.5 19.5l1.7-1.7M17.8 6.2l1.7-1.7"/></svg>'],
+};
+function itensNotas(s) {
+  const out = [];
+  limparNotas(s).split('\n').forEach(l => {
+    const m = /^\s*[-*]\s+(?:\*\*(.+?)\*\*[:.]?\s*)?(.*)$/.exec(l);
+    if (m) out.push({ titulo: (m[1] || '').replace(/[.:]\s*$/, ''), texto: m[2] || '' });
+    else if (out.length && l.trim() && !/^\s*#/.test(l)) out[out.length - 1].texto += ' ' + l.trim();
+  });
+  return out.filter(n => n.titulo || n.texto);
+}
+function tipoNota(n) {
+  const t = n.titulo + ' ' + n.texto;
+  if (/^por dentro/i.test(n.titulo)) return 'dentro';
+  if (/\b(corrig|consert|arrum|n[ãa]o (trava|some|pula|fecha|cai|mais)|volta a|sem o |bug|falha|erro)/i.test(t)) return 'corrige';
+  if (/\b(novo|nova|novos|novas|chega|ganha|agora (d[áa]|tem|mostra|l[êe])|passa a)\b/i.test(t)) return 'novo';
+  return 'melhora';
+}
+const inlineMd = t => md(t).replace(/^\s*<p>|<\/p>\s*$/g, '');
+function htmlNotasVersao(u, nova) {
+  const itens = itensNotas(u.notas || ''); if (!itens.length) return '';
+  const cont = {}; itens.forEach(n => { n.tipo = tipoNota(n); cont[n.tipo] = (cont[n.tipo] || 0) + 1; });
+  const data = u.data ? new Date(u.data).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const meta = [data && 'Publicada em ' + data, u.tamanho ? Math.round(u.tamanho / 1048576) + ' MB' : ''].filter(Boolean).join(' · ');
+  return `<div class="nv${nova ? ' nova' : ''}">
+    <div class="nv-topo"><span class="nv-selo">${nova ? 'Versão nova' : 'Nesta versão'}</span><b>O que há na ${esc(u.versao)}</b>${meta ? `<small>${esc(meta)}</small>` : ''}
+      <div class="nv-tipos">${Object.keys(TIPOS_NOTA).filter(k => cont[k]).map(k => `<span class="nv-chip t-${k}">${TIPOS_NOTA[k][1]}${cont[k]} ${cont[k] > 1 ? ({ novo: 'novidades', melhora: 'melhorias', corrige: 'correções', dentro: 'por dentro' })[k] : ({ novo: 'novidade', melhora: 'melhoria', corrige: 'correção', dentro: 'por dentro' })[k]}</span>`).join('')}</div></div>
+    <ol class="nv-lista">${itens.map((n, i) => `<li class="nv-item t-${n.tipo}"${i >= 4 ? ' hidden' : ''}><span class="nv-ico" title="${TIPOS_NOTA[n.tipo][0]}">${TIPOS_NOTA[n.tipo][1]}</span><div>${n.titulo ? `<b>${inlineMd(n.titulo)}</b>` : ''}${n.texto ? `<p>${inlineMd(n.texto)}</p>` : ''}</div></li>`).join('')}</ol>
+    <div class="nv-pe">${itens.length > 4 ? `<button class="btn nv-mais">Ver todas as ${itens.length} novidades</button>` : ''}${u.url ? `<a class="nv-link" href="${esc(u.url)}" data-link>${ICO.link || ''}Notas completas no GitHub</a>` : ''}</div>
+  </div>`;
+}
+function ligarNotasVersao(c) {
+  c.querySelectorAll('.nv-mais').forEach(b => b.onclick = () => { b.closest('.nv').querySelectorAll('.nv-item[hidden]').forEach((li, i) => { li.hidden = false; li.style.animationDelay = (i * 40) + 'ms'; }); b.remove(); });
+  ligarLinks(c);
+}
+// em dia: mostra o que chegou na versão instalada (as notas vêm do GitHub, uma vez por abertura)
+let notasDaAtual = null;
+async function mostrarNotasDaAtual() {
+  const alvo = () => $('#notasAtual');
+  if (notasDaAtual === null && !semInternet()) {
+    notasDaAtual = false;
+    try { const r = await fetch(`https://api.github.com/repos/${REPO}/releases/tags/v${VERSAO}`, { cache: 'no-store' }); if (r.ok) { const j = await r.json(); notasDaAtual = { versao: VERSAO, notas: String(j.body || ''), url: j.html_url, data: j.published_at || '' }; } } catch (e) {}
+  }
+  const a = alvo(); if (!a || !notasDaAtual) return;
+  a.innerHTML = htmlNotasVersao(notasDaAtual, false); ligarNotasVersao(a);
+}
 function limparNotas(s) {
   const linhas = s.replace(/\r/g, '').replace(/^\s*#{1,3}\s[^\n]*\n/, '').split(/\n#{1,3}\s*(?:Baixar|Downloads?|Instalar|Novidades)\b/i)[0].split('\n');
   const outra = CELULAR ? /^\s*-\s*\*\*(PC|Windows|Mac|Linux|Computador)\b/i : /^\s*-\s*\*\*(Celular|Android|iPhone|iOS|Mobile)\b/i;
-  return linhas.filter(l => !outra.test(l)).join('\n').trim().slice(0, 2500);
+  return linhas.filter(l => !outra.test(l)).join('\n').trim().slice(0, 8000);
 }
 function rotuloAtualizar() {
   return ({ ios: 'Atualizar pelo SideStore/AltStore', web: 'Como atualizar', windows: 'Atualizar agora', android: 'Atualizar agora', mac: 'Atualizar agora' })[PLATAFORMA.tipo];
@@ -504,7 +555,7 @@ function abaAtualizacoes(c) {
   const u = atualizacao;
   const status = u ? `Nova versão ${esc(u.versao)} disponível` : u === false ? 'Você está na versão mais recente' : ultimaVerificacao ? 'Verificado ' + tempoAtras(ultimaVerificacao) : 'Ainda não verificado';
   c.innerHTML = `<div class="cartao"><div class="versao-topo"><div class="marca"></div><div><b>Própons IA ${VERSAO}</b><small class="${u ? 'nova' : ''}">${status}</small></div></div>
-      ${u && u.notas ? `<div class="notas txt">${md(limparNotas(u.notas))}</div>` : ''}
+      ${u && u.notas ? htmlNotasVersao(u, true) : '<div id="notasAtual"></div>'}
       <div id="progAtual"${atualizando ? '' : ' hidden'}><div class="barra"><i style="width:${atualizando ? (atualizando.pct * 100).toFixed(1) : 0}%"></i></div><small class="info" id="txtProgAtual">${textoAtualizando()}</small></div>
       <div class="botoes" style="margin-top:14px">${u ? `<button class="btn primario" id="btnAtualizar"${atualizando ? ' disabled' : ''}>${ICO.exportar}${rotuloAtualizar()}${u.tamanho && PLATAFORMA.podeAtualizarSozinho ? ` · ${Math.round(u.tamanho / 1048576)} MB` : ''}</button>` : ''}
         <button class="btn" id="btnProcurar">${ICO.atualizar}Procurar atualizações</button></div>
@@ -512,7 +563,8 @@ function abaAtualizacoes(c) {
     <div class="secao" style="margin-top:18px"><h4>Atualizar tudo</h4><div class="cartao"><p class="info">Procura versão nova do app e confere se os modelos baixados estão inteiros. Um modelo com defeito é apagado para ser baixado de novo.</p>
       <button class="btn" id="btnTudo">${ICO.atualizar}Procurar e atualizar tudo</button><ul class="diag" id="listaTudo" style="margin-top:8px"></ul></div></div>
     <div class="secao"><h4>Automático</h4><div class="cartao"><button class="interruptor" id="swAvisar" role="switch" aria-checked="${pref('avisarAtualizacao') !== 'nao'}"><span class="pt"><b>Avisar quando sair versão nova</b><small>Confere ao abrir o app, quando houver internet</small></span><span class="chave"></span></button></div></div>`;
-  ligarCopiar(c);
+  ligarCopiar(c); ligarNotasVersao(c);
+  if (!u) mostrarNotasDaAtual();
   if ($('#btnAtualizar')) $('#btnAtualizar').onclick = iniciarAtualizacao;
   $('#btnProcurar').onclick = async () => {
     const b = $('#btnProcurar'); b.disabled = true; b.lastChild.textContent = 'Procurando…';

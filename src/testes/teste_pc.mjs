@@ -122,9 +122,14 @@ await js(`conversas = conversas.filter(c => !/^teste[AB]$/.test(c.id)); nova(); 
 await js(`pref('lerRespostas', 'nao'); nova(); atual = { id: novoId(), titulo: 'Voz', criada: Date.now(), atualizada: Date.now(), msgs: [{ role: 'user', texto: 'x', llm: 'x' }, { role: 'assistant', texto: 'Primeira frase da resposta. Segunda frase, um pouco mais longa, para dar tempo. Terceira e última.', llm: '' }] }; conversas.unshift(atual); abrir(atual.id); 1`);
 ok('resposta tem o botão de ouvir', await js(`!!document.querySelector('.msg.ia .acao.ler')`));
 await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(900);
-ok('ouvir: começa a falar e o botão vira "parar"', await js(`speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !!falaAtual`));
-await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(400);
-ok('parar: silêncio e botão volta ao normal', await js(`!speechSynthesis.speaking && !document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !falaAtual`));
+ok('ouvir: começa a falar e o botão vira "pausar" (com o ■ ao lado)', await js(`speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !!falaAtual && !falaAtual.pausado && !document.querySelector('.msg.ia .acao.parar-ler').hidden`));
+ok('enquanto lê, o texto é pintado de roxo no ritmo da voz', await js(`CSS.highlights.has('fala-lido') || CSS.highlights.has('fala-agora')`), await js(`JSON.stringify([...CSS.highlights.keys()])`));
+await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(500);
+ok('pausar: silêncio, botão vira ▶ e a leitura fica guardada', await js(`!speechSynthesis.speaking && document.querySelector('.msg.ia .acao.ler').classList.contains('pausado') && !!falaAtual && falaAtual.pausado`));
+await js(`document.querySelector('.msg.ia .acao.ler').click(); 1`); await espera(700);
+ok('continuar: volta a falar de onde parou', await js(`speechSynthesis.speaking && !falaAtual.pausado`));
+await js(`document.querySelector('.msg.ia .acao.parar-ler').click(); 1`); await espera(400);
+ok('■ parar: silêncio, sem roxo e botão volta ao normal', await js(`!speechSynthesis.speaking && !document.querySelector('.msg.ia .acao.ler').classList.contains('on') && !falaAtual && !CSS.highlights.has('fala-agora')`));
 await js(`pref('lerRespostas', 'sim'); window.__falas = []; window.__falar0 = window.__falar0 || PLATAFORMA.falar; PLATAFORMA.falar = (t, id) => { window.__falas.push([t, !!geracao]); return window.__falar0(t, id); }; (()=>{ nova(); const e=$('#entrada'); e.value='Explique em cinco frases, uma por linha, o que é a fotossíntese.'; ajustar(); $('#enviar').click(); })(); 1`);
 // a fala começa antes de a resposta terminar: cada item guarda se geracao ainda existia no momento da chamada
 for (let i = 0; i < 40 && !(await js('!!geracao || window.__falas.length')); i++) await espera(250);
@@ -394,40 +399,68 @@ await js(`pararLeitura(); pref('lerRespostas', 'nao'); PLATAFORMA.falar = window
   ok('o menu lateral leva de volta à conversa', await js(`(()=>{ fecharTela(); return telaAtual === '' && !$('#conversa').hidden && !document.querySelector('.compor').hidden && $('#tela').hidden })()`));
   await js(`pref('projeto', ''); pref('codigoSessoes', ''); pref('moldesCodigo', ''); codigoId = ''; 1`);
 }
-// 1.20: Biblioteca refinada — duração, baixar de novo, folha proporcional
+// 1.23: Biblioteca no estilo Nira — abas com contagem, busca, ⋯, apagar com desfazer, ficha e guardada no aparelho
 {
   const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/wFV0E5MAAAAAElFTkSuQmCC';
-  await js(`biblioteca = []; filtroBib = 'todos';
+  await js(`window.__bibAntes = biblioteca.slice(); biblioteca = []; filtroBib = 'todos';
     guardarNaBiblioteca({ tipo: 'audio', nome: 'Gravação de teste', tam: 18000, texto: 'isto é um teste de transcrição', segundos: 32.4 });
-    guardarNaBiblioteca({ tipo: 'arquivo', nome: 'notas.txt', tam: 120, lang: 'texto', conteudo: 'linha 1' + String.fromCharCode(10) + 'linha 2' });
+    guardarNaBiblioteca({ tipo: 'arquivo', nome: 'notas.txt', tam: 120, lang: 'texto', conteudo: 'linha 1' + String.fromCharCode(10) + 'fotossíntese na linha 2' });
     guardarNaBiblioteca({ tipo: 'imagem', nome: 'foto.png', tam: 900, dataUrl: ${JSON.stringify(PNG)}, miniatura: ${JSON.stringify(PNG)} });
-    abrirTela('biblioteca'); 1`); await espera(600);
-  ok('a Biblioteca é tela e mostra fotos, arquivos e áudios', await js(`telaAtual === 'biblioteca' && !!document.querySelector('#tela .bib-corpo') && document.querySelectorAll('.bib-linha').length === 2 && document.querySelectorAll('.bib-cart').length === 1`));
-  ok('o áudio mostra a duração na lista', await js(`/0:32/.test(document.querySelector('.bib-lista').textContent)`), await js(`document.querySelector('.bib-lista').textContent.replace(/\\s+/g,' ').slice(0,90)`));
-  ok('cada item tem botão de baixar', (await js(`document.querySelectorAll('[data-baixar]').length`)) === 3);
+    window.__bibIds = biblioteca.map(i => i.id);
+    abrirTela('biblioteca'); 1`); await espera(700);
+  ok('a Biblioteca é tela, com uma linha por item', await js(`telaAtual === 'biblioteca' && document.querySelectorAll('#tela .bib-row').length === 3`));
+  const abas = await js(`[...document.querySelectorAll('.bib-abas [data-f]')].map(b => b.dataset.f + ':' + b.querySelector('i').textContent).join(' ')`);
+  ok('abas Tudo/Fotos/Arquivos/Áudios com contagem', abas === 'todos:3 imagem:1 arquivo:1 audio:1', abas);
+  ok('o áudio mostra a duração na linha', await js(`/0:32/.test(document.querySelector('.bib-lista').textContent)`));
+  ok('cada linha tem o menu ⋯', (await js(`document.querySelectorAll('.bib-row [data-mais]').length`)) === 3);
+  await js(`(() => { const c = document.querySelector('[data-busca]'); c.value = 'fotossintese'; c.oninput(); })(); 1`); await espera(400);
+  ok('a busca acha pelo conteúdo, sem acento', await js(`document.querySelectorAll('.bib-row').length === 1 && /notas/.test(document.querySelector('.bib-row').textContent)`));
+  await js(`(() => { const c = document.querySelector('[data-busca]'); c.value = ''; c.oninput(); })(); 1`); await espera(400);
   // baixar sem abrir o diálogo do sistema: a ponte é trocada por um espião
   await js(`window.__salvos = []; window.__salvarReal = PLATAFORMA.salvarArquivo; PLATAFORMA.salvarArquivo = (n, c, t) => { window.__salvos.push([n, typeof c === 'string' ? 'texto' : 'bytes', t]); return Promise.resolve(true); }; 1`);
-  await js(`document.querySelector('.bib-cart [data-baixar]').click(); 1`); await espera(300);
-  await js(`document.querySelector('.bib-linha [data-baixar]').click(); 1`); await espera(300);
+  await js(`baixarItemBib(biblioteca.find(i => i.tipo === 'imagem'), true); 1`); await espera(300);
   const salvos = await js(`window.__salvos`);
-  ok('baixar manda a foto como bytes e o áudio como arquivo/transcrição', salvos.length === 2 && salvos[0][1] === 'bytes' && /png/.test(salvos[0][2]), JSON.stringify(salvos));
-  // folha do item: ficha com duração e ações do mesmo tamanho (sem popup desproporcional)
-  await js(`(()=>{ const id = biblioteca.find(i => i.tipo === 'audio').id; document.querySelector('.bib-abrir[data-i="' + id + '"]').click(); })(); 1`); await espera(500);
-  const ficha = await js(`[...document.querySelectorAll('.bib-item .bib-ficha dt')].map(d => d.textContent)`);
-  ok('a folha do item traz a ficha (tipo, tamanho, duração, hora)', ficha.includes('Duração') && ficha.includes('Tamanho') && ficha.length >= 4, JSON.stringify(ficha));
-  const larg = await js(`(()=>{ const b = [...document.querySelectorAll('.bib-item .bib-acoes .btn')].map(x => Math.round(x.getBoundingClientRect().width)); return [b.length, Math.max(...b) - Math.min(...b)] })()`);
-  ok('as ações da folha têm o mesmo tamanho', larg[0] >= 3 && larg[1] <= 2, JSON.stringify(larg));
-  await js(`fecharDialogo(); PLATAFORMA.salvarArquivo = window.__salvarReal; 1`); await espera(300);
-  await js(`fecharTela(); biblioteca = []; 1`);
+  ok('baixar manda a foto como bytes', salvos.length === 1 && salvos[0][1] === 'bytes' && /png/.test(salvos[0][2]), JSON.stringify(salvos));
+  // folha do item: ficha com duração
+  await js(`verItemBiblioteca(biblioteca.find(i => i.tipo === 'audio')); 1`); await espera(600);
+  const ficha = await js(`[...document.querySelectorAll('.dlg .bib-ficha dt')].map(d => d.textContent)`);
+  ok('a folha do item traz a ficha (tipo, tamanho, duração)', ficha.includes('Duração') && ficha.includes('Tamanho'), JSON.stringify(ficha));
+  await js(`fecharDialogo(); PLATAFORMA.salvarArquivo = window.__salvarReal; 1`); await espera(400);
+  // apagar tira na hora e o Desfazer devolve
+  await js(`apagarBib([biblioteca.find(i => i.tipo === 'arquivo')]); 1`); await espera(400);
+  ok('apagar tira o item da lista na hora', await js(`document.querySelectorAll('.bib-row').length === 2 && !!document.querySelector('.acao-toast button')`));
+  await js(`document.querySelector('.acao-toast button').click(); 1`); await espera(400);
+  ok('Desfazer devolve o item', await js(`document.querySelectorAll('.bib-row').length === 3`));
+  ok('a barra mostra o espaço usado', await js(`/Usando/.test(document.querySelector('.bib-pe').textContent)`));
+  await js(`fecharTela(); tirarDoBancoBib(window.__bibIds); biblioteca = window.__bibAntes; 1`); await espera(300);
 }
-// 1.20: permissões com botão, uma por recurso (inclusive a câmera)
+// 1.23: permissões do sistema — sem página própria em Ajustes; negada, explica e abre as configurações do app
 {
-  await js(`abrirConfig('permissoes'); 1`); await espera(900);
-  const perms = await js(`[...document.querySelectorAll('.perm')].map(p => p.querySelector('b').textContent + ':' + p.querySelector('.st').textContent)`);
-  ok('Ajustes → Permissões lista câmera, microfone, avisos e arquivos', perms.length === 4 && perms.some(p => /^Câmera/.test(p)) && perms.some(p => /^Microfone/.test(p)), JSON.stringify(perms));
-  ok('cada permissão tem estado e botão de permitir quando falta', await js(`[...document.querySelectorAll('.perm')].every(p => !!p.querySelector('.st') && (/Permitido|Indisponível/.test(p.querySelector('.st').textContent) || !!p.querySelector('[data-p]')))`));
-  ok('a câmera só é usada depois de pedir permissão', await js(`typeof garantirPermissao === 'function' && /garantirPermissao\\('camera'\\)/.test(abrirMais.toString())`));
-  await js(`fecharModal(true); 1`); await espera(300);
+  ok('Ajustes não tem mais página de Permissões (quem pergunta é o sistema)', await js(`!PAGINAS.flat().some(p => p[0] === 'permissoes')`));
+  ok('a câmera do celular abre direto; a do PC passa pelo pedido', await js(`/garantirPermissao\\('camera'\\)/.test(abrirMais.toString()) && /\\$\\('#camera'\\)\\.click\\(\\)/.test(abrirMais.toString())`));
+  ok('erro de permissão vira o aviso com o caminho das configurações', await js(`foiNegado({ name: 'NotAllowedError' }) && !foiNegado({ name: 'NotFoundError' }) && typeof avisarNegada === 'function'`));
+}
+// 1.23: a conversa aberta, o modelo e o esforço ficam guardados na própria conversa
+{
+  await js(`(() => { const c = { id: novoId(), titulo: 'Guardada', criada: Date.now(), atualizada: Date.now(), msgs: [{ role: 'user', texto: 'oi', llm: 'oi' }, { role: 'assistant', texto: 'olá', llm: 'olá' }], modelo: idModeloAtual(), esforco: esforcosDe(idModeloAtual()).find(k => k !== esforcoDe(idModeloAtual())) }; conversas.unshift(c); window.__cg = c; abrir(c.id); })(); 1`);
+  ok('abrir marca a conversa como aberta (e só ela)', await js(`window.__cg.aberta === true && conversas.filter(c => c.aberta).length === 1`));
+  ok('o esforço da conversa vale ao voltar nela (e não o padrão do modelo)', await js(`esforco() === window.__cg.esforco && esforco() !== esforcoDe(idModeloAtual())`), await js('esforco()'));
+  ok('a marca e o esforço passam pela conferência do arquivo', await js(`(() => { const v = validar(JSON.parse(JSON.stringify([window.__cg])))[0]; return v.aberta === true && v.esforco === window.__cg.esforco && v.modelo === window.__cg.modelo; })()`));
+  await js(`nova(); 1`);
+  ok('conversa nova desmarca a anterior', await js(`!conversas.some(c => c.aberta)`));
+  ok('responderPendente prefere a conversa da tela', /esperando\(atual\) \? atual/.test(await js(`responderPendente.toString()`)));
+  await js(`conversas = conversas.filter(c => c !== window.__cg); salvar(true); 1`);
+}
+// 1.23: lugar, hora e clima — o cartão (dados de exemplo, sem internet) e a regra de quem responde
+{
+  await js(`(() => { nova(); const col = coluna(); const d = document.createElement('div'); d.className = 'msg ia'; d.id = 'tlugar'; d.innerHTML = htmlPainelLugar([{ lugar: { nome: 'Londres', pais: 'Reino Unido', lat: 51.51, lon: -0.13, fonte: 'tabela', aqui: false }, hora: horaEm('Europe/London') }, { lugar: { nome: 'Franca', regiao: 'São Paulo', pais: 'Brasil', lat: -20.54, lon: -47.4, aproximado: true, semPermissao: true, aqui: true }, hora: horaEm('America/Sao_Paulo'), clima: { temp: 21, sensacao: 21, umidade: 79, codigo: 0, vento: 11, ventoDir: 112, rajada: 21, uv: 0, pressao: 1016, dia: 0, dias: [{ data: '2026-09-24', max: 27, min: 16, chuvaProb: 94, nascer: '05:57', por: '18:06' }] } }]); col.appendChild(d); ligarPainelLugar(d); })(); 1`);
+  const card = await js(`JSON.stringify({ n: document.querySelectorAll('#tlugar .lugar-card').length, clima: !!document.querySelector('#tlugar .lugar-card.com-clima .lugar-temp'), dados: document.querySelectorAll('#tlugar .lugar-dado').length, lua: (document.querySelector('#tlugar .com-clima .emoji') || {}).textContent, exata: !!document.querySelector('#tlugar [data-config-local]'), larg: Math.max(...[...document.querySelectorAll('#tlugar .lugar-card')].map(c => c.scrollWidth - c.clientWidth)) })`);
+  const c = JSON.parse(card);
+  ok('cartões de lugar: hora da cidade e clima de onde você está, com vento, umidade, chuva, UV, pressão, nascer e pôr do sol', c.n === 2 && c.clima && c.dados === 8, card);
+  ok('de noite o ícone é a lua; posição aproximada oferece ligar a localização exata', c.lua === '🌙' && c.exata, card);
+  ok('o cartão não vaza para os lados', c.larg <= 1, card);
+  ok('pergunta só de dados: o app responde sozinho; pedido de conselho: a IA continua', await js(`!PEDE_MAIS.test('que horas são em Londres?') && PEDE_MAIS.test('vai chover? preciso de guarda-chuva?')`));
+  await js(`document.getElementById('tlugar').remove(); 1`);
 }
 // 1.21: pesquisa na internet — desligada por padrão, ligada no "+", botão na caixa e fontes na resposta
 {

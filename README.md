@@ -103,7 +103,9 @@ Para abrir em janela própria, tenha Chrome, Chromium, Brave, Edge ou Vivaldi. S
 
 - **Modelos de IA:** Própons Lume (leve e rápido) · Própons Aurora (médio, equilibrado) · Própons Ápice (o mais inteligente; 8 GB no PC, 12 GB no celular). Dá para baixar, usar, cancelar e apagar cada um, e o app mostra o recomendado para o aparelho
 - **Responde em segundo plano** e avisa quando termina, mesmo com a janela minimizada ou a tela apagada
-- **Permissões uma a uma** (câmera, microfone, avisos, pasta de arquivos), cada uma com botão e motivo, em Ajustes → Permissões
+- **Permissões do sistema**, pedidas na hora do uso (microfone, localização, notificações); negada, o app diz onde liberar e abre as configurações do app
+- **Lugar, hora e clima de verdade**: "que horas são em Londres?", "vai chover aqui?", "onde eu estou?" — fuso oficial, localização do aparelho e Open-Meteo, com um cartão (lugar, latitude/longitude, vento, umidade, máxima/mínima, nascer e pôr do sol)
+- **Ouvir com play e pausa**: a leitura em voz alta pinta o texto de roxo no ritmo da voz e continua da palavra onde parou
 - **PC com placa de vídeo:** aceleração por GPU (Vulkan — NVIDIA, AMD ou Intel, sem instalar nada); a Própons mede processador × placa e só usa a placa se ela for mais rápida (3–4× numa placa dedicada)
 - **Pesquisa na internet** opcional (desligada por padrão): ligada no "+", ela busca, cita as fontes com link e, sem conexão, avisa e responde com o que já sabe
 - **API local** opcional (desligada por padrão): os outros aparelhos da sua rede falam com a Própons pelo formato da OpenAI

@@ -118,7 +118,9 @@ function textoParaModelo(texto, lista) {
 async function enviar(texto) {
   texto = texto.trim();
   if ((!texto && !anexos.length) || geracao) return;
-  if (ESCOLHER && conversas.some(c => c.msgs.some(x => x.pendente))) { toast('Espere a IA ligar para mandar outra mensagem.'); return; }
+  if (ESCOLHER && escolhendoId) { toast('Espere a IA ligar para mandar outra mensagem.'); return; }
+  // mensagem que ficou esperando de uma vez anterior (o app fechou antes de a IA ligar) não trava mais nada: a nova vale
+  if (ESCOLHER) conversas.forEach(c => c.msgs.forEach(x => { delete x.pendente; }));
   if (!ESCOLHER && anexos.some(a => a.tipo === 'imagem') && !(await garantirVisao())) return;
   if (geracao) return;
   if (editando && atual) {
@@ -132,7 +134,7 @@ async function enviar(texto) {
   if (!atual) {
     const base = (texto || (fotos.length ? (fotos.length === 1 ? 'Foto' : fotos.length + ' fotos') : lista.map(a => a.nome).join(', '))).replace(/\s+/g, ' ').trim();
     const titulo = (base.match(/^.{0,60}?[.!?](?=\s|$)/) || [base.slice(0, 60)])[0].replace(/[.!?]+$/, '') || 'Conversa';
-    atual = { id: novoId(), titulo, criada: Date.now(), atualizada: Date.now(), msgs: [] };
+    atual = { id: novoId(), titulo, criada: Date.now(), atualizada: Date.now(), msgs: [] }; marcarAberta(atual);
     conversas.unshift(atual); $('#tituloAtual').textContent = atual.titulo;
   }
   const m = { role: 'user', texto, llm: textoParaModelo(texto || (fotos.length && !lista.length ? (fotos.length === 1 ? 'Descreva e explique esta foto.' : 'Descreva e explique estas fotos.') : ''), lista) };
@@ -200,6 +202,7 @@ async function responder(conv, continuacao) {
   // Esforço Alto: o modelo raciocina antes de responder (thinking do Qwen3.5); o raciocínio aparece recolhível
   // Auto: pensa só quando a pergunta pede (precisaPensar, em src/detecta.js); nas outras age como o Médio
   const escolhido = esforco(), querPensar = escolhido === 'alto' || (escolhido === 'auto' && precisaPensar(texto));
+  conv.modelo = idModeloAtual(); conv.esforco = escolhido;   // a conversa lembra com que modelo e esforço foi respondida
   const pensar = querPensar && !comEsquema && !continuacao && PLATAFORMA.tipo !== 'ios';
   // pensar não pode virar espera: o raciocínio é curto e a resposta vem logo
 
@@ -264,9 +267,20 @@ async function responder(conv, continuacao) {
   // já está em andamento, então o passo aparece na conversa e o botão de parar vale
   if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) ) voltarAoGiro();
   SISTEMA += textoResumo(conv);
+  // lugar, hora de outra cidade e clima: dados reais pegos agora (12-lugar.js), com o cartão na conversa
+  let dl = null;
+  if (!comEsquema && !continuacao && texto.trim()) {
+    try { dl = await dadosDeLugar(texto, mostrarPasso); } catch (e) {}
+    if (dl) {
+      voltarAoGiro(); SISTEMA += '\n\n' + dl.texto;
+      // a resposta começa pelas frases do app (números exatos); o motor continua o texto delas, como no Continuar
+      if (dl.inicio && !pensar) { msg.texto = msg.llm = dl.inicio + '\n\n'; historico.push({ role: 'assistant', content: msg.texto }); }
+      if (dl.painel) { msg.lugar = dl.painel; if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlPainelLugar(dl.painel); [...c.children].forEach(card => { alvo.parentNode.insertBefore(card, alvo); ligarPainelLugar(card); }); rolar(); } }
+    }
+  }
   // "que dia é hoje", "que horas são": a data e a hora do aparelho (só nessas perguntas, para não mudar o texto de
   // sistema a cada minuto e perder o que o motor já tinha lido da conversa)
-  if (/\b(hora|horas|hor[áa]rio|data|dia|hoje|agora|amanh[ãa]|ontem|ano|m[êe]s|semana)\b/i.test(texto))
+  if (!(dl && dl.painel) && /\b(hora|horas|hor[áa]rio|data|dia|hoje|agora|amanh[ãa]|ontem|ano|m[êe]s|semana)\b/i.test(texto))
     SISTEMA += '\n\nData e hora deste aparelho agora: ' + new Date().toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) + ' (fuso: ' + Intl.DateTimeFormat().resolvedOptions().timeZone + ').';
   // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
   if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
@@ -305,7 +319,7 @@ async function responder(conv, continuacao) {
   const aoPensar = pensar ? p => { pensTxt += p; atualizarFolhaPensa(pensTxt); } : undefined;
   // leitura em voz alta enquanto a resposta chega (Aparência → Ler em voz alta: toda resposta)
   if (!continuacao) pararLeitura();
-  const narrador = !continuacao && PLATAFORMA.temFala && pref('lerRespostas') === 'sim' ? novoNarrador(msg) : null;
+  const narrador = !continuacao && PLATAFORMA.temFala && pref('lerRespostas') === 'sim' ? novoNarrador(msg, alvo) : null;
 
   const inicio = msg.texto || '';
   let novo = '', fim = 'stop', erro = null, tTimer = 0, tRaf = 0;
@@ -318,7 +332,7 @@ async function responder(conv, continuacao) {
   let fixoAte = 0, fixoEl = null, caudaEl = null, custo = 4, aberto = null;
   // digitação suave: o texto aparece aos poucos, num ritmo constante; quando chega muito texto de uma vez,
   // o ritmo acelera para não ficar para trás (35 caracteres/s + 2,5x o que falta mostrar)
-  let mostrado = inicio.length, tAnt = 0, terminou = false, aoAlcancar = null;
+  let mostrado = continuacao ? inicio.length : 0, tAnt = 0, terminou = false, aoAlcancar = null;
   const desenhar = s => {
     const t0 = performance.now();
     if (!fixoEl || !fixoEl.isConnected) { alvo.innerHTML = '<div class="fixo"></div><div class="cauda"></div>'; fixoEl = alvo.firstChild; caudaEl = alvo.lastChild; fixoAte = 0; aberto = null; }
@@ -358,6 +372,7 @@ async function responder(conv, continuacao) {
     else tRaf = requestAnimationFrame(passo);
   };
   const agendar = () => { if (!tRaf && !tTimer) tRaf = requestAnimationFrame(passo); };
+  if (inicio && !continuacao) agendar();   // frases prontas do app (lugar, hora, clima) aparecem já, digitando
   // espera a digitação alcançar o fim (no máximo 3 s; se a pessoa tocou em parar, termina na hora)
   const alcancar = () => new Promise(res => {
     terminou = true;
@@ -367,8 +382,9 @@ async function responder(conv, continuacao) {
   try {
     // temperatura livre (0,6–0,7, a recomendada para o Qwen3.5) para a mesma pergunta não cair sempre no mesmo texto;
     // baixa em código e contas. A semente, o DRY e o XTC ficam em plataforma.js.
-    const r = await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
-      { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
+    // pergunta só de hora/clima/lugar: as linhas do app já são a resposta inteira (sem o modelo, sem chance de errar)
+    const r = dl && dl.completo && msg.texto ? { fim: 'stop' } : await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
+      { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : dl && dl.inicio ? 400 : maxTokens, continuar: !!continuacao, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);

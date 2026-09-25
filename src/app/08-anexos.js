@@ -113,7 +113,7 @@ async function adicionarArquivos(lista) {
       if (tokens(d.texto) > cabe) toast(`"${f.name}"${d.paginas ? ` (${d.paginas} páginas)` : ''} é maior que a memória da IA: a cada pergunta ela lê os trechos ligados ao que você perguntou. Para uma visão geral, peça "resuma o arquivo".${d.cortado ? ` (Usei as primeiras ${MAX_PAGINAS} páginas.)` : ''}`, 7000);
       else if (d.cortado) toast(`"${f.name}": usei as primeiras ${MAX_PAGINAS} páginas.`, 4000);
       anexos.push({ nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto, paginas: d.paginas });
-      guardarNaBiblioteca({ tipo: 'arquivo', nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto });
+      guardarNaBiblioteca({ tipo: 'arquivo', nome: f.name, tam: f.size, lang: 'texto', conteudo: d.texto, paginas: d.paginas });
       continue;
     }
     if (/\.(docx?|pptx?|xlsx?|zip|rar|7z|exe|mp[34])$/i.test(f.name) || (f.type && /^(video|audio)\//.test(f.type))) {

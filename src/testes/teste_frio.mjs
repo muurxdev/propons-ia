@@ -20,7 +20,7 @@ p.fechar();
 const c = await conectar({ porta, saida, filtro: u => /#k=/.test(u) });
 for (let i = 0; i < 300 && !(await c.js('typeof online !== "undefined" && online')); i++) await espera(500);
 ok('IA ligou e o chat continuou', await c.js('online'), `${((Date.now() - t0) / 1000).toFixed(0)} s desde a abertura`);
-for (let i = 0; i < 200 && !(await c.js('!!geracao')) && !(await c.js('!!(atual && atual.msgs.some(m => m.role === "assistant" && m.texto))')); i++) await espera(300);   // runner do CI é lento
+for (let i = 0; i < 200 && !(await c.js('!!geracao')) && !(await c.js('!!(atual && atual.msgs.length && atual.msgs[atual.msgs.length - 1].role === "assistant" && atual.msgs[atual.msgs.length - 1].texto)')); i++) await espera(300);   // runner do CI é lento
 for (let i = 0; i < 600 && (await c.js('!!geracao')); i++) await espera(500);
 const ult = await c.js('atual && atual.msgs[atual.msgs.length-1]');
 // o que importa aqui é o caminho (abriu, ligou e respondeu); a conta em si o modelo leve às vezes erra

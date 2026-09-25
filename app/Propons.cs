@@ -27,7 +27,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.22.0";
+    public const string Versao = "1.23.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -441,7 +441,7 @@ class Janela : Form
             web.CoreWebView2.WebMessageReceived += Mensagem;
             web.CoreWebView2.PermissionRequested += delegate (object o, CoreWebView2PermissionRequestedEventArgs a)
             {   // a webcam só é liberada para a página da própria Própons IA (quando a pessoa toca em Câmera)
-                if ((a.PermissionKind == CoreWebView2PermissionKind.Camera || a.PermissionKind == CoreWebView2PermissionKind.Microphone)
+                if ((a.PermissionKind == CoreWebView2PermissionKind.Camera || a.PermissionKind == CoreWebView2PermissionKind.Microphone || a.PermissionKind == CoreWebView2PermissionKind.Geolocation)
                     && (a.Uri.StartsWith("http://127.0.0.1:" + porta + "/") || a.Uri.StartsWith(RAIZ_LOCAL))) a.State = CoreWebView2PermissionState.Allow;
             };
             await Navegar(Splash());
@@ -1081,6 +1081,12 @@ class Janela : Form
                 case "ligarApi":
                     if (baixandoId != null || trocando) throw new Exception("espere o download ou a troca atual terminar");
                     dados = await LigarApi(args.ContainsKey("ligar") && args["ligar"] is bool && (bool)args["ligar"]); break;
+                case "abrirConfig": {   // permissão negada no Windows: abre a página certa de Privacidade das Configurações
+                    string rec = Arg(args, "recurso") ?? "";
+                    string pag = rec == "microfone" ? "privacy-microphone" : rec == "camera" ? "privacy-webcam" : rec == "localizacao" ? "privacy-location" : rec == "notificacao" ? "notifications" : "privacy";
+                    try { Process.Start(new ProcessStartInfo("ms-settings:" + pag) { UseShellExecute = true }); } catch (Exception ex) { Program.Log("config: " + ex.Message); }
+                    dados = true; break;
+                }
                 case "notificar":   // resposta pronta com a janela em segundo plano (Avisar só mostra se não estiver em foco)
                     Avisar(Arg(args, "titulo") ?? Program.Titulo, Arg(args, "texto") ?? ""); dados = true; break;
                 case "apagarVisao":
@@ -1355,7 +1361,15 @@ class Janela : Form
     }
 
     // baixa uma página da internet como texto (limite de tamanho e tempo; só http/https)
+    // o GZip/Deflate do .NET Framework falha com alguns servidores ("o tamanho do bloco não corresponde ao seu complemento"):
+    // nesse caso, pede de novo sem compressão
     static string PaginaDaWeb(string url)
+    {
+        try { return PaginaDaWeb(url, true); }
+        catch (InvalidDataException) { return PaginaDaWeb(url, false); }
+        catch (IOException ex) { if (ex.InnerException is InvalidDataException) return PaginaDaWeb(url, false); throw; }
+    }
+    static string PaginaDaWeb(string url, bool comprimido)
     {
         if (string.IsNullOrEmpty(url) || !(url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)))
             throw new Exception("endereço inválido");
@@ -1364,7 +1378,7 @@ class Janela : Form
         r.Timeout = 15000; r.ReadWriteTimeout = 15000; r.AllowAutoRedirect = true;
         r.Headers.Add("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.6");
         r.Accept = "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5";
-        r.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+        if (comprimido) r.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate; else r.Headers.Add("Accept-Encoding", "identity");
         try { r.Proxy = WebRequest.GetSystemWebProxy(); r.Proxy.Credentials = CredentialCache.DefaultCredentials; } catch { }
         using (HttpWebResponse resp = (HttpWebResponse)r.GetResponse())
         using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))

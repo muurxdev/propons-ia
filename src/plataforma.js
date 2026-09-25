@@ -38,6 +38,9 @@ const PLATAFORMA = (() => {
   if (temFala && tipo !== 'android') { acharVozPt(); try { speechSynthesis.onvoiceschanged = acharVozPt; } catch (e) {} }
   function falarWeb(texto, id) {
     const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; u.rate = 1.05; if (vozPt) u.voice = vozPt;
+    u.onstart = () => emitir('fala', { id, estado: 'inicio' });
+    // a palavra dita agora (quando a voz informa): a página pinta de roxo no ritmo da fala
+    u.onboundary = e => { if (e.name === 'word' || e.name === undefined) emitir('fala', { id, estado: 'palavra', ini: e.charIndex, fim: e.charIndex + (e.charLength || (texto.slice(e.charIndex).match(/^\S+/) || [''])[0].length) }); };
     u.onend = () => emitir('fala', { id, estado: 'fim' });
     u.onerror = e => emitir('fala', { id, estado: /interrupted|canceled/.test(e.error || '') ? 'fim' : 'erro', erro: e.error });
     speechSynthesis.speak(u);
@@ -229,6 +232,9 @@ const base = (location.protocol.startsWith('http') && location.hostname !== 'pro
     temFala,
     falar(texto, id) { if (tipo === 'android') return pedir('falar', { texto, id }, 5000); try { falarWeb(texto, id); } catch (e) { emitir('fala', { id, estado: 'erro', erro: e.message }); } return Promise.resolve(true); },
     pararFala() { if (tipo === 'android') return pedir('pararFala', {}, 5000).catch(() => {}); try { speechSynthesis.cancel(); } catch (e) {} return Promise.resolve(true); },
+    // permissão negada: abre as configurações do app no sistema (Android, iPhone, Mac, Windows)
+    podeAbrirConfig: tipo !== 'web',
+    abrirConfigApp(recurso) { return pedir('abrirConfig', { recurso }, 5000); },
     // aceleração por GPU (Windows): módulo Vulkan baixado sob demanda; ligar/desligar religa o motor
     baixarGpu() { return pedir('baixarGpu', {}, 10000); },
     ligarGpu(ligar) { return pedir('ligarGpu', { ligar: !!ligar }, 240000); },

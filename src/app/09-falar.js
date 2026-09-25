@@ -47,7 +47,7 @@ async function iniciarGravacao() {
   if (!(await garantirVoz())) return;
   let fluxo;
   try { fluxo = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } }); }
-  catch (e) { toast('Não foi possível usar o microfone: ' + (e.name === 'NotAllowedError' ? 'permissão negada.' : e.name === 'NotFoundError' ? 'nenhum microfone encontrado.' : e.message), 4500); return; }
+  catch (e) { if (foiNegado(e)) avisarNegada('microfone'); else toast('Não foi possível usar o microfone: ' + (e.name === 'NotFoundError' ? 'nenhum microfone encontrado.' : e.message), 4500); return; }
   const tipo = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || '';
   const rec = new MediaRecorder(fluxo, tipo ? { mimeType: tipo, audioBitsPerSecond: 32000 } : undefined);
   const partes = []; rec.ondataavailable = e => { if (e.data && e.data.size) partes.push(e.data); };

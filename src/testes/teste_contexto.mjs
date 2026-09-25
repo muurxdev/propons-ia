@@ -87,7 +87,7 @@ ok('compactadas saem da memória da IA mas continuam na tela', (await js('montar
 await js(`nova(); (() => { const c = { id: novoId(), titulo: 'Cheia', criada: Date.now(), atualizada: Date.now(), msgs: [] }; for (let i = 0; i < 8; i++) c.msgs.push({ role: 'user', texto: 'Pergunta longa ' + i + ' ' + 'sobre fotossíntese e respiração celular. '.repeat(40), llm: '' }, { role: 'assistant', texto: 'Resposta ' + i + ' ' + 'A fotossíntese transforma luz em energia química. '.repeat(40), llm: '' }); c.msgs.forEach(m => m.llm = m.texto); conversas.unshift(c); abrir(c.id); window.__nCtx0 = nCtx; nCtx = 4096; return 1; })()`);
 await js(`$('#entrada').value = 'Resuma em uma frase o que conversamos.'; ajustar(); $('#enviar').click(); 1`);
 let viuCompactar = false, ocupado = false;
-for (let i = 0; i < 100 && !viuCompactar; i++) { await espera(100); viuCompactar = await js(`/Compactando a conversa/.test((document.querySelector('.busca-passo') || {}).textContent || '')`); if (viuCompactar) ocupado = await js('!!geracao'); }
+for (let i = 0; i < 100 && !viuCompactar; i++) { await espera(100); viuCompactar = await js(`/Compactando a conversa/.test(((document.querySelector('.giro .trabalhando') || document.querySelector('.busca-passo')) || {}).textContent || '')`); if (viuCompactar) ocupado = await js('!!geracao'); }
 ok('compactar sozinho: aparece o passo "Compactando a conversa" com a resposta em andamento', viuCompactar && ocupado);
 await ate('!geracao', 300000, 500);
 ok('compactar sozinho: conversa ganhou o resumo e a resposta saiu', await js(`!!atual.resumo && atual.msgs[atual.msgs.length - 1].role === 'assistant' && !!atual.msgs[atual.msgs.length - 1].texto`));

@@ -13,8 +13,9 @@ const PADRAO_ESFORCO = CELULAR ? { leve: 'medio', normal: 'medio', avancado: 'au
 const ESFORCOS_MODELO = { leve: ['baixo', 'medio', 'auto', 'alto'], normal: ['baixo', 'medio', 'auto', 'alto'], avancado: ['baixo', 'medio', 'auto', 'alto'] };
 const esforcosDe = id => (ESFORCOS_MODELO[id] || Object.keys(ESFORCO)).filter(k => PLATAFORMA.tipo !== 'ios' || (k !== 'alto' && k !== 'auto'));
 const esforcoDe = id => { const v = pref('esforco:' + id), l = esforcosDe(id); return l.includes(v) ? v : l.includes(PADRAO_ESFORCO[id]) ? PADRAO_ESFORCO[id] : l.includes('medio') ? 'medio' : l[0]; };
-const esforco = () => esforcoDe(idModeloAtual());
-const definirEsforco = (id, v) => { pref('esforco:' + id, v); pref('esforco', v); pref('esforcoModelo', id); };
+// cada conversa lembra o esforço com que foi feita (se ainda é o mesmo modelo); sem isso, vale o nível do modelo
+const esforco = () => { const id = idModeloAtual(); return atual && atual.esforco && atual.modelo === id && esforcosDe(id).includes(atual.esforco) ? atual.esforco : esforcoDe(id); };
+const definirEsforco = (id, v) => { pref('esforco:' + id, v); pref('esforco', v); pref('esforcoModelo', id); if (atual) { atual.modelo = id; atual.esforco = v; salvar(); } };
 ICO.esforco = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
 function abrirEsforco(depois) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
@@ -51,10 +52,17 @@ const ESCOLHER = !!window.PROPONS_ESCOLHER || /[#&]escolher\b/.test(location.has
 // abertura fria: a IA ainda não foi ligada. Se já há um modelo baixado (MODELO_INICIAL), o chat abre normal e a IA liga
 // na primeira mensagem; se não há, a primeira mensagem abre a lista para escolher e baixar.
 const MODELO_INICIAL = window.PROPONS_MODELO || (location.hash.match(/[#&]modelo=([a-z]+)/) || [])[1] || null;
+// a IA liga com o modelo que a conversa aberta usou (se ele está baixado e cabe na memória); senão, com o último usado
+async function modeloParaLigar() {
+  const quer = atual && atual.modelo;
+  if (!quer || quer === MODELO_INICIAL) return MODELO_INICIAL;
+  const s = sistemaCache || await lerSistema().catch(() => null), m = s && (s.modelos || []).find(x => x.id === quer);
+  return m && m.baixado && !m.bloqueado && !semRam(m, s.ramTotal) ? quer : MODELO_INICIAL;
+}
 async function ligarInicial() {
   escolhendoId = MODELO_INICIAL;
   const alvo = addIa({ texto: '', interno: true }, false); if (alvo) alvo.classList.add('digitando');
-  try { await PLATAFORMA.escolherModelo(MODELO_INICIAL); }
+  try { const id = await modeloParaLigar(); escolhendoId = id; await PLATAFORMA.escolherModelo(id); }
   catch (e) { escolhendoId = null; if (alvo) alvo.parentNode.remove(); toast('A IA não ligou (' + e.message + '). Tente de novo; se continuar, escolha um modelo mais leve na lista.', 6000); }
 }
 let escolhendoId = null;
@@ -89,7 +97,9 @@ PLATAFORMA.ao('motor', d => {
 });
 // depois que a IA liga, responde a mensagem que ficou esperando o download
 async function responderPendente() {
-  const c = conversas.find(x => x.msgs.length && x.msgs[x.msgs.length - 1].role === 'user' && x.msgs[x.msgs.length - 1].pendente);
+  const esperando = x => x && x.msgs.length && x.msgs[x.msgs.length - 1].role === 'user' && x.msgs[x.msgs.length - 1].pendente;
+  // a conversa que está na tela vem primeiro: a resposta sai na mesma mensagem que ficou esperando, não em outra
+  const c = esperando(atual) ? atual : conversas.find(esperando);
   if (!c) return;
   delete c.msgs[c.msgs.length - 1].pendente;
   abrir(c.id); await responder(c);
@@ -165,7 +175,7 @@ async function abrirWebcam() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('#fotos').click(); return; }
   let fluxo;
   try { fluxo = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false }); }
-  catch (e) { toast('Não foi possível abrir a câmera: ' + (e.name === 'NotAllowedError' ? 'permissão negada.' : e.name === 'NotFoundError' ? 'nenhuma câmera encontrada.' : e.message), 4500); return; }
+  catch (e) { if (foiNegado(e)) avisarNegada('camera'); else toast('Não foi possível abrir a câmera: ' + (e.name === 'NotFoundError' ? 'nenhuma câmera encontrada.' : e.message), 4500); return; }
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg">${topoFolha('Câmera')}<div class="webcam"><video autoplay playsinline muted></video></div>
     <div class="botoes"><button class="btn" data-c="cancelar">Cancelar</button><button class="btn primario" data-c="foto">${ICO.camera}Tirar foto</button></div></div>`;
@@ -217,3 +227,13 @@ document.addEventListener('click', e => { const b = e.target.closest('.dlg [data
 document.addEventListener('drop', e => { if (e.dataTransfer?.files?.length) { e.preventDefault(); adicionarArquivos([...e.dataTransfer.files]); } });
 $('#entrada').addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); adicionarArquivos(fs); } });
 
+
+// ao abrir uma conversa feita com outro modelo (ainda baixado), oferece voltar para ele: a conversa segue igual
+function sugerirModeloDaConversa(c) {
+  if (ESCOLHER || !c || !c.modelo || !sistemaCache || geracao || trocandoPara) return;
+  const s = sistemaCache, m = (s.modelos || []).find(x => x.id === c.modelo), agora = (s.modelos || []).find(x => x.atual);
+  if (!m || !agora || m.atual || !m.baixado || m.bloqueado || semRam(m, s.ramTotal)) return;
+  document.querySelectorAll('.toast.acao-toast.modelo-conversa').forEach(t => t.remove());
+  toastAcao(`Esta conversa foi feita com o ${nomeModelo(m)}.`, 'Usar ele', async () => { if (atual === c) { await acaoModelo('usar', m, s.ramTotal); atualizarSeletorModelo(); } }, 7000);
+  const t = [...document.querySelectorAll('.toast.acao-toast')].pop(); if (t) t.classList.add('modelo-conversa');
+}

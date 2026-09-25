@@ -1,75 +1,50 @@
-/* ---------------- permissões (uma por recurso, sempre com botão) ----------------
-   Nada é ligado escondido: câmera, microfone, notificações e a pasta de arquivos têm cada uma o seu pedido, com o
-   motivo escrito. Ajustes → Permissões mostra o estado de todas e o botão "Permitir" de cada uma. */
+/* ---------------- permissões (quem pergunta é o sistema, como em qualquer app) ----------------
+   Nada de tela de permissões própria: microfone, localização e notificações são pedidos pelo próprio aparelho na hora
+   em que o recurso é usado (a janelinha do Android/iOS/Windows). Se a pessoa negou, a Própons explica o que ficou
+   bloqueado e abre as configurações do app no sistema, onde dá para liberar — o mesmo caminho de todos os apps.
+   A câmera do celular é o app de câmera do sistema (não precisa de permissão); a do PC é pedida ao abrir a webcam. */
 const PERMISSOES = {
   camera: { nome: 'Câmera', ico: 'camera', para: 'tirar uma foto na hora para a IA ver', nav: 'camera' },
   microfone: { nome: 'Microfone', ico: 'microfone', para: 'gravar a sua voz e transcrever em texto', nav: 'microphone' },
+  localizacao: { nome: 'Localização', ico: 'local', para: 'responder sobre onde você está: hora, clima e lugares por perto', nav: 'geolocation' },
   notificacao: { nome: 'Notificações', ico: 'sino', para: 'avisar quando a resposta ficar pronta com o app em segundo plano' },
   ...(CELULAR ? {} : { pasta: { nome: 'Pasta de arquivos', ico: 'pasta', para: 'ler e gravar os seus arquivos na Área de código' } }),
 };
-const permLembrada = k => pref('perm:' + k) || '';
+ICO.local = '<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
+// onde fica o botão no sistema de cada aparelho (o texto da explicação acompanha)
+const CAMINHO_CONFIG = {
+  android: 'Configurações → Apps → Própons IA → Permissões',
+  ios: 'Ajustes → Própons IA',
+  mac: 'Ajustes do Sistema → Privacidade e Segurança',
+  windows: 'Configurações → Privacidade e segurança',
+  web: 'o cadeado ao lado do endereço, no navegador',
+};
 async function estadoPermissao(k) {
-  if (k === 'notificacao') {
-    if (PLATAFORMA.tipo === 'web') return !('Notification' in window) ? 'indisponivel'
-      : Notification.permission === 'granted' ? 'ok' : Notification.permission === 'denied' ? 'negado' : 'pedir';
-    return permLembrada(k) === 'ok' ? 'ok' : 'pedir';       // no aparelho quem pergunta é o sistema
-  }
   if (k === 'pasta') return !TEM_PASTA ? 'indisponivel' : pastaRaiz ? 'ok' : 'pedir';
   if (k === 'camera' && !PLATAFORMA.temVisao) return 'indisponivel';
   try {
-    if (navigator.permissions && navigator.permissions.query) {
+    if (navigator.permissions && navigator.permissions.query && PERMISSOES[k].nav) {
       const r = await navigator.permissions.query({ name: PERMISSOES[k].nav });
-      if (r.state === 'granted') return 'ok';
-      if (r.state === 'denied') return 'negado';
-      return 'pedir';
+      return r.state === 'granted' ? 'ok' : r.state === 'denied' ? 'negado' : 'pedir';
     }
   } catch (e) {}
-  return permLembrada(k) === 'ok' ? 'ok' : 'pedir';
+  return 'pedir';
 }
-async function pedirPermissao(k) {
-  try {
-    if (k === 'notificacao') {
-      if (PLATAFORMA.tipo === 'web' && 'Notification' in window) { if (await Notification.requestPermission() !== 'granted') return false; }
-      else await PLATAFORMA.notificar('Própons IA', 'Pronto: é assim que eu aviso quando a resposta fica pronta.');
-      pref('perm:notificacao', 'ok'); return true;
-    }
-    if (k === 'pasta') return await escolherPasta();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { pref('perm:' + k, 'ok'); return true; }
-    const fluxo = await navigator.mediaDevices.getUserMedia(k === 'camera' ? { video: true } : { audio: true });
-    fluxo.getTracks().forEach(t => t.stop());
-    pref('perm:' + k, 'ok'); return true;
-  } catch (e) { return false; }
+// negado: explica e leva às configurações do app no sistema (lá é que se libera)
+async function avisarNegada(k) {
+  const p = PERMISSOES[k] || { nome: k, para: '' }, onde = CAMINHO_CONFIG[PLATAFORMA.tipo] || CAMINHO_CONFIG.web;
+  const abrir = await confirmar(`${p.nome} bloqueado${/a$/.test(p.nome) ? 'a' : ''}`,
+    `<p>A Própons IA precisa da permissão de <b>${esc(p.nome.toLowerCase())}</b> para ${esc(p.para)}.</p><p>Ela foi negada no aparelho. Para liberar, abra <b>${esc(onde)}</b> e permita ${esc(p.nome.toLowerCase())}; depois é só tentar de novo.</p>`,
+    PLATAFORMA.podeAbrirConfig ? 'Abrir configurações' : 'Entendi');
+  if (abrir && PLATAFORMA.podeAbrirConfig) PLATAFORMA.abrirConfigApp(k).catch(() => toast('Abra ' + onde + '.', 4000));
 }
-// usar o recurso só depois de explicar e pedir; devolve true quando pode seguir
+// o erro de um pedido (getUserMedia, geolocalização) foi "não deixou"?
+const foiNegado = e => !!e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.code === 1 || /denied|negad|permission/i.test(e.message || ''));
+// usar o recurso: o sistema pergunta (se ainda não perguntou); devolve true quando pode seguir
 async function garantirPermissao(k) {
-  const e = await estadoPermissao(k);
-  if (e === 'ok' || e === 'indisponivel') return true;
-  const p = PERMISSOES[k];
-  const deu = await pedirPermissao(k);   // sem popup nosso: quem pergunta é o próprio aparelho
-  if (!deu) toast(e === 'negado' ? `${p.nome} bloqueada: libere nas configurações do sistema.` : `Sem permissão de ${p.nome.toLowerCase()}.`, 4000);
-  return deu;
+  if (k === 'pasta') return await escolherPasta();
+  // câmera do celular = app de câmera do sistema (sem permissão); microfone e webcam: o pedido real acontece no uso
+  // (getUserMedia), e é o sistema que mostra a janelinha; o "negado" que a página enxerga nem sempre é o do sistema
+  // (o WebView responde "negado" antes de perguntar), então quem decide é o pedido de verdade — e o erro dele
+  return true;
 }
-function abaPermissoes(c) {
-  c.innerHTML = `<p class="info">Cada recurso pede a permissão dele, só quando você toca no botão. A IA continua rodando no aparelho: nada é enviado para a internet.</p>
-    <div class="lista-modelos" id="listaPerm"></div>`;
-  const desenhar = async () => {
-    const l = $('#listaPerm'); if (!l) return;
-    const estados = {};
-    for (const k of Object.keys(PERMISSOES)) estados[k] = await estadoPermissao(k);
-    if (!$('#listaPerm')) return;
-    const rotulo = { ok: 'Permitido', pedir: 'Não pedida', negado: 'Negada', indisponivel: 'Indisponível' };
-    l.innerHTML = Object.entries(PERMISSOES).map(([k, p]) => `<div class="perm">
-      <span class="mico">${ICO[p.ico]}</span>
-      <span class="pt"><b>${p.nome}</b><small>Para ${p.para}.</small></span>
-      <span class="st ${estados[k]}">${rotulo[estados[k]]}</span>
-      ${estados[k] === 'ok' || estados[k] === 'indisponivel' ? '' : `<button class="btn" data-p="${k}">Permitir</button>`}</div>`).join('');
-    l.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
-      b.disabled = true;
-      const deu = await pedirPermissao(b.dataset.p);
-      toast(deu ? `${PERMISSOES[b.dataset.p].nome}: permitido.` : `${PERMISSOES[b.dataset.p].nome}: sem permissão.`, 3000);
-      desenhar();
-    });
-  };
-  desenhar();
-}
-

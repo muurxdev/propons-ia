@@ -9,6 +9,8 @@ const { ok, resumo } = relatorio();
 const { js, cdp, foto } = await conectar({ porta, saida, filtro: u => /index.html/.test(u), timeoutMs: 20000 });
 await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 await cdp('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+// página do navegador sem janela fica "oculta": sem quadros, as transições não andam e os toques travam
+await cdp('Page.bringToFront', {}); await cdp('Emulation.setFocusEmulationEnabled', { enabled: true });
 const pagina = 'file:///' + path.resolve('payload/interface/index.html').replace(/\\/g, '/');
 await cdp('Page.navigate', { url: pagina }); await espera(1500);   // de novo, já com a tela de celular
 for (let i = 0; i < 40 && !(await js(`typeof abrirConfig === 'function'`).catch(() => false)); i++) await espera(250);
@@ -90,7 +92,7 @@ await js(`sistemaCache = { ramTotal: 8 * GB, discoLivre: 100 * GB, modelos: [
   { id: 'normal', nome: 'Normal', tamanho: 1280835840, baixado: true, atual: true, visaoTamanho: 668227264 },
   { id: 'avancado', nome: 'Avançado', tamanho: 2740937888, visaoTamanho: 672423616 }] }; lerSistema = async () => sistemaCache; abrirConfig('modelo'); 1`);
 await espera(1200);
-const cards = await js(`[...document.querySelectorAll('.mcard')].map(c => ({ selo: !!c.querySelector('.mselo'), medidas: c.querySelectorAll('.mmed').length, desc: (c.querySelector('.mdesc') || {}).textContent || '' }))`);
-ok('Modelos: cada cartão com selo, 3 medidas e para que serve', cards.length === 3 && cards.every(c => c.selo && c.medidas === 3 && c.desc.length > 10), JSON.stringify(cards.map(c => c.medidas)));
+const cards = await js(`[...document.querySelectorAll('.mcard')].map(c => ({ selo: !!c.querySelector('.logo-modelo svg'), medidas: c.querySelectorAll('.mmed').length, desc: (c.querySelector('.mdesc') || {}).textContent || '' }))`);
+ok('Modelos: cada cartão com a logo do modelo, 3 medidas e para que serve', cards.length === 3 && cards.every(c => c.selo && c.medidas === 3 && c.desc.length > 10), JSON.stringify(cards.map(c => c.medidas)));
 await foto('f4-modelos');
 resumo();

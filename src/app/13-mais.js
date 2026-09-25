@@ -24,7 +24,8 @@ function abrirMais() {
   folha.querySelector('[data-modos]').onclick = () => { sair(); setTimeout(abrirModos, 160); };
   folha.querySelectorAll('[data-op]').forEach(b => b.onclick = async () => {
     const op = b.dataset.op; sair();
-    if (op === 'camera') { if (await garantirPermissao('camera')) (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') ? $('#camera').click() : abrirWebcam(); }
+    // no celular a foto é do app de câmera do sistema (não pede permissão); no PC, a webcam pede ao abrir
+    if (op === 'camera') { if (PLATAFORMA.tipo === 'android' || PLATAFORMA.tipo === 'ios') $('#camera').click(); else if (await garantirPermissao('camera')) abrirWebcam(); }
     else if (op === 'fotos') $('#fotos').click();
     else if (op === 'arquivos') $('#arquivo').click();
     else if (op === 'pesquisa') definirPesquisa(!pesquisaLigada());

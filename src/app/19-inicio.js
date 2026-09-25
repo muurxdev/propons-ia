@@ -31,8 +31,16 @@ if (!estreita()) abrirLateral();
   if (!ESCOLHER) { try { SYSTEM = await PLATAFORMA.textoSistema(); separarSistema(); } catch (e) {} }
   if (!SYSTEM) SYSTEM = 'Você é a Própons IA, uma assistente de estudos. Responda em português do Brasil, de forma clara e correta.';
   await carregarHistorico();
+  // volta para a conversa que estava aberta (sair do app, ou a IA ligar e a página recarregar, não joga numa nova)
+  const aberta = conversas.find(c => c.aberta); if (aberta && !atual) abrir(aberta.id);
   lerSistema().then(atualizarSeletorModelo);
-  if (ESCOLHER) { atualizarSeletorModelo(); setTimeout(avisoAutomatico, 4000); return; }   // a IA liga na primeira mensagem
+  if (ESCOLHER) {
+    atualizarSeletorModelo(); setTimeout(avisoAutomatico, 4000);
+    // o app fechou enquanto a IA ligava: a pergunta que ficou esperando nesta conversa é respondida sem pedir de novo
+    const u = atual && atual.msgs[atual.msgs.length - 1];
+    if (u && u.role === 'user' && u.pendente && MODELO_INICIAL && !escolhendoId) ligarInicial();
+    return;
+  }   // a IA liga na primeira mensagem
   verificar();
   // Linux: a transcrição existe se o pacote trouxe o whisper (sistema.json)
   if (PLATAFORMA.tipo === 'web') lerSistema().then(s => { if (s && s.temTranscricao) { PLATAFORMA.temTranscricao = true; if (!PLATAFORMA.urlTranscricao) PLATAFORMA.urlTranscricao = s.transcricaoUrl || ''; } });

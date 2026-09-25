@@ -1,9 +1,15 @@
 /* ---------------- ler em voz alta (voz do sistema) ----------------
-   Botão de alto-falante em cada resposta; com "Ler em voz alta: toda resposta" (Aparência) a leitura começa enquanto
-   a resposta ainda está chegando, frase por frase. Só uma leitura por vez; o mesmo botão para. */
+   Em cada resposta: ▶ ouvir, ❚❚ pausar (e ▶ continua da palavra onde parou) e ■ parar. Enquanto a voz lê, o texto
+   vai ficando roxo na mesma ordem e velocidade da fala: a palavra dita agora ganha o fundo roxo e o que já foi lido
+   fica roxo (CSS Custom Highlight: nada muda no texto da resposta). Com "Ler em voz alta: toda resposta" (Aparência)
+   a leitura começa enquanto a resposta ainda está chegando, frase por frase. Só uma leitura por vez.
+   A voz fala uma frase por vez: é isso que deixa pausar e continuar do mesmo ponto em qualquer aparelho. */
 ICO.falar = '<svg viewBox="0 0 24 24"><path d="M4 10v4h3.5L13 18.5v-13L7.5 10H4z"/><path d="M16.5 9.5a3.5 3.5 0 0 1 0 5"/><path d="M19 7a7 7 0 0 1 0 10"/></svg>';
 ICO.pararFala = '<svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
-let falaAtual = null, falaSeq = 0;   // { msg, ultimoId, narrando, terminou, fimIds }
+ICO.tocar = '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>';
+ICO.pausar = '<svg viewBox="0 0 24 24"><rect x="6.5" y="5.5" width="3.8" height="13" rx="1.2" fill="currentColor"/><rect x="13.7" y="5.5" width="3.8" height="13" rx="1.2" fill="currentColor"/></svg>';
+// falaAtual: { msg, el, frases: [{ t, ini }], i, desloc, palavra, gen, pausado, falando, narrando, terminou, mapa, cursor }
+let falaAtual = null, falaGen = 0;
 function frasesDe(t) {   // frases para a fila do sintetizador (uma fala longa demais é cortada pelo Chromium)
   const out = []; let resto = String(t || '').trim();
   while (resto.length > 320) { let c = resto.lastIndexOf(', ', 300); if (c < 100) c = resto.lastIndexOf(' ', 300); if (c < 1) c = 300; out.push(resto.slice(0, c + 1).trim()); resto = resto.slice(c + 1).trim(); }
@@ -16,35 +22,155 @@ function frasesCompletas(t, fim) {   // → { frases, consumido }: frases termin
   if (fim) { const f = t.slice(pos).trim(); if (f) frases.push(...frasesDe(f)); pos = t.length; }
   return { frases, consumido: pos };
 }
-function botoesLer(m) { return [...document.querySelectorAll('.acao.ler')].filter(b => b._msg === m); }
-function marcarLendo(m, sim) { botoesLer(m).forEach(b => { b.classList.toggle('on', sim); b.innerHTML = sim ? ICO.pararFala : ICO.falar; b.title = sim ? 'Parar de ler' : 'Ouvir a resposta'; b.setAttribute('aria-label', b.title); }); }
-function fimLeitura() { if (!falaAtual) return; marcarLendo(falaAtual.msg, false); falaAtual = null; }
-function pararLeitura() { if (!falaAtual) return; PLATAFORMA.pararFala(); fimLeitura(); }
-function falarFrases(frases) { frases.forEach(f => { const id = 'f' + (++falaSeq); falaAtual.ultimoId = id; PLATAFORMA.falar(f, id); }); }
-PLATAFORMA.ao('fala', d => {
-  if (!falaAtual) return;
-  if (d.estado === 'erro') { toast('Não foi possível ler em voz alta neste aparelho.', 3500); fimLeitura(); return; }
-  falaAtual.fimIds.add(d.id);
-  if (d.id === falaAtual.ultimoId && (!falaAtual.narrando || falaAtual.terminou)) fimLeitura();
-});
-function lerMensagem(m) {
-  if (falaAtual && falaAtual.msg === m) { pararLeitura(); return; }
-  pararLeitura();
-  const { frases } = frasesCompletas(textoParaFala(m.texto), true); if (!frases.length) return;
-  falaAtual = { msg: m, ultimoId: '', narrando: false, terminou: true, fimIds: new Set() };
-  marcarLendo(m, true); falarFrases(frases);
+const temLetra = t => /[\p{L}\p{N}]/u.test(t);
+
+/* o texto que aparece na tela, com a posição de cada pedaço: é dele que sai a fala e é nele que o roxo é pintado */
+const PULAR_FALA = 'pre,.copiar,.katex-mathml,.fonte-cards,.acoes,button,svg,style,script,.giro,.pensa-linha,[aria-hidden="true"]';
+const BLOCO_FALA = /^(P|LI|H[1-6]|TR|BLOCKQUOTE|DIV|UL|OL|TABLE|DT|DD|BR|FIGCAPTION)$/;
+function mapaFala(el) {
+  const segs = []; let plano = '', disseCodigo = false;
+  const quebra = () => { if (plano && !/\n$/.test(plano)) plano += '\n'; };
+  const andar = n => {
+    if (n.nodeType === 3) { if (n.data) { segs.push({ n, ini: plano.length }); plano += n.data; } return; }
+    if (n.nodeType !== 1) return;
+    if (n.matches(PULAR_FALA)) { if (n.tagName === 'PRE' && !disseCodigo) { quebra(); plano += '(trecho de código omitido)\n'; disseCodigo = true; } return; }
+    const celula = n.tagName === 'TD' || n.tagName === 'TH', bloco = BLOCO_FALA.test(n.tagName);
+    if (bloco) quebra(); else if (celula && plano && !/[\s,]$/.test(plano)) plano += ', ';
+    n.childNodes.forEach(andar);
+    if (bloco) quebra();
+  };
+  if (el) andar(el);
+  return { segs, plano };
 }
-function novoNarrador(msg) {   // lê enquanto a resposta chega: cada frase completa entra na fila
+function frasesComPosicao(t) {   // frases do texto da tela, cada uma com onde começa
+  const out = [], re = /[.!?…]+["”)]*\s+|\n+/g; let pos = 0, m;
+  const junta = (a, b) => {
+    while (a < b && /\s/.test(t[a])) a++; while (b > a && /\s/.test(t[b - 1])) b--;
+    while (b - a > 320) { let c = t.lastIndexOf(', ', a + 300); if (c < a + 100) c = t.lastIndexOf(' ', a + 300); if (c <= a) c = a + 299; junta(a, c + 1); a = c + 1; while (a < b && /\s/.test(t[a])) a++; }
+    if (b > a && temLetra(t.slice(a, b))) out.push({ t: t.slice(a, b), ini: a });
+  };
+  while ((m = re.exec(t))) { junta(pos, m.index + m[0].length); pos = m.index + m[0].length; }
+  junta(pos, t.length);
+  return out;
+}
+// trecho [a, b) do texto da tela → Range do DOM (pontos que caem em quebras "de mentira" vão para o pedaço vizinho)
+function faixaFala(mapa, a, b) {
+  let ini = null, fim = null;
+  for (const s of mapa.segs) { if (s.ini + s.n.data.length > a) { ini = [s.n, Math.max(0, a - s.ini)]; break; } }
+  for (let k = mapa.segs.length - 1; k >= 0; k--) { const s = mapa.segs[k]; if (s.ini < b) { fim = [s.n, Math.min(s.n.data.length, b - s.ini)]; break; } }
+  if (!ini || !fim || !ini[0].isConnected || !fim[0].isConnected) return null;
+  try { const r = document.createRange(); r.setStart(ini[0], ini[1]); r.setEnd(fim[0], fim[1]); return r.collapsed ? null : r; } catch (e) { return null; }
+}
+// frase que veio do texto cru (leitura enquanto a resposta chega): acha onde ela está na tela pelas primeiras palavras
+function acharNoPlano(plano, frase, desde) {
+  const pal = frase.split(/\s+/).filter(Boolean).slice(0, 6).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!pal.length) return -1;
+  const re = new RegExp(pal.join('\\s+'), 'g');
+  re.lastIndex = Math.max(0, desde || 0); let m = re.exec(plano);
+  if (!m && desde) { re.lastIndex = 0; m = re.exec(plano); }
+  return m ? m.index : -1;
+}
+const temPintura = () => typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight === 'function';
+function limparPintura() { if (temPintura()) { CSS.highlights.delete('fala-lido'); CSS.highlights.delete('fala-agora'); } }
+function elDaFala(L) {
+  if (L.el && L.el.isConnected) return L.el;
+  const b = botoesLer(L.msg)[0], t = b && b.closest('.msg') && b.closest('.msg').querySelector(':scope > .txt');
+  return t || null;
+}
+// pinta: o que já foi lido (roxo) e a palavra de agora (fundo roxo); a ≥ 0 é a posição no texto da tela
+function pintar(L, a, b) {
+  if (!temPintura() || !L.msg) return;
+  const el = elDaFala(L); if (!el) { limparPintura(); return; }
+  if (!L.mapa || L.mapaDe !== el || !L.mapa.segs.every(s => s.n.isConnected)) { L.mapa = mapaFala(el); L.mapaDe = el; }
+  const lido = faixaFala(L.mapa, 0, a), agora = b > a ? faixaFala(L.mapa, a, b) : null;
+  if (lido) CSS.highlights.set('fala-lido', new Highlight(lido)); else CSS.highlights.delete('fala-lido');
+  if (agora) CSS.highlights.set('fala-agora', new Highlight(agora)); else CSS.highlights.delete('fala-agora');
+}
+// onde a frase i começa no texto da tela (as da leitura ao vivo são achadas na hora)
+function inicioDaFrase(L, i) {
+  const f = L.frases[i]; if (!f) return -1;
+  if (f.ini >= 0) return f.ini;
+  const el = elDaFala(L); if (!el) return -1;
+  if (!L.mapa || L.mapaDe !== el || !L.mapa.segs.every(s => s.n.isConnected)) { L.mapa = mapaFala(el); L.mapaDe = el; }
+  const p = acharNoPlano(L.mapa.plano, f.t, L.cursor); if (p >= 0) L.cursor = p;
+  return p;
+}
+
+function botoesLer(m) { return [...document.querySelectorAll('.acao.ler')].filter(b => b._msg === m); }
+// estado do botão: null (▶ ouvir), 'tocando' (❚❚ pausar) ou 'pausado' (▶ continuar); o ■ aparece enquanto há leitura
+function marcarLendo(m, estado) {
+  botoesLer(m).forEach(b => {
+    b.classList.toggle('on', !!estado); b.classList.toggle('pausado', estado === 'pausado');
+    b.innerHTML = estado === 'tocando' ? ICO.pausar : estado === 'pausado' ? ICO.tocar : ICO.falar;
+    b.title = estado === 'tocando' ? 'Pausar a leitura' : estado === 'pausado' ? 'Continuar de onde parou' : 'Ouvir a resposta'; b.setAttribute('aria-label', b.title);
+    const p = b.nextElementSibling; if (p && p.classList.contains('parar-ler')) p.hidden = !estado;
+  });
+}
+function fimLeitura() { if (!falaAtual) return; const m = falaAtual.msg; falaAtual = null; limparPintura(); marcarLendo(m, null); }
+function pararLeitura() { if (!falaAtual) return; falaGen++; PLATAFORMA.pararFala(); fimLeitura(); }
+function falarProxima() {
+  const L = falaAtual; if (!L || L.pausado || L.falando) return;
+  while (L.i < L.frases.length && !temLetra(L.frases[L.i].t.slice(L.desloc))) { L.i++; L.desloc = 0; }
+  if (L.i >= L.frases.length) { if (!L.narrando || L.terminou) fimLeitura(); return; }   // ao vivo: espera a próxima frase
+  const f = L.frases[L.i], ini = inicioDaFrase(L, L.i);
+  L.falando = true; L.base = ini;
+  if (ini >= 0) pintar(L, ini + L.desloc, ini + L.desloc);
+  PLATAFORMA.falar(f.t.slice(L.desloc), `f${L.gen}_${L.i}_${L.desloc}`);
+}
+PLATAFORMA.ao('fala', d => {
+  const L = falaAtual; if (!L) return;
+  const m = /^f(\d+)_(\d+)_(\d+)$/.exec((d && d.id) || ''); if (!m || +m[1] !== L.gen || +m[2] !== L.i) return;
+  const desloc = +m[3];
+  if (d.estado === 'erro') { toast('Não foi possível ler em voz alta neste aparelho.', 3500); pararLeitura(); return; }
+  if (d.estado === 'palavra') {   // a palavra dita agora (Android: onRangeStart; PC/Mac/iPhone: onboundary)
+    L.palavra = desloc + (+d.ini || 0);
+    if (L.base >= 0) pintar(L, L.base + L.palavra, L.base + desloc + (+d.fim || +d.ini || 0));
+    return;
+  }
+  if (d.estado === 'fim') {
+    L.falando = false; L.i++; L.desloc = 0; L.palavra = 0;
+    const f = L.frases[L.i - 1]; if (L.base >= 0 && f) pintar(L, L.base + f.t.length, L.base + f.t.length);
+    falarProxima();
+  }
+});
+function pausarLeitura() {
+  const L = falaAtual; if (!L || L.pausado) return;
+  L.pausado = true; L.falando = false; L.desloc = L.palavra || L.desloc;   // continua da palavra em que parou
+  L.gen = ++falaGen; PLATAFORMA.pararFala();
+  if (temPintura()) CSS.highlights.delete('fala-agora');
+  marcarLendo(L.msg, 'pausado');
+}
+function continuarLeitura() { const L = falaAtual; if (!L || !L.pausado) return; L.pausado = false; marcarLendo(L.msg, 'tocando'); falarProxima(); }
+function novaLeitura(msg, frases, extra) {
   pararLeitura();
-  falaAtual = { msg, ultimoId: '', narrando: true, terminou: false, fimIds: new Set() };
+  falaAtual = Object.assign({ msg, el: null, frases, i: 0, desloc: 0, palavra: 0, gen: ++falaGen, pausado: false, falando: false, narrando: false, terminou: true, mapa: null, cursor: 0, base: -1 }, extra);
+  return falaAtual;
+}
+function lerMensagem(m) {
+  if (falaAtual && falaAtual.msg === m) { if (falaAtual.pausado) continuarLeitura(); else pausarLeitura(); return; }
+  const b = botoesLer(m)[0], el = b && b.closest('.msg') && b.closest('.msg').querySelector(':scope > .txt');
+  const mapa = el ? mapaFala(el) : null;
+  // o que se ouve é o que está na tela (sem o código); sem a tela, o texto da resposta limpo
+  const frases = mapa && temLetra(mapa.plano) ? frasesComPosicao(mapa.plano) : frasesCompletas(textoParaFala(m.texto), true).frases.map(t => ({ t, ini: -1 }));
+  if (!frases.length) return;
+  const L = novaLeitura(m, frases, { el, mapa, mapaDe: el });
+  marcarLendo(m, 'tocando'); falarProxima();
+  return L;
+}
+function falarAviso(texto) { novaLeitura({}, [{ t: texto, ini: -1 }]); falarProxima(); }
+function novoNarrador(msg, el) {   // lê enquanto a resposta chega: cada frase completa entra na fila
+  novaLeitura(msg, [], { el: el || null, narrando: true, terminou: false });
   let lido = 0;
   return {
     alimentar(texto, fim) {
-      if (!falaAtual || falaAtual.msg !== msg) return;
+      const L = falaAtual; if (!L || L.msg !== msg) return;
       const plano = textoParaFala(texto);
       const { frases, consumido } = frasesCompletas(plano.slice(lido), fim); lido += consumido;
-      if (frases.length) falarFrases(frases);
-      if (fim) { falaAtual.terminou = true; if (!falaAtual.ultimoId || falaAtual.fimIds.has(falaAtual.ultimoId)) fimLeitura(); else marcarLendo(msg, true); }
+      frases.forEach(t => L.frases.push({ t, ini: -1 }));
+      if (fim) L.terminou = true;
+      if (L.frases.length && !L.pausado) marcarLendo(msg, 'tocando');
+      falarProxima();
+      if (fim && !L.falando && !L.pausado && L.i >= L.frases.length) fimLeitura();
     },
   };
 }
@@ -58,7 +184,9 @@ function acoes(d, m, ultima) {
     if (PLATAFORMA.temFala) {
       const bl = document.createElement('button'); bl.className = 'acao ler'; bl._msg = m; bl.innerHTML = ICO.falar; bl.title = 'Ouvir a resposta'; bl.setAttribute('aria-label', bl.title);
       bl.onclick = () => lerMensagem(m); a.appendChild(bl);
-      if (falaAtual && falaAtual.msg === m) setTimeout(() => marcarLendo(m, true), 0);
+      const bp = document.createElement('button'); bp.className = 'acao parar-ler'; bp.hidden = true; bp.innerHTML = ICO.pararFala; bp.title = 'Parar a leitura'; bp.setAttribute('aria-label', bp.title);
+      bp.onclick = () => { if (falaAtual && falaAtual.msg === m) pararLeitura(); }; a.appendChild(bp);
+      if (falaAtual && falaAtual.msg === m) setTimeout(() => marcarLendo(m, falaAtual && falaAtual.pausado ? 'pausado' : 'tocando'), 0);
     }
     if (PLATAFORMA.podeCompartilhar) {
       const bs = document.createElement('button'); bs.className = 'acao'; bs.title = 'Compartilhar'; bs.setAttribute('aria-label', 'Compartilhar resposta'); bs.innerHTML = ICO.compartilhar;

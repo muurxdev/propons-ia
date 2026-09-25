@@ -8,12 +8,16 @@ function validar(lista) {
     id: (() => { const id = /^[a-z0-9]{4,40}$/i.test(c.id) && !ids.has(c.id) ? c.id : novoId(); ids.add(id); return id; })(),
     titulo: txt(c.titulo).slice(0, 120) || 'Conversa',
     criada: +c.criada || Date.now(), atualizada: +c.atualizada || +c.criada || Date.now(),
-    ...(c.fixada ? { fixada: true } : {}), ...(txt(c.resumo).trim() ? { resumo: txt(c.resumo).slice(0, 3000) } : {}), ...(c.ctxUso && typeof c.ctxUso === 'object' ? { ctxUso: Object.fromEntries(['total', 'sistema', 'pesquisa', 'historico', 'anexos', 'omitidas', 'resposta'].map(k => [k, Math.max(0, Math.round(+c.ctxUso[k] || 0))])) } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
+    ...(c.fixada ? { fixada: true } : {}), ...(c.aberta ? { aberta: true } : {}),
+    // o que a conversa usou por último (modelo e esforço): ao voltar nela, a IA continua do mesmo jeito
+    ...(/^[a-z]{2,20}$/.test(c.modelo) ? { modelo: c.modelo } : {}), ...(ESFORCO[c.esforco] ? { esforco: c.esforco } : {}),
+    ...(txt(c.resumo).trim() ? { resumo: txt(c.resumo).slice(0, 3000) } : {}), ...(c.ctxUso && typeof c.ctxUso === 'object' ? { ctxUso: Object.fromEntries(['total', 'sistema', 'pesquisa', 'historico', 'anexos', 'omitidas', 'resposta'].map(k => [k, Math.max(0, Math.round(+c.ctxUso[k] || 0))])) } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
       ...(m.interno ? { interno: true } : {}), ...(m.compactada ? { compactada: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),
       ...(m.erro ? { erro: txt(m.erro) } : {}), ...(m.pensou ? { pensou: txt(m.pensou).slice(0, 6000) } : {}), ...(+m.tempo > 0 ? { tempo: Math.round(+m.tempo) } : {}),
       ...(Array.isArray(m.anexos) ? { anexos: m.anexos.filter(a => a && typeof a.nome === 'string').map(a => ({ nome: a.nome.slice(0, 200), tam: +a.tam || 0, lang: txt(a.lang), conteudo: txt(a.conteudo), ...(+a.paginas ? { paginas: +a.paginas } : {}), ...(Array.isArray(a.resumos) ? { resumos: a.resumos.filter(r => r && typeof r.texto === 'string').slice(0, 40).map(r => ({ de: +r.de || 0, ate: +r.ate || 0, texto: txt(r.texto).slice(0, 4000) })) } : {}) })) } : {}),
+      ...(m.lugar && normalizarPainelLugar(m.lugar) ? { lugar: normalizarPainelLugar(m.lugar) } : {}),
       ...(Array.isArray(m.fontes) ? { fontes: m.fontes.filter(f => f && /^https?:/.test(f.url)).slice(0, 8).map(f => ({ titulo: txt(f.titulo).slice(0, 120), url: txt(f.url).slice(0, 400) })) } : {}),
       ...(Array.isArray(m.imagens) ? { imagens: m.imagens.filter(x => x && /^data:image\/(jpeg|png|webp);base64,/.test(x.miniatura) && x.miniatura.length < 80000).slice(0, MAX_FOTOS).map(x => ({ nome: txt(x.nome).slice(0, 120), miniatura: x.miniatura })) } : {}),
       ...(m.passos && Array.isArray(m.passos.lista) ? { passos: { titulo: txt(m.passos.titulo), lista: m.passos.lista.map(txt) } } : {}),
@@ -174,7 +178,7 @@ setInterval(() => { const h = document.querySelector('#boasvindas .sd'); if (h &
 function nova() {
   fecharTela();
   if (atual) atual.rascunho = '';   // o que estava na caixa vai junto para a conversa nova
-  atual = null; cancelarEdicao();
+  atual = null; cancelarEdicao(); marcarAberta(null);
   $('#tituloAtual').textContent = 'Própons IA';
   $('#conversa').innerHTML = boasVindas();
   desenharLista(); atualizarMedidor(); if (!estreita()) $('#entrada').focus();
@@ -184,7 +188,7 @@ function abrir(id) {
   fecharTela();
   if (atual && atual !== c) { atual.msgs.forEach(m => { if (m._envio) m._envio = null; }); atual.rascunho = $('#entrada').value; }   // fotos cheias só da conversa aberta; o rascunho fica guardado
   const trocou = atual !== c;
-  atual = c; cancelarEdicao();
+  atual = c; cancelarEdicao(); marcarAberta(c);
   $('#tituloAtual').textContent = c.titulo;
   // as mensagens são montadas fora da página (uma coluna solta) e entram de uma vez: um reflow só, não um por mensagem
   $('#conversa').innerHTML = ''; const col = document.createElement('div'); col.className = 'col'; colDestacada = col;
@@ -199,6 +203,15 @@ function abrir(id) {
   $('#conversa').appendChild(col); atualizarMedidor();
   if (trocou) { $('#entrada').value = c.rascunho || ''; ajustar(); }
   rolar(true); desenharLista();
+  if (trocou) sugerirModeloDaConversa(c);
+}
+// a conversa aberta fica marcada no próprio arquivo de conversas (que a página fria e a ligada leem igual): ao sair e
+// voltar ao app, ou quando a IA liga e a página recarrega, ela reabre no mesmo lugar em vez de uma conversa nova
+function marcarAberta(c) {
+  let mudou = false;
+  conversas.forEach(x => { if (x.aberta && x !== c) { delete x.aberta; mudou = true; } });
+  if (c && !c.aberta) { c.aberta = true; mudou = true; }
+  if (mudou) salvar();
 }
 function ultimoIndice(c, role) { for (let i = c.msgs.length - 1; i >= 0; i--) if (c.msgs[i].role === role) return i; return -1; }
 let colDestacada = null;   // coluna ainda fora da página, enquanto abrir() monta uma conversa
@@ -314,11 +327,11 @@ function addIa(m, ultima) {
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
   const pensou = m.pensou ? (m.tempo ? 'Pensou por ' + tempoBonito(m.tempo) : 'Raciocínio') : '';
   d.innerHTML = (pensou ? htmlLinhaPensa(pensou) : '') +
-    (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +
+    (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') + (m.lugar ? htmlPainelLugar(m.lugar) : '') +
     `<div class="txt${widget ? ' widget' : ''}">${widget ? widget : comCitacoes(md(m.texto || ''), m.fontes)}</div>` +
     (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
   if (m.pensou) ligarLinhaPensa(d, m.pensou, pensou);
-  ligarLinks(d);
+  ligarLinks(d); if (m.lugar) ligarPainelLugar(d);
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
   coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;

@@ -9,8 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "1.22.0"
-    CURRENT_PROJECT_VERSION: "12200"
+    MARKETING_VERSION: "1.23.0"
+    CURRENT_PROJECT_VERSION: "12300"
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual
 targets:
@@ -52,6 +52,7 @@ targets:
         UIFileSharingEnabled: true
         NSMicrophoneUsageDescription: A Própons IA usa o microfone quando você toca em 🎤 para transformar sua fala em texto.
         NSSpeechRecognitionUsageDescription: A Própons IA transforma sua fala em texto no próprio iPhone para você mandar perguntas por voz.
+        NSLocationWhenInUseUsageDescription: A Própons IA usa a localização só quando você pergunta sobre onde está (hora, clima, lugares por perto).
         LSSupportsOpeningDocumentsInPlace: true
     settings:
       base:

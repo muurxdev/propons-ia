@@ -1,3 +1,13 @@
+## Novidades da 1.23.0
+
+- **Lugar, hora e clima de verdade.** Pergunte "que horas são em Londres?", "vai chover amanhã aqui?" ou "onde eu estou?": o app pega os dados reais antes de responder (fuso oficial, a localização do aparelho e o clima do Open-Meteo) e mostra um cartão com o lugar, latitude/longitude, temperatura, sensação, umidade, vento com direção e rajadas, chance de chuva, máxima e mínima, UV, pressão, nascer e pôr do sol. Quando a pergunta é só isso, a resposta sai direto dos números, sem chance de erro; pedindo um conselho ("preciso de guarda-chuva?"), a IA continua a partir deles. Dá para desligar em Ajustes → Respostas.
+- **Ouvir com ▶ e ❚❚.** A leitura em voz alta ganhou pausar e continuar (da palavra onde parou) e o ■ para parar, e o texto vai ficando roxo no mesmo ritmo da voz. No Android a voz sai como mídia e abaixa a música de outro app enquanto lê.
+- **Continua de onde você parou.** Ao sair e voltar, o app reabre na mesma conversa; no Android a IA fica ligada em segundo plano (com uma notificação discreta e o botão "Desligar a IA") e só desliga quando você fecha o app. Quando a IA liga, a resposta sai na mesma mensagem que ficou esperando.
+- **Cada conversa lembra o modelo e o esforço** com que foi feita: ao voltar nela, o esforço volta junto e, se ela foi feita com outro modelo, o app oferece trocar.
+- **Permissões do sistema, de verdade.** Microfone, localização e notificações são pedidos pelo próprio aparelho na hora do uso, como em qualquer app, e a página de Permissões saiu dos Ajustes. Se foi negado, o app explica e abre as configurações do app no lugar certo (Android, iPhone, Mac e Windows). A câmera do celular abre direto.
+- **Novidades de cada versão com cara nova** em Ajustes → Atualizações: cada item com ícone e tipo (novidade, melhoria, correção), contagem no topo e "Ver todas".
+- **Correções:** a pesquisa na internet do Windows não falha mais com servidores que comprimem de um jeito diferente; uma mensagem que ficou esperando de uma abertura anterior não trava mais o envio.
+
 ## Novidades da 1.22.0
 
 - **PDF de qualquer tamanho.** A cada pergunta a IA lê os trechos do arquivo ligados a ela, com o número da página, e não mais só o começo. Pedindo "resuma o arquivo", ela lê por partes e junta. O arquivo continua consultável nas perguntas seguintes da conversa.
