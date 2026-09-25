@@ -110,11 +110,11 @@ await arrastar('.p-arrastar');
 ok('arrastar os ajustes para baixo fecha', !(await js(`!!document.querySelector('.painel-fundo')`)));
 await js(`abrirConfig(); 1`); await espera(500);
 await js(`irPara('modelo'); 1`); await espera(1200);
-ok('modelos: 3 cartões', (await js(`document.querySelectorAll('.mcard').length`)) === 3);
+ok('modelos: 4 cartões', (await js(`document.querySelectorAll('.mcard').length`)) === 4);
 ok('modelos: um em uso', (await js(`document.querySelectorAll('.mcard.on').length`)) === 1);
 await foto('10-modelos');
 // baixar e cancelar (sem baixar o modelo inteiro)
-const alvo = await js(`(sistemaCache.modelos.find(m=>!m.baixado && !m.bloqueado && m.id!=='avancado')||{}).id || ''`);
+const alvo = await js(`(sistemaCache.modelos.find(m=>!m.baixado && !m.bloqueado && m.id!=='avancado' && m.id!=='prisma')||{}).id || ''`);
 if (alvo) {
   await js(`window.__fim=null; PLATAFORMA.ao('download-fim', d => window.__fim = d); PLATAFORMA.baixarModelo('${alvo}').then(()=>1)`);
   let pct = 0; for (let i = 0; i < 120 && pct <= 0.002; i++) { await espera(500); pct = await js(`(baixando['${alvo}']||{}).pct||0`); }

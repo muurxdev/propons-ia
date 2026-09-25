@@ -38,7 +38,7 @@ const c = await js(`(()=>{const m=atual.msgs[atual.msgs.length-1]; m.texto=m.tex
 await js(`document.querySelector('.acao.continuar').click(); 1`); await espera(500); for (let i = 0; i < 400 && await js('!!geracao'); i++) await espera(500);
 ok('continuar', (await js('atual.msgs[atual.msgs.length-1].texto.length')) > c && !(await js('atual.msgs[atual.msgs.length-1].cortada')));
 // sistema e salvamento pela ponte
-const s = await js('PLATAFORMA.sistema()'); ok('sistema pela ponte', s && s.ramTotal > 0 && s.modelos.length === 3, s && s.so);
+const s = await js('PLATAFORMA.sistema()'); ok('sistema pela ponte', s && s.ramTotal > 0 && s.modelos.length === 4, s && s.so);
 ok('conversas no arquivo', fs.existsSync(s.pastaDados + '\\conversas.json'), s.pastaDados);
 // diagnóstico
 await js(`abrirConfig('diagnostico'); 1`); await espera(600); await js('rodarDiagnostico()');
@@ -53,7 +53,7 @@ m = await pergunta('responda só: ok'); ok('responde depois de religar', m.texto
 await js(`abrirConfig(); 1`); await espera(600);
 ok('ajustes: menu ao lado + conteúdo', await js(`(()=>{const n=document.querySelector('.p-nav').getBoundingClientRect(), c=document.querySelector('.p-conteudo').getBoundingClientRect(); return n.width>150 && c.width>200 && c.left>=n.right-1})()`));
 await js(`irPara('modelo'); 1`); await espera(1200);
-ok('modelos: 3 cartões, 1 em uso', (await js(`document.querySelectorAll('.mcard').length`)) === 3 && (await js(`document.querySelectorAll('.mcard.on').length`)) === 1);
+ok('modelos: 4 cartões, 1 em uso', (await js(`document.querySelectorAll('.mcard').length`)) === 4 && (await js(`document.querySelectorAll('.mcard.on').length`)) === 1);
 await foto('w4-modelos');
 const alvo = await js(`(sistemaCache.modelos.find(m=>!m.baixado)||{}).id || ''`);
 if (alvo) {

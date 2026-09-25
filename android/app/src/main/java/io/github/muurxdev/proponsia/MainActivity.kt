@@ -70,6 +70,9 @@ class MainActivity : Activity() {
             668227264, "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"),
         Modelo("avancado", "Avançado (4B)", "respostas melhores, precisa de celular forte", "Qwen3.5-4B-Q4_K_M.gguf", 2740937888, "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4", 8,
             672423616, "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"),
+        // Gemma 4 E2B: o melhor em português no placar de 25/09/2026 (mais pesado de baixar)
+        Modelo("prisma", "Prisma (Gemma 4 E2B)", "o melhor em português, precisa de celular com 8 GB", "gemma-4-E2B-it-Q4_K_M.gguf", 3106738272, "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8", 8,
+            985654080, "140be8d7849741f88c50757d529b84373ee8e27052cc2236855b537f4a8215fa"),
     )
 
     // vozes para transcrever áudio (whisper.cpp), baixadas no primeiro uso
@@ -703,7 +706,7 @@ class MainActivity : Activity() {
         for (m in modelos) lista.put(JSONObject().put("id", m.id).put("nome", m.nome).put("descricao", m.descricao).put("arquivo", m.arquivo)
             .put("tamanho", m.tamanho).put("ramMin", m.ramMin).put("baixado", acharModelo(m) != null).put("atual", m.id == modelo.id)
             .put("visaoTamanho", m.visaoTamanho).put("visaoBaixada", acharModelo(m.visao()) != null)
-            .apply { if (m.id == "avancado" && ramTotal < 7L shl 30) put("bloqueado", "precisa de 8 GB") })
+            .apply { if ((m.id == "avancado" || m.id == "prisma") && ramTotal < 7L shl 30) put("bloqueado", "precisa de 8 GB") })
         return JSONObject().put("ramTotal", mi.totalMem).put("ramLivre", mi.availMem).put("cpu", soc.trim()).put("nucleos", Runtime.getRuntime().availableProcessors())
             .put("discoLivre", filesDir.usableSpace).put("pastaDados", "armazenamento interno do app").put("pastaModelos", "armazenamento interno do app")
             .put("visaoLigada", prefs.getBoolean("visao", false)).put("visaoAtiva", visaoAtiva).put("temVisao", true)

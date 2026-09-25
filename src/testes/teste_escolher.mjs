@@ -6,7 +6,7 @@ import { conectar, espera, relatorio } from './cdp.mjs';
 const [porta, saida, idModelo] = process.argv.slice(2);
 fs.mkdirSync(saida, { recursive: true });
 const { ok, resumo } = relatorio();
-const NOMES = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
+const NOMES = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice', prisma: 'Prisma' };
 // 1) abre direto no chat normal, sem tela de download
 let p = await conectar({ porta, saida, filtro: u => !/#k=/.test(u) });
 for (let i = 0; i < 60 && !(await p.js(`typeof ESCOLHER !== 'undefined' && !!$('#nomeModelo').textContent`)); i++) await espera(500);
@@ -21,7 +21,7 @@ await p.foto('e1-chat-vazio');
 await p.js(`$('#entrada').value='Quanto é 6 vezes 7? Responda só o número.'; ajustar(); $('#enviar').click(); 1`); await espera(1200);
 ok('ao enviar, sobe a lista "Escolha o modelo para responder"', await p.js(`/Escolha o modelo para responder/.test(document.querySelector('.dlg.modelos h3').textContent)`));
 const linhas = await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].map(b=>b.innerText.replace(/\\s+/g,' ').trim())`);
-ok('Própons Lume/Aurora/Ápice com descrição', linhas.length === 3 && /Própons Lume.*Leve e rápido/.test(linhas[0]) && /Própons Aurora.*(Equilibrado|precisa de)/.test(linhas[1]) && /Própons Ápice/.test(linhas[2]), linhas.join(' | '));
+ok('Própons Lume/Aurora/Ápice/Prisma com descrição', linhas.length === 4 && /Própons Lume.*Leve e rápido/.test(linhas[0]) && /Própons Aurora.*(Equilibrado|precisa de)/.test(linhas[1]) && /Própons Ápice/.test(linhas[2]) && /Própons Prisma/.test(linhas[3]), linhas.join(' | '));
 ok('sem ícones nos modelos', (await p.js(`document.querySelectorAll('.dlg.modelos .lm .mico').length`)) === 0);
 ok('botão Baixar em cada modelo que cabe no aparelho', await p.js(`[...document.querySelectorAll('.dlg.modelos .lm')].every(l => l.disabled || /Baixar/.test((l.querySelector('.btn-mini')||{}).textContent))`));
 ok('mensagem ficou esperando (pendente, salva)', await p.js(`atual.msgs[0].pendente === true && !!document.querySelector('.msg.eu')`));

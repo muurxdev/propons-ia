@@ -12,7 +12,7 @@ let sistemaCache = null;
      Lume 0,9 GB · Aurora 2,0 GB (2,6 com visão) · Ápice 4,4 GB (5,1 com visão).
      PC: + ~2,5 GB de sistema e app → 3 / 4 / 8 GB. Celular: + ~3 GB de sistema e tela, e o Android fecha apps quando
      aperta → 3 / 6 / 12 GB. Abaixo disso o modelo fica bloqueado (sem "baixar mesmo assim"); só o Lume nunca é bloqueado. */
-const RAM_MIN = CELULAR ? { leve: 3, normal: 6, avancado: 12 } : { leve: 3, normal: 4, avancado: 8 };
+const RAM_MIN = CELULAR ? { leve: 3, normal: 6, avancado: 12, prisma: 8 } : { leve: 3, normal: 4, avancado: 8, prisma: 8 };
 const ramNecessaria = m => RAM_MIN[m.id || m] || (m.ramMin || 0);
 const semRam = (m, ram) => !!(ram && (m.id || m) !== 'leve' && ram < ramNecessaria(m) * GB * 0.93);
 async function lerSistema() {
@@ -125,10 +125,10 @@ function abaGeral(c) {
 }
 
 /* ---------------- modelos ---------------- */
-const PERFIL_MODELO = { leve: 'Mais rápido', normal: 'Equilibrado', avancado: 'Mais inteligente' };
+const PERFIL_MODELO = { leve: 'Mais rápido', normal: 'Equilibrado', avancado: 'Mais inteligente', prisma: 'Melhor em português' };
 // o que cada um faz bem e o acerto no placar de 145 perguntas (sem pensar – pensando), treino/README.md
-const USO_MODELO = { leve: 'Dúvidas rápidas e resumos em qualquer aparelho.', normal: 'O dia a dia de estudo: explicações, exercícios e redação.', avancado: 'Contas, código e perguntas difíceis; o que menos inventa.' };
-const PLACAR_MODELO = { leve: [46, 65], normal: [65, 83], avancado: [88, 97] };
+const USO_MODELO = { prisma: 'Português, redação e humanas; entende fotos. Baixa ~3 GB.', leve: 'Dúvidas rápidas e resumos em qualquer aparelho.', normal: 'O dia a dia de estudo: explicações, exercícios e redação.', avancado: 'Contas, código e perguntas difíceis; o que menos inventa.' };
+const PLACAR_MODELO = { leve: [46, 65], normal: [65, 83], avancado: [88, 97], prisma: [90, 90] };
 let baixando = {};          // id → { pct, feito, total, fase }
 let trocandoPara = null;    // id do modelo que está sendo ligado
 // antes do primeiro byte não há tamanho para mostrar (era o "NaN de NaN MB"); rede que bloqueia o download ganha texto próprio

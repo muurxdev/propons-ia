@@ -33,6 +33,8 @@ struct ModeloIA {
                  sha256: "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223", tamanho: 1280835840, ramMin: 6),
         ModeloIA(id: "avancado", nome: "Avançado (4B)", descricao: "respostas melhores (grande demais para iPhone)", arquivo: "Qwen3.5-4B-Q4_K_M.gguf",
                  sha256: "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4", tamanho: 2740937888, ramMin: 8),
+        ModeloIA(id: "prisma", nome: "Prisma (Gemma 4 E2B)", descricao: "o melhor em português (iPhone com 8 GB)", arquivo: "gemma-4-E2B-it-Q4_K_M.gguf",
+                 sha256: "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8", tamanho: 3106738272, ramMin: 8),
     ]
 }
 

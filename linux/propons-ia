@@ -4,7 +4,7 @@
 # numa janela própria (Chrome/Chromium/Brave/Edge/Vivaldi em modo app). Ao fechar a janela, tudo desliga.
 set -u
 
-VERSAO="1.29.0"
+VERSAO="1.30.0"
 APP_DIR="$(dirname "$(readlink -f "$0")")"
 DADOS="${XDG_DATA_HOME:-$HOME/.local/share}/propons-ia"
 MODELOS="$DADOS/modelos"
@@ -20,6 +20,7 @@ MODELOS_LISTA=(
   "leve|Qwen3.5-0.8B-Q4_K_M.gguf|532517120|bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517|3|Leve (0.8B)|mais rápido, para PCs com pouca memória|204987232|56e4c6cfe73b0c82e3e82bc518d7591997e61d81f723fc41a586f4fa69ea2453"
   "normal|Qwen3.5-2B-Q4_K_M.gguf|1280835840|aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223|6|Normal (2B)|equilíbrio entre velocidade e qualidade|668227264|7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
   "avancado|Qwen3.5-4B-Q4_K_M.gguf|2740937888|00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4|8|Avançado (4B)|respostas e códigos melhores, mais lento|672423616|cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"
+  "prisma|gemma-4-E2B-it-Q4_K_M.gguf|3106738272|740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8|8|Prisma (Gemma 4 E2B)|o melhor em português, mais pesado|985654080|140be8d7849741f88c50757d529b84373ee8e27052cc2236855b537f4a8215fa"
 )
 # vozes para transcrever áudio (whisper.cpp): id | arquivo | bytes | sha256 | nome | descrição
 VOZES_LISTA=(

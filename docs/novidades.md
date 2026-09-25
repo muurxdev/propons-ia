@@ -1,9 +1,19 @@
+## Novidades da 1.30.0
+
+- **Novo modelo: Própons Prisma** (Gemma 4 E2B, do Google). A disputa dos modelos de 2026 rodou no GitHub, com o mesmo jeito de perguntar do app: 145 perguntas × 3 rodadas.
+  - Comparado à Aurora, o Prisma acertou 90% contra 74%, foi bem melhor em português (69% contra 31%) e inventou tanto quanto ela nas armadilhas.
+  - Também lê fotos.
+  - É mais pesado (3,1 GB para baixar, pede 8 GB de RAM) e cerca de 30% mais lento. Por isso entra como opção, em Modelos de IA.
+  - Lume, Aurora e Ápice continuam os mesmos: nenhuma outra versão ganhou deles.
+- Os resultados completos estão em `treino/README.md`.
+
 ## Novidades da 1.29.0
 
 - **Exportar para o Anki de verdade (.apkg):** os flashcards viram um baralho do Anki com o nome da conversa. É só abrir com "Importar" no Anki, AnkiDroid ou AnkiMobile. O arquivo é montado no próprio aparelho, e o CI confere que o Anki importa.
 - **Cadernos por matéria:** cada pasta de conversas vira um caderno. Toque no nome da pasta na barra lateral para escolher fontes fixas da Biblioteca (apostila, resumo, lista) e escrever instruções. Toda conversa da pasta usa os trechos das fontes ligados à pergunta e diz de qual fonte tirou a informação. Há também "Nova conversa neste caderno".
 - **Gravar aula:** a gravação vai até 90 minutos no PC (60 no celular). Um áudio longo não enche mais a caixa de texto: vira o arquivo da aula, com Resumir, Fazer flashcards, Mapa mental, Ouvir como podcast ou Só anexar.
 - **API na rede local também no Android e no Mac:** o celular ou o Mac também podem servir a IA para outros aparelhos da casa (Ajustes → Modelos de IA).
+- **iPhone:** o app voltou a compilar. Desde a 1.23 o build do iOS falhava sem o CI perceber, e o .ipa publicado saía incompleto. Agora o CI para se o build falhar.
 - **Android mais rápido no seu celular:** em Diagnóstico → **Otimizar a velocidade**, a IA responde a mesma pergunta com algumas combinações de núcleos e fica com a mais rápida para aquele aparelho (1 a 3 minutos).
 
 ## Novidades da 1.28.1

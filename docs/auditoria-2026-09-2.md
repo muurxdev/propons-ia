@@ -140,7 +140,7 @@ A pasta de verdade da pessoa nunca é usada para rodar, e nada é gravado sem ap
 | 2 ordem da resposta | 1.26.0 | feito |
 | 3 limpeza | 1.26.0 | feito (a junção dos dois visualizadores de anexo ficou de fora: servem a contextos diferentes) |
 | 4 velocidade | 1.27.0 / 1.29.0 | feito. O Android mede e escolhe `-t`/`-tb` no próprio celular (Diagnóstico). O MTP está no motor b11070, mas o Qwen3.5 não tem o arquivo MTP publicado (o Gemma 4 tem) |
-| 5 modelos | placar no CI | a disputa roda no `placar.yml`; troca de modelo só se ganhar |
+| 5 modelos | 1.30.0 | disputa no CI (`placar.yml`, resultados em `treino/README.md`): Lume, Aurora e Ápice ficam; o Gemma 4 E2B entra como quarto modelo (Própons Prisma), o melhor em português |
 | 6 API | 1.28.0 / 1.29.0 | celular usa a IA do PC; a API na rede local funciona no Windows, Android e Mac |
 | 7 comunidade | 1.27.0 a 1.29.0 | feito: resumo em áudio com 2 vozes (1.28.1), .apkg de verdade, cadernos por matéria e gravação de aula longa (1.29.0) |
 | 8 área de código | 1.28.0 | feito |

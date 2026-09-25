@@ -1,16 +1,17 @@
 /* ---------------- nomes dos modelos ----------------
-   Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado) e Própons Ápice (pesado, o mais capaz). */
-const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice' };
-const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente' };
+   Própons Lume (leve e rápido), Própons Aurora (médio e equilibrado), Própons Ápice (pesado, o mais capaz) e Própons
+   Prisma (Gemma 4 E2B: o melhor em português do placar de 25/09/2026, mais pesado de baixar e um pouco mais lento). */
+const NOME_MODELO = { leve: 'Lume', normal: 'Aurora', avancado: 'Ápice', prisma: 'Prisma' };
+const PESO_MODELO = { leve: 'Leve · Rápido', normal: 'Médio · Equilibrado', avancado: 'Pesado · Mais inteligente', prisma: 'Pesado · Melhor em português' };
 const ESFORCO = { baixo: ['Baixo', 'Pensa menos e responde mais rápido.'], medio: ['Médio', 'Equilíbrio entre rapidez e profundidade.'], auto: ['Auto', 'Raciocina só quando a pergunta pede (contas, código, "por quê"); nas outras responde direto.'], alto: ['Alto', 'Raciocina antes de responder (dá para ver o raciocínio). Mais lento e bem mais preciso em contas e lógica.'] };
 /* o esforço é por modelo (cada um guarda o seu) */
 const idModeloAtual = () => (ESCOLHER ? MODELO_INICIAL : ((sistemaCache && (sistemaCache.modelos || []).find(m => m.atual) || {}).id)) || 'normal';
 // padrão Auto no computador (placar de 24/09/2026: acerto entre o Médio e o Alto em metade do tempo do Alto); no
 // celular o raciocínio roda no processador e pode levar um minuto, então Lume e Aurora começam no Médio
-const PADRAO_ESFORCO = CELULAR ? { leve: 'medio', normal: 'medio', avancado: 'auto' } : { leve: 'auto', normal: 'auto', avancado: 'auto' };
+const PADRAO_ESFORCO = CELULAR ? { leve: 'medio', normal: 'medio', avancado: 'auto', prisma: 'medio' } : { leve: 'auto', normal: 'auto', avancado: 'auto', prisma: 'auto' };
 // níveis que cada modelo usa de verdade (medidos no placar, treino/README.md): um nível só aparece se muda algo
 // mensurável (tempo, tamanho ou acerto). No iPhone o motor não raciocina: sem Alto e sem Auto.
-const ESFORCOS_MODELO = { leve: ['baixo', 'medio', 'auto', 'alto'], normal: ['baixo', 'medio', 'auto', 'alto'], avancado: ['baixo', 'medio', 'auto', 'alto'] };
+const ESFORCOS_MODELO = { leve: ['baixo', 'medio', 'auto', 'alto'], normal: ['baixo', 'medio', 'auto', 'alto'], avancado: ['baixo', 'medio', 'auto', 'alto'], prisma: ['baixo', 'medio', 'auto', 'alto'] };
 const esforcosDe = id => (ESFORCOS_MODELO[id] || Object.keys(ESFORCO)).filter(k => PLATAFORMA.tipo !== 'ios' || (k !== 'alto' && k !== 'auto'));
 const esforcoDe = id => { const v = pref('esforco:' + id), l = esforcosDe(id); return l.includes(v) ? v : l.includes(PADRAO_ESFORCO[id]) ? PADRAO_ESFORCO[id] : l.includes('medio') ? 'medio' : l[0]; };
 // cada conversa lembra o esforço com que foi feita (se ainda é o mesmo modelo); sem isso, vale o nível do modelo
@@ -28,7 +29,7 @@ function abrirEsforco(depois) {
   folha.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { definirEsforco(idModeloAtual(), b.dataset.e); atualizarSeletorModelo(); sair(); if (depois) depois(); });
   pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#seletorModelo'));
 }
-const DESC_MODELO = { leve: 'Leve e rápido', normal: 'Equilibrado, para o dia a dia', avancado: 'Para as tarefas mais difíceis' };
+const DESC_MODELO = { leve: 'Leve e rápido', normal: 'Equilibrado, para o dia a dia', avancado: 'Para as tarefas mais difíceis', prisma: 'O melhor em português e redação' };
 ICO.check = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 // dentro do app o "Própons" é redundante: na caixa estreita fica só Lume, Aurora ou Ápice
 const nomeCurtoModelo = m => NOME_MODELO[m.id || m] || String(m.nome || '').replace(/^.*\((.*)\).*$/, '$1');
@@ -38,6 +39,7 @@ const nomeModelo = m => 'Própons ' + nomeCurtoModelo(m);
 const LOGO_MODELO = {
   leve: '<svg viewBox="0 0 24 24"><path d="M12 3.5c.6 3-2.8 4.6-2.8 8.2A2.9 2.9 0 0 0 12 14.6a2.9 2.9 0 0 0 2.8-2.9c0-1.1-.4-2-1-2.8 2.6 1 4.3 3.6 4.3 6.3A6.1 6.1 0 0 1 12 21.3a6.1 6.1 0 0 1-6.1-6.1c0-5.2 5.3-7 6.1-11.7z"/><path d="M18.5 3.8l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" fill="currentColor"/></svg>',
   normal: '<svg viewBox="0 0 24 24"><path d="M3 16.5h18M6.5 20h11"/><path d="M6.8 16.5a5.2 5.2 0 0 1 10.4 0"/><path d="M12 5.5v2.2M5.2 8.7l1.6 1.5M18.8 8.7l-1.6 1.5M2.8 13.2h2.1M19.1 13.2h2.1"/></svg>',
+  prisma: '<svg viewBox="0 0 24 24"><path d="M10 4.5 3.5 18.5h13z"/><path d="M1.5 11.5h6.2"/><path d="M13.6 10.2l7 -2.4M14.6 12.3l7 .2M15.6 14.4l6.4 2.8"/></svg>',
   avancado: '<svg viewBox="0 0 24 24"><path d="M2.8 19.5l6.3-10 3.2 4.6 2.2-3.1 6.7 8.5z"/><path d="M9.1 9.5l1.6 2.4 1.6-1"/><path d="M15.2 3.3l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" fill="currentColor"/></svg>',
 };
 const logoModelo = m => { const id = (m && (m.id || m)) || ''; return LOGO_MODELO[id] ? `<span class="logo-modelo m-${id}" aria-hidden="true">${LOGO_MODELO[id]}</span>` : ''; };

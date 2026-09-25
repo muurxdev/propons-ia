@@ -151,3 +151,36 @@ O LoRA v0 piorou as armadilhas (33 % → 17 %): treinar com pouco dado piora o m
    SFT e depois ORPO/DPO; 20 % de dados gerais para não esquecer; placar a cada checkpoint; merge → GGUF Q4_K_M (+ Q5_K_M no PC)
    com imatrix pt-BR. Lume e Aurora cabem na RTX 3050 6 GB; Ápice no Colab/Kaggle.
 3. **Publicar**: GGUF no Hugging Face (`muurxdev/propons-*`) e trocar URL + SHA-256 nos hosts.
+
+## Placar de 25/09/2026 — disputa dos modelos de 2026 (CI, modo do app)
+
+`.github/workflows/placar.yml`, `avaliar.mjs --auto --app` (exatamente como o app pergunta: texto de sistema fixo,
+bloco `<contexto>`, limites de tokens do app e contas conferidas). CPU do CI (4 núcleos, sem GPU): a velocidade só
+compara os modelos entre si.
+
+Primeira passada (1 rodada, 145 perguntas):
+
+| faixa | modelo | acerto | armadilhas | português | doc. longo | s/resposta |
+|---|---|---|---|---|---|---|
+| Lume | Qwen3.5-0.8B Q4_K_M (atual) | 58% | 40% | 11% | 90% | 11,2 |
+| Lume | Q8_0 | 55% | 50% | 6% | 80% | 16,2 |
+| Lume | UD-Q6_K_XL | 50% | 47% | 11% | 80% | 19,7 |
+| Aurora | MiniCPM5-2B | 63% | 67% | 28% | 30% | 20,1 |
+| Ápice | Qwen3.5-4B Q4_K_M (atual) | 83% | 83% | 44% | 30% | 46,2 |
+| Ápice | UD-Q4_K_XL | 83% | 77% | 44% | 50% | 48,6 |
+| Ápice | Gemma 4 E4B | 92% | 67% | 94% | 50% | 29,5 |
+
+Confirmação da faixa Aurora (3 rodadas, 435 respostas):
+
+| modelo | acerto | armadilhas | português | doc. longo | s/resposta |
+|---|---|---|---|---|---|
+| Qwen3.5-2B (atual Aurora) | 74% | 74% | 31% | 93% | 12,5 |
+| **Gemma 4 E2B → Própons Prisma (1.30.0)** | **90%** | 72% | **69%** | 83% | 16,1 |
+| LFM2.5-2.6B | 85% | 83% | 50% | 80% | 25,7 |
+
+Decisão:
+- Lume, Aurora e Ápice continuam os mesmos. Nenhuma quantização ganhou do atual e o Gemma 4 E4B inventa mais nas
+  armadilhas.
+- O Gemma 4 E2B entra como quarto modelo, **Própons Prisma**: o melhor em português e no acerto geral, e também lê
+  fotos. É mais pesado (3,1 GB) e ~30% mais lento.
+- O LFM2.5 foi o melhor nas armadilhas, mas é 2x mais lento e não lê fotos.

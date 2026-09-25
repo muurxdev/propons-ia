@@ -27,7 +27,7 @@ using Microsoft.Web.WebView2.WinForms;
 static class Program
 {
     public const string Titulo = "Própons IA";
-    public const string Versao = "1.29.0";
+    public const string Versao = "1.30.0";
     static Mutex unica;
 
     [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
@@ -85,7 +85,13 @@ class Modelo
         Arquivo = "Qwen3.5-4B-Q4_K_M.gguf", Tamanho = 2740937888, RamMin = 8,
         Url = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
         Sha256 = "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4" };
-    public static readonly Modelo[] Todos = { Leve, Normal, Avancado };
+    // Gemma 4 E2B (Google): o melhor em português no placar de 25/09/2026; outra família, então a visão vem explícita
+    public static readonly Modelo Prisma = new Modelo { Id = "prisma", Nome = "Prisma (Gemma 4 E2B)", Descricao = "o melhor em português, mais pesado",
+        Arquivo = "gemma-4-E2B-it-Q4_K_M.gguf", Tamanho = 3106738272, RamMin = 8,
+        Url = "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf",
+        Sha256 = "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
+        VisaoArquivo = "mmproj-gemma-4-E2B-it-F16.gguf", VisaoUrl = "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/mmproj-F16.gguf" };
+    public static readonly Modelo[] Todos = { Leve, Normal, Avancado, Prisma };
     public static Modelo PorId(string id) { foreach (Modelo m in Todos) if (m.Id == id) return m; return null; }
 
     // módulo de visão (ler fotos): baixado só quando a pessoa manda a primeira foto
@@ -104,6 +110,7 @@ class Modelo
         Leve.VisaoTamanho = 204987232; Leve.VisaoSha = "56e4c6cfe73b0c82e3e82bc518d7591997e61d81f723fc41a586f4fa69ea2453";
         Normal.VisaoTamanho = 668227264; Normal.VisaoSha = "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7";
         Avancado.VisaoTamanho = 672423616; Avancado.VisaoSha = "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864";
+        Prisma.VisaoTamanho = 985654080; Prisma.VisaoSha = "140be8d7849741f88c50757d529b84373ee8e27052cc2236855b537f4a8215fa";
     }
 }
 
