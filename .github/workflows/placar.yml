@@ -61,7 +61,7 @@ jobs:
         with:
           name: placar-${{ matrix.modelo.nome }}
           path: |
-            treino/avaliacao/resultado-*.md
+            treino/avaliacao/resultado-${{ matrix.modelo.nome }}-*.md
             /tmp/motor-*.log
 
   resumo:

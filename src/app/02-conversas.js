@@ -89,11 +89,16 @@ function desenharLista() {
   let g = '', html = '';
   for (const c of [...fixadas, ...emPasta, ...soltas]) {
     const gr = c.fixada ? 'Fixadas' : c.pasta ? '📁 ' + c.pasta : grupoData(c.atualizada);
-    if (gr !== g) { g = gr; html += `<div class="grupo">${esc(gr)}</div>`; }
+    if (gr !== g) {
+      g = gr;
+      if (c.pasta && !c.fixada) { const cad = lerCadernos()[c.pasta], nf = cad && cad.fontes ? cad.fontes.length : 0; html += `<button class="grupo grupo-pasta" data-caderno="${esc(c.pasta)}" title="Caderno: fontes e instruções desta pasta">${esc(gr)}${nf ? `<small>${nf} ${nf === 1 ? 'fonte' : 'fontes'}</small>` : ''}<span class="grupo-cfg">${ICO.caderno}</span></button>`; }
+      else html += `<div class="grupo">${esc(gr)}</div>`;
+    }
     const ach = achados.get(c.id);
     html += `<div class="item${atual && c.id === atual.id ? ' atual' : ''}${ach && ach.trecho ? ' com-trecho' : ''}" data-id="${esc(c.id)}"${ach && ach.i != null ? ` data-msg="${ach.i}"` : ''} role="button" tabindex="0" title="${esc(c.titulo)}"><span>${esc(c.titulo)}${ach && ach.trecho ? `<small class="trecho">${esc(ach.trecho)}</small>` : ''}</span><button class="mais" data-menu="${esc(c.id)}" aria-label="Opções da conversa">${ICO.mais}</button></div>`;
   }
   l.innerHTML = html;
+  l.querySelectorAll('[data-caderno]').forEach(b => b.onclick = () => abrirCaderno(b.dataset.caderno));
   l.querySelectorAll('.item').forEach(it => {
     it.onclick = e => {
       if (e.target.closest('input')) return;
@@ -220,8 +225,10 @@ function boasVindas() {
 }
 // se a hora virar com a tela inicial aberta, a saudação acompanha
 setInterval(() => { const h = document.querySelector('#boasvindas .sd'); if (h && h.textContent !== saudacao() + ',') h.textContent = saudacao() + ','; }, 60000);
-function nova() {
-  fecharTela();
+// "Nova conversa neste caderno": a conversa só nasce na primeira mensagem, então a pasta espera aqui até lá
+let pastaDaNova = '';
+function nova(pasta) {
+  fecharTela(); pastaDaNova = typeof pasta === 'string' ? pasta : '';
   if (atual) atual.rascunho = '';   // o que estava na caixa vai junto para a conversa nova
   atual = null; cancelarEdicao(); marcarAberta(null);
   $('#tituloAtual').textContent = 'Própons IA';
@@ -373,7 +380,11 @@ function addEu(m, ultima) {
    trocar: o elemento da resposta que acabou de ser escrita; a versão final entra no lugar dele, sem animar de novo */
 const htmlStatusIa = (pensou, conhecimentos) => pensou || (conhecimentos && conhecimentos.length)
   ? `<div class="ia-status">${pensou ? htmlLinhaPensa(pensou) : ''}${conhecimentos && conhecimentos.length ? htmlUsouConh(conhecimentos) : ''}</div>` : '';
-const htmlUsouConh = ks => `<div class="usou-conh">${ICO.conhecimento}<span>Conhecimento: ${ks.map(esc).join(', ')}</span></div>`;
+const htmlUsouConh = ks => {
+  const cad = ks.filter(k => /^caderno /.test(k)).map(k => k.slice(8)), outros = ks.filter(k => !/^caderno /.test(k));
+  const t = [cad.length ? 'Caderno: ' + cad.map(esc).join(', ') : '', outros.length ? 'Conhecimento: ' + outros.map(esc).join(', ') : ''].filter(Boolean).join(' · ');
+  return `<div class="usou-conh">${cad.length ? ICO.caderno : ICO.conhecimento}<span>${t}</span></div>`;
+};
 function addIa(m, ultima, trocar) {
   const d = document.createElement('div'); d.className = 'msg ia' + (trocar ? ' sem-entrada' : ''); d._msg = m;
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown

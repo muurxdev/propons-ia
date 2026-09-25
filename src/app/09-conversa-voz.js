@@ -40,4 +40,26 @@ function vozDepoisDaResposta(msg) {
     clearInterval(vozEspera); setTimeout(escutarDeNovo, 400);
   }, 250);
 }
+/* aula gravada (ou áudio longo mandado): o texto vira um arquivo anexado e a pessoa escolhe o que fazer com ele */
+function folhaAula(texto, segundos, nomeArquivo) {
+  const min = Math.max(1, Math.round(segundos / 60)), agora = new Date();
+  const nome = (nomeArquivo ? String(nomeArquivo).replace(/\.[^.]+$/, '') : 'Aula ' + agora.toLocaleDateString('pt-BR').slice(0, 5).replace('/', '-') + ' ' + agora.toTimeString().slice(0, 5).replace(':', 'h')) + '.txt';
+  const anexar = () => { anexos = anexos.filter(a => a.nome !== nome); anexos.push({ nome, tam: new Blob([texto]).size, lang: 'texto', conteudo: texto }); desenharChips(); ajustar(); };
+  const opcoes = [['resumo', ICO.resumo, 'Resumir a aula', 'Os pontos principais, em tópicos'], ['flashcards', ICO.cartoes, 'Fazer flashcards', 'Cartões para revisar depois'],
+    ['mapa', ICO.mapa, 'Mapa mental', 'As ideias da aula ligadas'], ...(PLATAFORMA.temFala ? [['podcast', ICO.podcast, 'Ouvir como podcast', 'Duas vozes revisando a aula']] : [])];
+  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  f.innerHTML = `<div class="dlg folha">${topoCentro('Aula transcrita · ' + min + ' min')}
+    <p class="info" style="margin:0 8px 10px">${esc(texto.slice(0, 220))}${texto.length > 220 ? '…' : ''}</p>
+    <div class="opcoes linhas">${opcoes.map(([k, ico, t, s]) => `<button data-aula="${k}"><span class="oi">${ico}</span><span class="pt"><b>${t}</b><small>${s}</small></span>${ICO.seta}</button>`).join('')}
+      <button data-aula="so"><span class="oi">${ICO.arquivo}</span><span class="pt"><b>Só anexar</b><small>Fica na mensagem para você perguntar o que quiser</small></span></button></div></div>`;
+  const folha = f.firstChild, sair = () => animarSaida(f, folha);
+  f.fechar = () => { sair(); anexar(); }; f.onclick = e => { if (e.target === f) f.fechar(); }; folha.querySelector('[data-x]').onclick = f.fechar;
+  folhaArrastavel(f, folha, f.fechar);
+  folha.querySelectorAll('[data-aula]').forEach(b => b.onclick = () => {
+    sair(); anexar(); const k = b.dataset.aula;
+    if (k === 'so') { toast('A aula está anexada: pergunte o que quiser sobre ela.'); $('#entrada').focus(); return; }
+    definirModo(k); enviar('Esta é a transcrição da minha aula (' + min + ' min).');
+  });
+  pausarDesenho(); document.body.appendChild(f);
+}
 function interromperVoz() { pararLeitura(); clearInterval(vozEspera); setTimeout(escutarDeNovo, 200); }

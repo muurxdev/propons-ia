@@ -88,6 +88,34 @@ for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
 await espera(600);
 r.prefixo = await js(`(() => { const p = window.__pedidos.filter(x => !x.esquema); const a = p[0].msgs, b = p[p.length - 1].msgs; return JSON.stringify({ n: p.length, sistemaIgual: a[0].content === b[0].content, perguntaIgual: a[1].content === b[1].content, temContexto: /^<contexto>/.test(b[b.length - 1].content), curtaGuardada: /direta e curta/.test(a[1].content) }); })()`);
 await js(`definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// caderno por matéria: a pasta com fonte manda o trecho certo da fonte junto da pergunta e a pasta vira botão na lista
+r.caderno = await js(`(async () => {
+  const esperar = ms => new Promise(r => setTimeout(r, ms));
+  const antes = pref('cadernos');
+  const apostila = Array.from({ length: 60 }, (_, i) => 'Página ' + (i + 1) + '. ' + (i === 41 ? 'A enzima rubisco fixa o CO2 no ciclo de Calvin.' : 'Texto de enchimento sobre biologia geral e revisão.')).join('\\n');
+  salvarCadernos({ Biologia: { instrucoes: 'Foque no ENEM.', fontes: [{ id: 'f1', nome: 'Apostila de Bio', texto: apostila }] } });
+  nova('Biologia'); window.__pedidos = [];
+  $('#entrada').value = 'Qual enzima fixa o CO2 no ciclo de Calvin?'; ajustar(); $('#enviar').click();
+  for (let i = 0; i < 40 && (!atual || atual.msgs.length < 2 || geracao); i++) await esperar(200);
+  await esperar(300);
+  const p = window.__pedidos.filter(x => !x.esquema).pop(), u = p.msgs[p.msgs.length - 1].content;
+  desenharLista(); const botao = !!document.querySelector('#lista [data-caderno="Biologia"]');
+  const chip = (document.querySelector('.msg.ia:last-of-type .usou-conh') || {}).textContent || '';
+  pref('cadernos', antes || ''); conversas = conversas.filter(c => c !== atual); nova();
+  return JSON.stringify({ trecho: /rubisco/.test(u), instrucoes: /Foque no ENEM/.test(u), fonte: /Apostila de Bio/.test(u), botao, chip });
+})()`);
+// aula gravada (áudio longo): vira arquivo anexado e "Resumir a aula" manda no modo resumo com a transcrição
+r.aula = await js(`(async () => {
+  const esperar = ms => new Promise(r => setTimeout(r, ms));
+  nova(); folhaAula('Hoje vamos estudar a Revolução Francesa. '.repeat(80), 900); await esperar(400);
+  const opcoes = [...document.querySelectorAll('[data-aula]')].map(b => b.dataset.aula).join(',');
+  document.querySelector('[data-aula="resumo"]').click();
+  for (let i = 0; i < 40 && (!atual || atual.msgs.length < 2 || geracao); i++) await esperar(200);
+  const u = atual && atual.msgs.find(m => m.role === 'user');
+  const r = { opcoes, modo: u && u.modo, anexo: u && (u.anexos || []).map(a => a.nome).join(','), tem: !!(u && (u.anexos || []).some(a => /Revolução Francesa/.test(a.conteudo))) };
+  conversas = conversas.filter(c => c !== atual); nova();
+  return JSON.stringify(r);
+})()`);
 // pesquisa ligada: o botão aparece na caixa assim que o ajuste chega (antes só depois de desligar e ligar no "+")
 r.pesquisa = await js(`(() => { const antes = pref('pesquisaWeb'); localStorage.removeItem('pesquisaWeb'); atualizarBotaoPesquisa(); const esc = $('#btPesquisa').hidden;
   aplicarPrefsDoArquivo({ pesquisaWeb: 'sim' }); const apareceu = !$('#btPesquisa').hidden;
@@ -194,6 +222,8 @@ await espera(400);
 r.continuou = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1], d = [...document.querySelectorAll('.msg.ia')].pop(); return JSON.stringify({ pensou: !!m.pensou, tempo: m.tempo, linha: !!d.querySelector('.ia-status .pensa-linha'), texto: m.texto.slice(-20), giroSolto: !!document.querySelector('.giro') }); })()`);
 await js(`PLATAFORMA.gerar = window.__g0; definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
 const J = x => JSON.parse(x);
+ok('aula gravada: vira arquivo e "Resumir a aula" manda no modo resumo com a transcrição', (o => /resumo,flashcards,mapa/.test(o.opcoes) && o.modo === 'resumo' && /^Aula .*\.txt$/.test(o.anexo) && o.tem)(J(r.aula)), r.aula);
+ok('caderno: a pergunta vai com o trecho certo da fonte e as instruções; a pasta abre o caderno', (o => o.trecho && o.instrucoes && o.fonte && o.botao && /Caderno: Biologia/.test(o.chip))(J(r.caderno)), r.caderno);
 ok('pesquisa ligada: o botão aparece na caixa quando o ajuste chega', (o => o.esc && o.apareceu)(J(r.pesquisa)), r.pesquisa);
 ok('resumo em áudio: falas em ordem, alternando as vozes, com destaque', (o => JSON.stringify(o.vozes) === '[0,1,0]' && JSON.stringify(o.destaques) === '["0","1","2"]' && o.fim)(J(r.podcast)), r.podcast);
 ok('raciocínio vazado ("… </think>") sai da resposta e vai para o raciocínio', (o => o.texto === 'Resposta: 42.' && /conta simples/.test(o.pensou) && !/think|contexto/.test(o.tela))(J(r.vazou)), r.vazou);

@@ -133,7 +133,7 @@ let filaEnvio = [];
 function enfileirar(texto, lista) {
   if (!atual) {   // "Nova conversa" aberta enquanto outra responde: a mensagem já cria a conversa dela
     const base = (texto || lista.map(a => a.nome).join(', ') || 'Conversa').replace(/\s+/g, ' ').trim();
-    atual = { id: novoId(), titulo: (base.match(/^.{0,60}?[.!?](?=\s|$)/) || [base.slice(0, 60)])[0].replace(/[.!?]+$/, '') || 'Conversa', criada: Date.now(), atualizada: Date.now(), msgs: [] };
+    atual = { id: novoId(), titulo: (base.match(/^.{0,60}?[.!?](?=\s|$)/) || [base.slice(0, 60)])[0].replace(/[.!?]+$/, '') || 'Conversa', criada: Date.now(), atualizada: Date.now(), msgs: [], ...(pastaDaNova ? { pasta: pastaDaNova } : {}) }; pastaDaNova = '';
     marcarAberta(atual); conversas.unshift(atual); $('#tituloAtual').textContent = atual.titulo; $('#conversa').innerHTML = ''; desenharLista();
   }
   const conv = atual;
@@ -183,7 +183,7 @@ async function enviar(texto, origem) {
   if (!atual) {
     const base = (texto || (fotos.length ? (fotos.length === 1 ? 'Foto' : fotos.length + ' fotos') : lista.map(a => a.nome).join(', '))).replace(/\s+/g, ' ').trim();
     const titulo = (base.match(/^.{0,60}?[.!?](?=\s|$)/) || [base.slice(0, 60)])[0].replace(/[.!?]+$/, '') || 'Conversa';
-    atual = { id: novoId(), titulo, criada: Date.now(), atualizada: Date.now(), msgs: [] }; marcarAberta(atual);
+    atual = { id: novoId(), titulo, criada: Date.now(), atualizada: Date.now(), msgs: [], ...(pastaDaNova ? { pasta: pastaDaNova } : {}) }; pastaDaNova = ''; marcarAberta(atual);
     conversas.unshift(atual); $('#tituloAtual').textContent = atual.titulo;
   }
   const m = { role: 'user', texto, llm: textoParaModelo(texto || (fotos.length && !lista.length ? (fotos.length === 1 ? 'Descreva e explique esta foto.' : 'Descreva e explique estas fotos.') : ''), lista) };
@@ -372,6 +372,14 @@ async function responder(conv, continuacao) {
     if (gr) {
       msg.grafico = gr; CTX += '\n\n' + GRAFICO.fatos(gr);
       if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlGrafico(gr); const card = c.firstElementChild; if (card) { alvo.parentNode.insertBefore(card, alvo); ligarGrafico(alvo.parentNode); rolar(); } }
+    }
+  }
+  // caderno por matéria (13-cadernos.js): a pasta desta conversa tem fontes e instruções próprias
+  if (!comEsquema && texto.trim()) {
+    const cad = cadernoDe(conv);
+    if (cad) {
+      const b = blocoCaderno(conv.pasta, cad, texto);
+      if (b) { CTX += '\n\n' + b; msg.conhecimentos = (msg.conhecimentos || []).concat('caderno ' + conv.pasta); const s = status(); if (s && !s.querySelector('.usou-conh')) { s.insertAdjacentHTML('beforeend', htmlUsouConh(msg.conhecimentos)); rolar(); } else if (s) s.querySelector('.usou-conh').outerHTML = htmlUsouConh(msg.conhecimentos); }
     }
   }
   // lugar, hora de outra cidade e clima: dados reais pegos agora (12-lugar.js), com o cartão na conversa

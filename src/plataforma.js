@@ -337,6 +337,9 @@ const baseLocal = (location.protocol.startsWith('http') && location.hostname !==
     // Área de código → Rodar (só o app do Windows por enquanto): { arquivos:[{nome,conteudo}], principal, entrada }
     podeRodar: tipo === 'windows',
     rodarCodigo(d) { return pedir('rodarCodigo', d, 60000); },
+    // Android: mede algumas combinações de núcleos com o motor de verdade e guarda a mais rápida (1 a 3 minutos)
+    podeOtimizar: tipo === 'android',
+    otimizarNucleos() { return pedir('otimizarNucleos', {}, 900000); },
     // o que chegou de outro app pelo "compartilhar" do sistema (Android): { texto?, imagem? (data: URL), nome? } ou null
     pegarCompartilhado() { return tipo === 'android' ? pedir('compartilhado', {}, 10000) : Promise.resolve(null); },
     tema(v) { if (tipo !== 'web') pedir('tema', { v }, 3000).catch(() => {}); },

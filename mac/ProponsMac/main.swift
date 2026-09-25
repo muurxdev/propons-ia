@@ -328,7 +328,9 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         if motor == nil { porta = portaLivre() }
         let exe = pastaMotor.appendingPathComponent("llama-server")
         let cfg = configMotor()
-        var args = ["-m", arq.path, "--host", "127.0.0.1", "--port", "\(porta)", "--path", recursos.appendingPathComponent("interface").path]
+        // API na rede local ligada: o motor aceita pedidos de outros aparelhos da rede (sempre com a chave)
+        let host = (lerConfig()["api"] as? Bool ?? false) ? "0.0.0.0" : "127.0.0.1"
+        var args = ["-m", arq.path, "--host", host, "--port", "\(porta)", "--path", recursos.appendingPathComponent("interface").path]
             + cfg.args + ["--api-key-file", arquivoChave().path]
         if visaoLigada(), let v = acharModelo(modelo.visao()) { args += ["--mmproj", v.path, "--image-max-tokens", "\(cfg.imagem)"]; visaoAtiva = true } else { visaoAtiva = false }
         if ProcessInfo.processInfo.environment["PROPONS_SEM_GPU"] == "1" { args += ["-ngl", "0"] }   // testes em máquina virtual sem GPU
@@ -478,6 +480,18 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         case "carregar": return carregarConversas()
         case "salvar": try salvarConversas(a["dados"] as? String ?? "[]"); return true
         case "sistema": return sistema()
+        case "ligarApi":
+            let ligar = a["ligar"] as? Bool ?? false
+            if baixandoId != nil || trocando { throw erro("espere o download ou a troca atual terminar") }
+            var c = lerConfig(); c["api"] = ligar; salvarConfig(c)
+            if let p = motor, p.isRunning {   // sobe de novo no endereço certo; a página fica aberta e reconecta
+                trocando = true; defer { trocando = false }
+                evento("motor", ["estado": "trocando"])
+                pararMotor()
+                if let e = await ligarMotor() { evento("motor", ["estado": "erro", "mensagem": e]); throw erro(e) }
+                evento("motor", ["estado": "pronto", "nome": modelo.nome, "visao": visaoAtiva])
+            }
+            return ["ligada": ligar, "porta": porta, "enderecos": enderecosLan()]
         case "tema": return true
         case "link":
             if let s = a["url"] as? String, let u = URL(string: s), ["http", "https"].contains(u.scheme ?? "") { NSWorkspace.shared.open(u) }
@@ -632,7 +646,25 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMess
         s["versao"] = VERSAO; s["modelos"] = modelos; s["vozes"] = vozes
         s["visaoLigada"] = visaoLigada(); s["visaoAtiva"] = visaoAtiva; s["temVisao"] = true
         s["temTranscricao"] = fm.isExecutableFile(atPath: recursos.appendingPathComponent("voz/whisper-cli").path)
+        s["api"] = ["suporte": true, "ligada": lerConfig()["api"] as? Bool ?? false, "porta": porta, "enderecos": enderecosLan()] as [String: Any]
         return s
+    }
+    // IPv4 da rede local (Wi-Fi, cabo), para mostrar o endereço da API
+    func enderecosLan() -> [String] {
+        var lista: [String] = []
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let primeiro = ifaddr else { return [] }
+        defer { freeifaddrs(ifaddr) }
+        for p in sequence(first: primeiro, next: { $0.pointee.ifa_next }) {
+            let i = p.pointee
+            guard let a = i.ifa_addr, a.pointee.sa_family == UInt8(AF_INET), (Int32(i.ifa_flags) & IFF_LOOPBACK) == 0, (Int32(i.ifa_flags) & IFF_UP) != 0 else { continue }
+            var nome = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            if getnameinfo(a, socklen_t(a.pointee.sa_len), &nome, socklen_t(nome.count), nil, 0, NI_NUMERICHOST) == 0 {
+                let ip = String(cString: nome)
+                if ip.hasPrefix("10.") || ip.hasPrefix("192.168.") || ip.range(of: "^172\\.(1[6-9]|2[0-9]|3[01])\\.", options: .regularExpression) != nil { lista.append(ip) }
+            }
+        }
+        return lista
     }
 
     // MARK: transcrição (whisper-cli)

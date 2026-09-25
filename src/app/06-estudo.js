@@ -166,9 +166,14 @@ function agendarCartao(c, q) {   // q: 0 errei · 3 difícil · 4 bom · 5 fáci
   }
   c.ultima = Date.now();
 }
-function exportarAnki(cartoes) {
-  const limpo = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
-  PLATAFORMA.salvarArquivo('flashcards-propons.txt', '#separator:tab\n#html:true\n' + cartoes.map(c => `${limpo(c.frente)}\t${limpo(c.verso)}`).join('\n') + '\n', 'text/plain').then(r => r !== false && toast('Arquivo pronto para importar no Anki.')).catch(e => toast('Não foi possível exportar: ' + e.message));
+// baralho do Anki de verdade (.apkg, src/anki.js): abre com "Importar" no Anki, AnkiDroid ou AnkiMobile
+function exportarAnki(cartoes, nome) {
+  const baralho = String(nome || (atual && atual.titulo) || 'Própons IA').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Própons IA';
+  let bytes; try { bytes = ANKI.gerarApkg(cartoes, baralho); } catch (e) { toast('Não foi possível montar o baralho: ' + e.message, 4000); return; }
+  const arquivo = baralho.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w -]+/g, '').trim().replace(/\s+/g, '-').toLowerCase().slice(0, 40) || 'propons';
+  PLATAFORMA.salvarArquivo(arquivo + '.apkg', bytes, 'application/octet-stream')
+    .then(r => r !== false && toast('Baralho pronto: abra o arquivo no Anki (Arquivo → Importar).', 4000))
+    .catch(e => toast('Não foi possível exportar: ' + e.message, 4000));
 }
 // ancora: o botão que abriu (no PC o Revisar flutua ao lado dele); null = janela no centro (aberto dos Ajustes)
 function abrirRevisao(treino, ancora) {
@@ -217,7 +222,7 @@ function abaEstudo(c) {
     <div class="secao" style="margin-top:18px"><h4>Quizzes</h4><p class="info" style="margin:0 12px">${b.quizzes ? `${b.quizzes} ${b.quizzes === 1 ? 'questão respondida' : 'questões respondidas'} · ${pct}% de acerto` : 'Nenhuma questão respondida ainda. Use "+" → Modos de estudo → Quiz.'}</p></div>
     <div class="secao" style="margin-top:18px"><h4>Baralho</h4><div class="botoes" style="justify-content:flex-start;padding:0 12px"><button class="btn" id="expBaralho"${b.cartoes.length ? '' : ' disabled'}>Exportar para o Anki</button><button class="btn perigo" id="apagarBaralho"${b.cartoes.length ? '' : ' disabled'}>Apagar o baralho</button></div></div>`;
   c.querySelector('#revisarHoje').onclick = () => abrirRevisao(null, null);
-  c.querySelector('#expBaralho').onclick = () => exportarAnki(b.cartoes);
+  c.querySelector('#expBaralho').onclick = () => exportarAnki(b.cartoes, 'Própons IA — meu baralho');
   c.querySelector('#apagarBaralho').onclick = async () => { if (await confirmar('Apagar o baralho?', `<p>${b.cartoes.length} cartões e o histórico de revisões serão apagados.</p>`, 'Apagar')) { salvarBaralho({ cartoes: [], revisoes: 0, acertos: 0 }); desenharAba(); desenharNav(); } };
 }
 

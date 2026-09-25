@@ -210,7 +210,7 @@ async function abaModelo(c) {
     ${PLATAFORMA.temVisao && !web ? `<div class="secao" style="margin-top:18px"><h4>Fotos</h4><div class="cartao"><button class="interruptor" id="swVisao" role="switch" aria-checked="${!!s.visaoLigada}"><span class="pt"><b>Ler fotos (visão)</b><small>${s.visaoAtiva ? 'Ligada: a IA entende fotos e prints' : 'Desligada: liga sozinha quando você manda uma foto'}</small></span><span class="chave"></span></button></div></div>` : ''}
     ${s.gpu && !web ? `<div class="secao" style="margin-top:18px"><h4>Aceleração por GPU</h4><div class="cartao"><button class="interruptor" id="swGpu" role="switch" aria-checked="${!!s.gpu.ligada}"><span class="pt"><b>Usar a placa de vídeo (Vulkan)</b><small>${descricaoGpu(s.gpu)}</small></span><span class="chave"></span></button>${s.gpu.baixada && !s.gpu.ligada && !baixando['gpu-vulkan'] ? `<button class="btn link" data-gpu="apagar" style="margin:8px 12px 10px">Apagar o módulo (${gbBonito(43658240)})</button>` : ''}</div></div>` : ''}
     ${s.api && s.api.suporte ? `<div class="secao" style="margin-top:18px"><h4>API na rede local</h4><div class="cartao"><button class="interruptor" id="swApi" role="switch" aria-checked="${!!s.api.ligada}"><span class="pt"><b>Deixar outros aparelhos usarem esta IA</b><small>${s.api.ligada ? 'Ligada: compatível com a API da OpenAI, na sua rede Wi-Fi' : 'Desligada (só este computador)'}</small></span><span class="chave"></span></button>
-      ${s.api.ligada ? `<div class="api-info"><p class="info">Endereço: ${(s.api.enderecos || []).map(ip => `<code>http://${esc(ip)}:${s.api.porta}/v1</code>`).join(' · ') || '(sem rede)'}</p><p class="info">Chave (Bearer): <code id="apiChave">${esc(PLATAFORMA.chave)}</code> <button class="icone" data-copiar="apiChave" aria-label="Copiar chave">${ICO.copiar}</button></p><p class="info">Quem tiver o endereço e a chave usa a IA deste computador. O Windows pode pedir para liberar o "llama-server" no firewall.</p></div>` : ''}</div></div>` : ''}
+      ${s.api.ligada ? `<div class="api-info"><p class="info">Endereço: ${(s.api.enderecos || []).map(ip => `<code>http://${esc(ip)}:${s.api.porta}/v1</code>`).join(' · ') || '(sem rede)'}</p><p class="info">Chave (Bearer): <code id="apiChave">${esc(PLATAFORMA.chave)}</code> <button class="icone" data-copiar="apiChave" aria-label="Copiar chave">${ICO.copiar}</button></p><p class="info">Quem tiver o endereço e a chave usa a IA deste aparelho (outro aparelho: Ajustes → Modelos de IA → Usar a IA de outro aparelho). ${CELULAR ? 'Funciona enquanto o app estiver aberto; na tomada é melhor, porque gasta bateria.' : PLATAFORMA.tipo === 'mac' ? 'O macOS pode perguntar se aceita conexões para o llama-server.' : 'O Windows pode pedir para liberar o "llama-server" no firewall.'}</p></div>` : ''}</div></div>` : ''}
     ${s.vozes ? `<div class="secao" style="margin-top:18px"><h4>Transcrição de áudio</h4><div class="lista-modelos" style="margin:0">${s.vozes.map(v => {
       const b = baixando[v.id];
       const st = b ? Math.floor(b.pct * 100) + '%' : v.atual ? (v.baixado ? 'Em uso' : 'Escolhida') : v.baixado ? 'Baixada' : gbBonito(v.tamanho);
@@ -417,6 +417,20 @@ function abaDiagnostico(c) {
     <div class="botoes" style="margin-bottom:12px"><button class="btn primario" id="rodarDiag">Rodar diagnóstico</button><button class="btn" id="copDiag" ${ultimoRelatorio ? '' : 'hidden'}>${ICO.copiar}Copiar relatório</button></div>
     <ul class="diag" id="listaDiag"></ul>`;
   $('#rodarDiag').onclick = rodarDiagnostico;
+  if (PLATAFORMA.podeOtimizar) {
+    c.insertAdjacentHTML('beforeend', `<div class="secao" style="margin-top:18px"><h4>Velocidade neste celular</h4><div class="cartao"><p class="info" style="margin-top:0!important">Cada celular tem núcleos grandes e pequenos diferentes. Aqui a IA responde a mesma pergunta com algumas combinações e fica a mais rápida (1 a 3 minutos; a IA fica ocupada enquanto isso).</p><div class="botoes"><button class="btn" id="otimizar">Otimizar a velocidade</button></div><ul class="diag" id="listaOtimizar"></ul></div></div>`);
+    c.querySelector('#otimizar').onclick = async () => {
+      if (geracao) { toast('Espere a resposta terminar.'); return; }
+      const b = c.querySelector('#otimizar'), ul = c.querySelector('#listaOtimizar'); b.disabled = true; b.textContent = 'Medindo…'; ul.innerHTML = '';
+      try {
+        const r = await PLATAFORMA.otimizarNucleos();
+        const melhor = (r.resultados || []).reduce((a, x) => !a || x.segundos < a.segundos ? x : a, null);
+        ul.innerHTML = (r.resultados || []).map(x => `<li><span class="ic">${x === melhor ? '✅' : '·'}</span><div><b>${x.t} para escrever · ${x.tb} para ler</b><small>lê ${Math.round(x.leitura)} tokens/s · escreve ${x.escrita.toFixed(1)} tokens/s · ${x.segundos.toFixed(1)} s por resposta curta</small></div></li>`).join('');
+        toast(melhor ? `Pronto: usando ${melhor.t} núcleos para escrever e ${melhor.tb} para ler.` : 'Não deu para medir agora.', 4000);
+      } catch (e) { toast('Não deu para otimizar: ' + e.message, 4000); }
+      b.disabled = false; b.textContent = 'Otimizar a velocidade';
+    };
+  }
   $('#copDiag').onclick = () => copiarTexto(ultimoRelatorio).then(() => toast('Relatório copiado.'));
   if (ultimoRelatorio && window.__ultimaListaDiag) $('#listaDiag').innerHTML = window.__ultimaListaDiag;
 }

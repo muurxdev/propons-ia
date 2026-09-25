@@ -3,7 +3,8 @@
    em volta, porque o whisper ignora trechos com menos de 1 segundo. */
 const TRECHO = PLATAFORMA.tipo === 'ios' ? 50 : 180;   // segundos por trecho (o reconhecimento do iPhone aceita ~1 min)
 let gravacao = null, transcrevendo = false, esperaVoz = null, trechoAtual = null, cancelarTranscricao = null;
-const AVISO_GRAV = 10 * 60, LIMITE_GRAV = 30 * 60;   // segundos: aviso e parada automática (memória do celular)
+// segundos: aviso e parada automática — uma aula inteira cabe (no celular um pouco menos, pela memória)
+const AVISO_GRAV = 10 * 60, LIMITE_GRAV = (CELULAR ? 60 : 90) * 60;
 const mmss = s => (s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') : Math.floor(s / 60)) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 function barraGravacao(modo, texto, pct) {
   const g = $('#gravando');
@@ -65,8 +66,8 @@ async function iniciarGravacao() {
   gravacao.timer = setInterval(() => {
     const seg = (Date.now() - t0) / 1000;
     $('#tempoGrav').textContent = mmss(seg);
-    if (seg >= LIMITE_GRAV) { toast('Gravação de 30 min: parei e vou transcrever. Para continuar, grave de novo.', 5000); pararGravacao(true); return; }
-    if (seg >= AVISO_GRAV && !avisou) { avisou = true; toast('Gravação longa (10 min). Aos 30 min ela para sozinha.', 4000); }
+    if (seg >= LIMITE_GRAV) { toast(`Gravação de ${LIMITE_GRAV / 60} min: parei e vou transcrever. Para continuar, grave de novo.`, 5000); pararGravacao(true); return; }
+    if (seg >= AVISO_GRAV && !avisou) { avisou = true; toast(`Gravando uma aula? Pode seguir: aos ${LIMITE_GRAV / 60} min ela para sozinha e depois dá para resumir e fazer cartões.`, 5000); }
     if (!analisador) return;
     analisador.getFloatTimeDomainData(amostras);
     let q = 0; for (let i = 0; i < amostras.length; i++) q += amostras[i] * amostras[i];
@@ -188,9 +189,11 @@ async function transcreverAudio(blob, mesmoSemFala) {
     }
     if (sinal.aborted) { if (texto) toast('Transcrição cancelada; ficou só o que já tinha sido transcrito.', 3500); else { toast('Transcrição cancelada.'); return; } }
     if (!texto) { if (modoVoz) setTimeout(escutarDeNovo, 300); else toast('Não ouvi nenhuma fala neste áudio.', 3500); return; }
-    porTranscricao(texto);
-    if (modoVoz) { vozTranscreveu(); return; }   // conversa por voz: envia sozinho (e não enche a Biblioteca de falas curtas)
+    if (modoVoz) { porTranscricao(texto); vozTranscreveu(); return; }   // conversa por voz: envia sozinho (e não enche a Biblioteca de falas curtas)
     const segundos = amostras && amostras.length ? amostras.length / 16000 : await duracaoDeAudio(blob);
+    // áudio longo (aula, palestra): vira um arquivo da aula, com resumir / cartões / mapa, em vez de encher a caixa
+    if (segundos > 150 && !(alvoTranscricao && alvoTranscricao.isConnected)) folhaAula(texto, segundos, blob.name);
+    else porTranscricao(texto);
     guardarNaBiblioteca({ tipo: 'audio', nome: blob.name || ('Gravação ' + new Date().toTimeString().slice(0, 5)), tam: blob.size, texto, segundos, audio: blob });
   } catch (e) {
     if (e.name === 'AbortError' || sinal.aborted) toast('Transcrição cancelada.');

@@ -36,6 +36,11 @@ jobs:
       - run: node src/montar.js
       - name: Testes de lógica (algoritmos, markdown, latex…)
         run: for f in src/testes/teste_*.js; do echo "== $f"; node "$f" || exit 1; done
+      - name: O Anki de verdade importa o baralho (.apkg) feito pela Própons
+        run: |
+          pip install --quiet anki
+          ANKI_SAIDA=/tmp/propons.apkg node src/testes/teste_anki.js
+          python3 ferramentas/teste_anki_real.py /tmp/propons.apkg
       - name: ESLint no JavaScript montado + shellcheck nos scripts
         run: bash ferramentas/verificar.sh
       - name: Sintaxe do script da página

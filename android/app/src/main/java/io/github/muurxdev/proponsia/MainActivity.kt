@@ -373,6 +373,52 @@ class MainActivity : Activity() {
     }
 
     // ---------------- motor ----------------
+    /* "Otimizar a velocidade": cada celular tem núcleos grandes e pequenos em proporções diferentes, e o melhor número
+       de threads para ler a pergunta (-tb) e para escrever a resposta (-t) muda de um para outro. Aqui o motor sobe com
+       algumas combinações, responde a mesma pergunta e fica a mais rápida (tempo total para ler ~300 tokens e escrever 48). */
+    private fun medirMotor(): Pair<Double, Double>? = try {
+        val prompt = "Resuma em uma frase: " + "A fotossíntese transforma luz, água e gás carbônico em glicose e oxigênio nos cloroplastos das plantas. ".repeat(12)
+        val c = java.net.URL("http://127.0.0.1:$porta/completion").openConnection() as java.net.HttpURLConnection
+        c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 5000; c.readTimeout = 180000
+        c.setRequestProperty("Content-Type", "application/json"); c.setRequestProperty("Authorization", "Bearer $chave")
+        c.outputStream.use { it.write(JSONObject().put("prompt", prompt).put("n_predict", 48).put("cache_prompt", false).put("temperature", 0).toString().toByteArray()) }
+        val t = JSONObject(c.inputStream.bufferedReader().use { it.readText() }).getJSONObject("timings")
+        Pair(t.getDouble("prompt_per_second"), t.getDouble("predicted_per_second"))
+    } catch (_: Exception) { null }
+    private fun otimizarNucleos(): JSONObject {
+        if (baixandoId != null || trocando) throw Exception("espere o download ou a troca atual terminar")
+        val arq = acharModelo(modelo) ?: throw Exception("baixe um modelo primeiro")
+        val n = Runtime.getRuntime().availableProcessors()
+        val base = if (n >= 8) 4 else if (n >= 4) n / 2 + 1 else n
+        val candidatos = listOf(base to base, base to n, base to maxOf(base, n * 3 / 4), maxOf(2, base - 1) to maxOf(base, n * 3 / 4), minOf(n, base + 2) to n).distinct()
+        val antes = prefs.getInt("threads", -1) to prefs.getInt("threadsLeitura", -1)
+        val resultados = JSONArray(); var melhor: Pair<Int, Int>? = null; var melhorTempo = Double.MAX_VALUE
+        trocando = true
+        try {
+            evento("motor", JSONObject().put("estado", "trocando"))
+            candidatos.forEachIndexed { i, (t, tb) ->
+                evento("otimizar", JSONObject().put("i", i + 1).put("n", candidatos.size))
+                prefs.edit().putInt("threads", t).putInt("threadsLeitura", tb).apply()
+                pararMotor()
+                if (ligarMotor(arq) != null) return@forEachIndexed
+                medirMotor()   // a primeira resposta aquece (carrega o modelo na memória); vale a segunda
+                val m = medirMotor() ?: return@forEachIndexed
+                val tempo = 300 / m.first + 48 / m.second
+                resultados.put(JSONObject().put("t", t).put("tb", tb).put("leitura", m.first).put("escrita", m.second).put("segundos", tempo))
+                if (tempo < melhorTempo) { melhorTempo = tempo; melhor = t to tb }
+            }
+            val (t, tb) = melhor ?: antes
+            prefs.edit().putInt("threads", t).putInt("threadsLeitura", tb).apply()
+            pararMotor(); ligarMotor(arq)
+            evento("motor", JSONObject().put("estado", "pronto").put("nome", modelo.nome))
+        } finally { trocando = false }
+        return JSONObject().put("resultados", resultados).put("t", prefs.getInt("threads", -1)).put("tb", prefs.getInt("threadsLeitura", -1)).put("nucleos", n)
+    }
+    // IPv4 da rede local (Wi-Fi, cabo, roteador do próprio celular), para mostrar o endereço da API
+    private fun enderecosLan(): List<String> = try {
+        java.net.NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }.filterIsInstance<java.net.Inet4Address>().filter { it.isSiteLocalAddress }.map { it.hostAddress ?: "" }.filter { it.isNotEmpty() }
+    } catch (_: Exception) { emptyList() }
     private fun portaLivre(): Int { for (p in 8765..8795) try { ServerSocket(p).close(); return p } catch (_: Exception) {}; return 8765 }
 
     // pid do processo filho (para matar órfãos de uma abertura anterior que morreu sem fechar o motor)
@@ -405,11 +451,15 @@ class MainActivity : Activity() {
         val dir = applicationInfo.nativeLibraryDir
         val exe = File(dir, "libllama_server.so")
         val nucleos = Runtime.getRuntime().availableProcessors()
-        val threads = if (nucleos >= 8) 4 else if (nucleos >= 4) nucleos / 2 + 1 else nucleos
+        // núcleos: o que "Otimizar a velocidade" (Diagnóstico) mediu neste celular, ou o padrão seguro
+        val threads = prefs.getInt("threads", -1).takeIf { it in 1..nucleos } ?: if (nucleos >= 8) 4 else if (nucleos >= 4) nucleos / 2 + 1 else nucleos
+        val threadsLeitura = prefs.getInt("threadsLeitura", -1).takeIf { it in 1..nucleos } ?: threads
         // prioridade menor (nice) que a da tela: a interface continua lisa enquanto a IA responde
         val nice = if (File("/system/bin/nice").exists()) arrayOf("/system/bin/nice", "-n", "5") else emptyArray()
-        val pb = ProcessBuilder(*nice, exe.path, "-m", arq.path, "--host", "127.0.0.1", "--port", "$porta", "--path", pastaInterface.path,
-            *argsMotor(), "--api-key-file", arquivoChave().path, "-t", "$threads", *argsVisao())
+        // API na rede local ligada: o motor aceita pedidos de outros aparelhos do Wi-Fi (sempre com a chave)
+        val host = if (prefs.getBoolean("api", false)) "0.0.0.0" else "127.0.0.1"
+        val pb = ProcessBuilder(*nice, exe.path, "-m", arq.path, "--host", host, "--port", "$porta", "--path", pastaInterface.path,
+            *argsMotor(), "--api-key-file", arquivoChave().path, "-t", "$threads", "-tb", "$threadsLeitura", *argsVisao())
         pb.environment()["LD_LIBRARY_PATH"] = dir
         pb.directory(filesDir); pb.redirectErrorStream(true); pb.redirectOutput(File(filesDir, "motor.log"))
         val p = try { pb.start() } catch (e: Exception) { return "O motor da IA não pôde ser iniciado: ${e.message}" }
@@ -537,6 +587,24 @@ class MainActivity : Activity() {
                         val dados: Any = when (acao) {
                             "carregar" -> carregarConversas()
                             "compartilhado" -> { val c = compartilhado; compartilhado = null; c ?: JSONObject.NULL }
+                            "otimizarNucleos" -> otimizarNucleos()
+                            "ligarApi" -> {
+                                val ligar = args.optBoolean("ligar")
+                                if (baixandoId != null || trocando) throw Exception("espere o download ou a troca atual terminar")
+                                prefs.edit().putBoolean("api", ligar).apply()
+                                // o motor já ligado sobe de novo no endereço certo (a página fica aberta e reconecta sozinha)
+                                if (motor?.isAlive == true) {
+                                    trocando = true
+                                    try {
+                                        evento("motor", JSONObject().put("estado", "trocando"))
+                                        pararMotor()
+                                        val erro = acharModelo(modelo)?.let { ligarMotor(it) }
+                                        if (erro != null) { evento("motor", JSONObject().put("estado", "erro").put("mensagem", erro)); throw Exception(erro) }
+                                        evento("motor", JSONObject().put("estado", "pronto").put("nome", modelo.nome))
+                                    } finally { trocando = false }
+                                }
+                                JSONObject().put("ligada", ligar).put("porta", porta).put("enderecos", JSONArray(enderecosLan()))
+                            }
                             "salvar" -> { salvarConversas(args.optString("dados", "[]")); true }
                             "sistema" -> sistema()
                             "modelo" -> {
@@ -640,6 +708,7 @@ class MainActivity : Activity() {
             .put("discoLivre", filesDir.usableSpace).put("pastaDados", "armazenamento interno do app").put("pastaModelos", "armazenamento interno do app")
             .put("visaoLigada", prefs.getBoolean("visao", false)).put("visaoAtiva", visaoAtiva).put("temVisao", true)
             .put("temTranscricao", File(applicationInfo.nativeLibraryDir, "libwhisper_cli.so").exists()).put("vozes", listaVozes())
+            .put("api", JSONObject().put("suporte", true).put("ligada", prefs.getBoolean("api", false)).put("porta", porta).put("enderecos", JSONArray(enderecosLan())))
             .put("so", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.MANUFACTURER} ${Build.MODEL}")
             .put("versao", packageManager.getPackageInfo(packageName, 0).versionName).put("modelos", lista)
     }
