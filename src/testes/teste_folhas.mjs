@@ -122,6 +122,16 @@ await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); abri
 const t3 = await js(`(() => { const b = document.querySelector('.dlg.mais .dlg-topo').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 12 }; })()`);
 await toque('touchStart', t3.x, t3.y); await espera(16); await toque('touchMove', t3.x, t3.y + 20); await espera(16); await toque('touchEnd'); await espera(500);
 ok('arrastar só um pouquinho (rápido) não fecha a folha', await js(`!!document.querySelector('.dlg-fundo:not(.saindo) .dlg.mais')`));
+// fonte aberta da lista: a lista fica parada embaixo; "Abrir página" não fecha o popup; fechar volta para a lista
+await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); window.__abrir0 = PLATAFORMA.abrirLink; PLATAFORMA.abrirLink = u => { window.__abriu = u; }; abrirListaFontes([{ titulo: 'Wikipédia', url: 'https://pt.wikipedia.org/wiki/X' }, { titulo: 'G1', url: 'https://g1.globo.com/' }]); 1`); await espera(600);
+await js(`document.querySelector('.fontes-lista a').click(); 1`); await espera(600);
+const fl = await js(`JSON.stringify({ atras: document.querySelector('.fontes-dlg').closest('.dlg-fundo').classList.contains('atras'), focoNoEndereco: document.activeElement && document.activeElement.classList.contains('fonte-url') })`);
+await js(`document.querySelector('.fonte-dlg [data-abrir]').click(); 1`); await espera(400);
+const fl2 = await js(`JSON.stringify({ abriu: !!window.__abriu, popup: !!document.querySelector('.dlg-fundo:not(.saindo) .fonte-dlg') })`);
+await js(`document.querySelector('.fonte-dlg [data-x]').click(); 1`); await espera(500);
+ok('fonte aberta da lista: a lista fica parada, o endereço não vem selecionado e "Abrir página" não fecha', !JSON.parse(fl).atras && !JSON.parse(fl).focoNoEndereco && JSON.parse(fl2).abriu && JSON.parse(fl2).popup, fl + ' ' + fl2);
+ok('fechar a fonte volta para a lista (que continua aberta)', await js(`!!document.querySelector('.dlg-fundo:not(.saindo) .fontes-dlg')`));
+await js(`PLATAFORMA.abrirLink = window.__abrir0; document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); 1`);
 // raciocínio aberto antes de começar: anel girando; quando o texto chega, ele sai
 await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); folhaPensa = null; abrirFolhaPensa('', null); 1`); await espera(500);
 const esperaPensa = await js(`(() => { const a = document.querySelector('.pens-anel'); return !!a && getComputedStyle(a).animationName === 'girar'; })()`);

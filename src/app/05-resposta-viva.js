@@ -20,15 +20,15 @@ function abrirListaFontes(fontes) {
     <ol class="fontes-lista">${fontes.map((x, i) => { const d = dominioDe(x.url); return `<li><a href="${esc(x.url)}" data-i="${i}"><span class="fl-ico">${iconeSite(d)}</span><span class="fl-txt"><small><i>${i + 1}</i>${esc(d)}</small><b>${esc(x.titulo || d)}</b></span></a></li>`; }).join('')}</ol></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
-  folha.querySelectorAll('a[data-i]').forEach(a => a.onclick = e => { e.preventDefault(); const x = fontes[+a.dataset.i]; abrirFonte(x.url, x.titulo); });
+  folha.querySelectorAll('a[data-i]').forEach(a => a.onclick = e => { e.preventDefault(); const x = fontes[+a.dataset.i]; abrirFonte(x.url, x.titulo, true); });
   folhaArrastavel(f, folha, sair);
   pausarDesenho(); document.body.appendChild(f);
 }
 /* tocar numa fonte, numa citação [n] ou num link da resposta: um popup com o site, o título e o endereço inteiro para
    copiar, e os botões de abrir, copiar e compartilhar (como o aviso de link do Claude) — nada abre sem querer */
-function abrirFonte(url, titulo) {
+function abrirFonte(url, titulo, porCima) {
   const d = dominioDe(url) || url;
-  const f = document.createElement('div'); f.className = 'dlg-fundo';
+  const f = document.createElement('div'); f.className = 'dlg-fundo' + (porCima ? ' por-cima' : '');
   f.innerHTML = `<div class="dlg folha fonte-dlg">${topoCentro('Fonte')}
     <div class="fonte-cab">${d ? `<img src="https://icons.duckduckgo.com/ip3/${esc(d)}.ico" alt="" onerror="this.remove()">` : ''}<div><b>${esc(d)}</b>${titulo && titulo !== url ? `<small>${esc(titulo)}</small>` : ''}</div></div>
     <input class="campo-texto fonte-url" readonly value="${esc(url)}" aria-label="Endereço da página">
@@ -37,7 +37,7 @@ function abrirFonte(url, titulo) {
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   folha.querySelector('.fonte-url').onfocus = e => e.target.select();
-  folha.querySelector('[data-abrir]').onclick = () => { PLATAFORMA.abrirLink(url); sair(); };
+  folha.querySelector('[data-abrir]').onclick = () => PLATAFORMA.abrirLink(url);   // o popup fica: ao voltar do navegador está tudo onde estava
   folha.querySelector('[data-copiar]').onclick = () => copiarTexto(url).then(() => toast('Link copiado.'));
   const c = folha.querySelector('[data-comp]'); if (c) c.onclick = () => PLATAFORMA.compartilhar(url).catch(() => {});
   folhaArrastavel(f, folha, sair);

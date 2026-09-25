@@ -716,7 +716,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .versao-topo .marca{width:52px;height:52px;border-radius:var(--r2)}
 .versao-topo b{display:block;font-size:var(--t-lg);font-weight:600}
 .versao-topo small{display:block;font-size:var(--t-sm);color:var(--muted)}
-.versao-topo small.nova{color:var(--accent);font-weight:500}
+.versao-topo small.tem-nova{color:var(--accent);font-weight:500}
 .notas{font-size:var(--t-md);max-height:260px;overflow-y:auto;border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
 .notas h1,.notas h2,.notas h3{font-size:var(--t-md);margin:.8em 0 .3em}
 /* novidades da versão: cabeçalho com selo e contagem por tipo, itens com ícone, "ver todas" */
@@ -724,7 +724,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .nv-topo b{display:block;font-size:var(--t-lg);font-weight:600;margin-top:8px}
 .nv-topo small{display:block;color:var(--muted);font-size:var(--t-sm);margin-top:2px}
 .nv-selo{display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:var(--r4);background:var(--accent-soft);color:var(--accent);font-size:var(--t-xs);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
-.nv.nova .nv-selo{background:var(--accent);color:var(--accent-ink)}
+.nv.nv-destaque .nv-selo{background:var(--accent);color:var(--accent-ink)}
 .nv-tipos{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .nv-chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:var(--r4);border:1px solid var(--line);font-size:var(--t-xs);color:var(--muted)}
 .nv-chip svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -736,7 +736,8 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .nv-ico svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .t-novo .nv-ico,.nv-chip.t-novo{color:var(--accent)} .t-novo .nv-ico{background:var(--accent-soft)}
 .t-corrige .nv-ico,.nv-chip.t-corrige{color:var(--ok)}
-.nv-item b{display:block;font-weight:600;font-size:var(--t-md);line-height:1.35}
+.nv-item>div>b{display:block;font-weight:600;font-size:var(--t-md);line-height:1.35}
+.nv-item p b{font-weight:600;color:var(--ink)}
 .nv-item p{margin:3px 0 0;color:var(--muted);font-size:var(--t-sm);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .nv-item{cursor:pointer}
 .nv-item.aberto p{display:block;-webkit-line-clamp:unset}
@@ -871,7 +872,8 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 @media (hover:hover) and (min-width:761px){ .msg.eu>.acoes{opacity:0;transition:opacity var(--t1)} .msg.eu:hover>.acoes,.msg.eu:focus-within>.acoes{opacity:1} }
 /* 25) linha de código comprida: um degradê à direita mostra que rola */
 .txt pre{position:relative}
-.txt pre code{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
+.msg{content-visibility:auto;contain-intrinsic-size:auto 180px}   /* mensagem fora da tela não é desenhada: menus abrem liso numa conversa longa */
+@media (max-width:760px){ .dlg{box-shadow:0 -6px 20px rgba(0,0,0,.22)} .dlg-fundo .dlg{will-change:transform} }
 .rv-fim-botoes{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:16px}
 .rv-fim-botoes .btn svg{width:16px;height:16px}
 /* 13) sugestões para começar, na tela inicial */

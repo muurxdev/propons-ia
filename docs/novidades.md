@@ -3,6 +3,9 @@
 - **Versão para a Microsoft Store:** no Windows 11 com o Controle Inteligente de Aplicativos ligado, programas sem assinatura digital são bloqueados. A release agora traz o pacote `Propons-IA-Windows.msix`, que roda o app, o motor da IA e a transcrição direto da pasta do pacote, e a Microsoft assina tudo na publicação da Store. Na versão da Store, as atualizações chegam pela própria Store, e o módulo de GPU baixável fica de fora.
 - **Política de privacidade** publicada em `docs/privacidade.md` e guia de publicação em `docs/loja-microsoft.md`.
 - **Instalar no Windows:** explica o bloqueio do Controle Inteligente e como resolver.
+- **Atualizações no celular:** a lista de novidades voltou a ficar em uma coluna (estava espremida em três). Só os itens principais contam, e cada um mostra o tipo certo (novidade, melhoria, correção).
+- **Fontes:** abrindo uma fonte pela lista, a lista fica parada embaixo. "Abrir página" não fecha mais o popup, e ao voltar do navegador está tudo onde estava. O endereço não abre mais selecionado.
+- **Menus mais leves numa conversa longa:** as mensagens fora da tela não são desenhadas e a sombra da folha no celular ficou mais leve.
 
 ## Novidades da 1.25.0
 

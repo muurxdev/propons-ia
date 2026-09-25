@@ -250,7 +250,8 @@ function perguntarTexto(titulo, valor) {
 const FOCAVEL = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 new MutationObserver(muts => {
   const abertos = [...document.querySelectorAll('.dlg-fundo:not(.saindo), .painel-fundo:not(.saindo)')];
-  abertos.forEach((f, i) => f.classList.toggle('atras', i < abertos.length - 1));
+  // a de baixo vai para trás, menos quando a de cima é um popup "por cima" (fonte aberta da lista): aí ela fica parada
+  abertos.forEach((f, i) => f.classList.toggle('atras', i < abertos.length - 1 && !abertos[i + 1].classList.contains('por-cima')));
   for (const m of muts) {
     for (const n of m.addedNodes) {
       if (!(n instanceof Element) || !/\b(dlg-fundo|painel-fundo)\b/.test(n.className)) continue;
@@ -258,7 +259,7 @@ new MutationObserver(muts => {
       // abriu por cima de outra folha: entra pela direita, como uma tela de dentro (inclui a que está saindo: é a mesma
       // navegação). No celular fica da mesma altura do menu de baixo: só o menu principal decide o tamanho.
       const baixo = [...document.querySelectorAll('.dlg-fundo, .painel-fundo')].filter(x => x !== n).pop();
-      if (baixo && !/\bpainel-fundo\b/.test(n.className)) {
+      if (baixo && !/\bpainel-fundo\b/.test(n.className) && !n.classList.contains('por-cima')) {
         n.classList.add('lado');
         const h = baixo.firstElementChild ? baixo.firstElementChild.offsetHeight : 0;
         if (estreita() && h > 160) { caixa.style.height = h + 'px'; caixa.style.maxHeight = h + 'px'; }
@@ -268,7 +269,7 @@ new MutationObserver(muts => {
       n._focoAntes = document.activeElement;   // guarda antes de tirar o foco, para devolver ao fechar
       // o teclado sai da frente quando o menu sobe
       try { if (n._focoAntes && n._focoAntes !== document.body && n._focoAntes.blur) n._focoAntes.blur(); } catch (e) {}
-      setTimeout(() => { if (!n.isConnected || n.contains(document.activeElement)) return; const alvo = caixa.querySelector('input, textarea') || caixa; alvo.focus({ preventScroll: true }); }, 30);
+      setTimeout(() => { if (!n.isConnected || n.contains(document.activeElement)) return; const alvo = caixa.querySelector('input:not([readonly]), textarea:not([readonly])') || caixa; alvo.focus({ preventScroll: true }); }, 30);
     }
     for (const n of m.removedNodes) {
       if (!(n instanceof Element) || !n._focoAntes) continue;

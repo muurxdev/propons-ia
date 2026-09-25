@@ -487,7 +487,9 @@ const TIPOS_NOTA = {
 function itensNotas(s) {
   const out = [];
   limparNotas(s).split('\n').forEach(l => {
-    const m = /^\s*[-*]\s+(?:\*\*(.+?)\*\*[:.]?\s*)?(.*)$/.exec(l);
+    const sub = /^\s+[-*]\s+(.*)$/.exec(l);
+    if (sub && out.length) { const u = out[out.length - 1]; u.texto += (u.texto ? '; ' : '') + sub[1].trim(); return; }
+    const m = /^[-*]\s+(?:\*\*(.+?)\*\*[:.]?\s*)?(.*)$/.exec(l);
     if (m) out.push({ titulo: (m[1] || '').replace(/[.:]\s*$/, ''), texto: m[2] || '' });
     else if (out.length && l.trim() && !/^\s*#/.test(l)) out[out.length - 1].texto += ' ' + l.trim();
   });
@@ -498,7 +500,9 @@ function tipoNota(n) {
   if (/^por dentro/i.test(n.titulo)) return 'dentro';
   // correção pelo título (o texto de uma novidade pode dizer "sem chance de erro" sem ser correção)
   if (/(corre[çc]|corrig|consert|arrum|n[ãa]o (trava|some|pula|fecha|cai|falha|apaga)|volta a funcionar)/i.test(n.titulo || t)) return 'corrige';
-  if (/\b(novo|nova|novos|novas|chega|ganha|agora (d[áa]|tem|mostra|l[êe])|passa a)\b/i.test(t)) return 'novo';
+  // melhoria: o que já existia e ficou melhor; o resto (recurso com nome próprio) é novidade
+  if (/\b(melhor|mais (r[áa]pid|leve|limp|clar|leg[íi]vel|compact)|menos|ficou|ficaram|agora (é|são|fica|ficam|abre|aparece)|visual|design|desenho|espaçamento|margens?)\b/i.test(n.titulo)) return 'melhora';
+  if (/\b(novo|nova|novos|novas|chega|ganha|agora (d[áa]|tem|mostra|l[êe])|passa a)\b/i.test(t) || n.titulo) return 'novo';
   return 'melhora';
 }
 const inlineMd = t => md(t).replace(/^\s*<p>|<\/p>\s*$/g, '');
@@ -507,7 +511,7 @@ function htmlNotasVersao(u, nova) {
   const cont = {}; itens.forEach(n => { n.tipo = tipoNota(n); cont[n.tipo] = (cont[n.tipo] || 0) + 1; });
   const data = u.data ? new Date(u.data).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const meta = [data && 'Publicada em ' + data, u.tamanho ? Math.round(u.tamanho / 1048576) + ' MB' : ''].filter(Boolean).join(' · ');
-  return `<div class="nv${nova ? ' nova' : ''}">
+  return `<div class="nv${nova ? ' nv-destaque' : ''}">
     <div class="nv-topo"><span class="nv-selo">${nova ? 'Versão nova' : 'Nesta versão'}</span><b>O que há na ${esc(u.versao)}</b>${meta ? `<small>${esc(meta)}</small>` : ''}
       <div class="nv-tipos">${Object.keys(TIPOS_NOTA).filter(k => cont[k]).map(k => `<span class="nv-chip t-${k}">${TIPOS_NOTA[k][1]}${cont[k]} ${cont[k] > 1 ? ({ novo: 'novidades', melhora: 'melhorias', corrige: 'correções', dentro: 'por dentro' })[k] : ({ novo: 'novidade', melhora: 'melhoria', corrige: 'correção', dentro: 'por dentro' })[k]}</span>`).join('')}</div></div>
     <ol class="nv-lista">${itens.map((n, i) => `<li class="nv-item t-${n.tipo}"${i >= 4 ? ' hidden' : ''}><span class="nv-ico" title="${TIPOS_NOTA[n.tipo][0]}">${TIPOS_NOTA[n.tipo][1]}</span><div>${n.titulo ? `<b>${inlineMd(n.titulo)}</b>` : ''}${n.texto ? `<p>${inlineMd(n.texto)}</p>` : ''}</div></li>`).join('')}</ol>
@@ -558,7 +562,7 @@ function instrucoesAtualizacao() {
 function abaAtualizacoes(c) {
   const u = atualizacao;
   const status = u ? `Nova versão ${esc(u.versao)} disponível` : u === false ? 'Você está na versão mais recente' : ultimaVerificacao ? 'Verificado ' + tempoAtras(ultimaVerificacao) : 'Ainda não verificado';
-  c.innerHTML = `<div class="cartao"><div class="versao-topo"><div class="marca"></div><div><b>Própons IA ${VERSAO}</b><small class="${u ? 'nova' : ''}">${status}</small></div></div>
+  c.innerHTML = `<div class="cartao"><div class="versao-topo"><div class="marca"></div><div><b>Própons IA ${VERSAO}</b><small class="${u ? 'tem-nova' : ''}">${status}</small></div></div>
       ${u && u.notas ? htmlNotasVersao(u, true) : '<div id="notasAtual"></div>'}
       <div id="progAtual"${atualizando ? '' : ' hidden'}><div class="barra"><i style="width:${atualizando ? (atualizando.pct * 100).toFixed(1) : 0}%"></i></div><small class="info" id="txtProgAtual">${textoAtualizando()}</small></div>
       <div class="botoes" style="margin-top:14px">${u ? `<button class="btn primario" id="btnAtualizar"${atualizando ? ' disabled' : ''}>${ICO.exportar}${rotuloAtualizar()}${u.tamanho && PLATAFORMA.podeAtualizarSozinho ? ` · ${Math.round(u.tamanho / 1048576)} MB` : ''}</button>` : ''}
