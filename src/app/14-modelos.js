@@ -177,7 +177,7 @@ async function abrirWebcam() {
   try { fluxo = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false }); }
   catch (e) { if (foiNegado(e)) avisarNegada('camera'); else toast('Não foi possível abrir a câmera: ' + (e.name === 'NotFoundError' ? 'nenhuma câmera encontrada.' : e.message), 4500); return; }
   const f = document.createElement('div'); f.className = 'dlg-fundo';
-  f.innerHTML = `<div class="dlg">${topoFolha('Câmera')}<div class="webcam"><video autoplay playsinline muted></video></div>
+  f.innerHTML = `<div class="dlg">${topoCentro('Câmera')}<div class="webcam"><video autoplay playsinline muted></video></div>
     <div class="botoes"><button class="btn" data-c="cancelar">Cancelar</button><button class="btn primario" data-c="foto">${ICO.camera}Tirar foto</button></div></div>`;
   const v = f.querySelector('video'); v.srcObject = fluxo;
   const sair = () => { fluxo.getTracks().forEach(t => t.stop()); animarSaida(f, f.firstChild); };

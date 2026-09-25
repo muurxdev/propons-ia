@@ -78,7 +78,7 @@ function editarConhecimento(k, depois) {
   const novo = !k; k = k ? JSON.parse(JSON.stringify(k)) : { id: novoId(), nome: '', quando: '', instrucoes: '', refs: [], ativo: true, criado: Date.now() };
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha conh-ed">${topoCentro(novo ? 'Novo conhecimento' : 'Editar conhecimento')}
-    <label class="campo"><span>Nome</span><input class="campo-texto" data-c="nome" maxlength="60" placeholder="Ex.: Redação nota 1000"></label>
+    <label class="campo"><span>Nome</span><input class="campo-texto" data-c="nome" maxlength="60" placeholder="Ex.: Redação nota 1000"${novo ? " data-autofocus" : ""}></label>
     <label class="campo"><span>Quando usar</span><input class="campo-texto" data-c="quando" maxlength="240" placeholder="Palavras e situações: redação, ENEM, dissertação…"><small>A IA usa este conhecimento sozinha quando a pergunta fala dessas coisas.</small></label>
     <label class="campo"><span>Instruções</span><textarea class="campo-texto" data-c="instrucoes" rows="6" maxlength="4000" placeholder="Como a IA deve responder: estrutura, tom, passos, o que evitar…"></textarea></label>
     <div class="campo"><span>Arquivos de referência</span><div class="conh-refs"></div><button type="button" class="btn" data-ref>${ICO.arquivo}Adicionar arquivo (.txt, .md, .pdf, .docx)</button><small>Só os trechos ligados a cada pergunta entram na resposta.</small></div>

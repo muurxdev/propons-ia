@@ -7,7 +7,7 @@
 <title>Própons IA</title>
 <script>/* tema antes do primeiro desenho: sem flash branco no escuro */try{var t=localStorage.getItem('tema')||'sistema';document.documentElement.dataset.tema=(t==='escuro'||(t==='sistema'&&matchMedia('(prefers-color-scheme: dark)').matches))?'escuro':'claro'}catch(e){}</script>
 <style>
-:root{--folha:64vh;
+:root{--folha:64vh; --vh:100vh; --kb:0px; --sobre-caixa:96px;
   /* tipografia: 6 tamanhos para a interface toda (o texto da conversa segue --fs, que a pessoa escolhe em Aparência) */
   --t-xs:11px; --t-sm:12.5px; --t-md:14px; --t-lg:16px; --t-xl:20px; --t-2xl:28px;
   /* movimento: três tempos e duas curvas para o app inteiro */
@@ -62,8 +62,8 @@ textarea:focus-visible,input:focus-visible{outline:none}
 .lat-topo{display:flex;align-items:center;gap:10px;padding:12px 10px 8px 14px;height:56px}
 .marca{width:26px;height:26px;border-radius:var(--r1);background:var(--logo) center/cover;flex:none}
 .lat-topo b{font-size:var(--t-md);font-weight:600;flex:1;letter-spacing:-.1px}
-.nova{display:flex;align-items:center;gap:10px;margin:4px 10px 8px;padding:7px 12px;border-radius:var(--r1);border:1px solid var(--line);background:var(--surface);font-size:var(--t-md);font-weight:500;transition:background var(--t1)}
-.nova:hover{background:var(--hover)}
+.lat-nova{display:flex;align-items:center;gap:10px;margin:4px 10px 8px;padding:7px 12px;border-radius:var(--r1);border:1px solid var(--line);background:var(--surface);font-size:var(--t-md);font-weight:500;transition:background var(--t1)}
+.lat-nova:hover{background:var(--hover)}
 .busca{margin:0 10px 6px;display:flex;align-items:center;gap:7px;padding:0 9px;border-radius:var(--r1);background:var(--hover);color:var(--muted)}
 .busca input{flex:1;border:0;background:none;outline:0;padding:6px 0;font-size:var(--t-sm);color:var(--ink);min-width:0}
 .busca svg{width:15px;height:15px}
@@ -84,9 +84,8 @@ textarea:focus-visible,input:focus-visible{outline:none}
 .lat-pe{padding:8px 10px calc(8px + var(--sb));border-top:1px solid var(--line);display:flex;gap:4px}
 .lat-pe button{display:flex;align-items:center;gap:10px;flex:1;padding:8px 10px;border-radius:var(--r1);font-size:var(--t-md);color:var(--muted)}
 .lat-pe button:hover{background:var(--hover);color:var(--ink)}
-.lat-pe button.so-icone{flex:none;width:36px;padding:8px 0;justify-content:center} .lat-pe button.so-icone:hover{color:var(--danger)}
 #fundo{display:none}
-.menu{position:fixed;z-index:60;min-width:180px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r2);box-shadow:var(--shadow);padding:5px}
+.menu{position:fixed;z-index:60;min-width:180px;max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;background:var(--surface);border:1px solid var(--line);border-radius:var(--r2);box-shadow:var(--shadow);padding:5px}
 .menu button{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:var(--r1);font-size:var(--t-md);text-align:left}
 .menu button:hover{background:var(--hover)}
 .menu button.perigo{color:var(--danger)}
@@ -133,6 +132,19 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* sugestões no fim da resposta */
 .sugestoes{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:14px 0 4px}
 .sugestoes button{display:inline-flex;align-items:center;gap:10px;max-width:100%;padding:9px 14px;border:1px solid var(--line);border-radius:var(--r4);background:var(--surface);color:var(--ink);font-size:var(--t-sm);text-align:left;transition:background var(--t1),border-color var(--t1);animation:sugEntra .3s cubic-bezier(.2,.8,.2,1) both}
+.sugestoes.esperando i{display:block;height:36px;border-radius:var(--r4);background:linear-gradient(90deg,var(--hover),var(--surface),var(--hover));background-size:200% 100%;animation:brilhoEsqueleto 1.3s linear infinite}
+.sugestoes.esperando i:nth-child(1){width:min(260px,70%)} .sugestoes.esperando i:nth-child(2){width:min(210px,58%)} .sugestoes.esperando i:nth-child(3){width:min(236px,64%)}
+@keyframes brilhoEsqueleto{from{background-position:200% 0}to{background-position:0 0}}
+/* modo de estudo sendo montado: o esqueleto do cartão/quiz no lugar do texto */
+.esqueleto{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:var(--r3);max-width:520px}
+.esqueleto i{display:block;height:14px;border-radius:7px;background:linear-gradient(90deg,var(--hover),var(--surface),var(--hover));background-size:200% 100%;animation:brilhoEsqueleto 1.3s linear infinite}
+.esqueleto i:nth-child(1){width:60%;height:18px} .esqueleto i:nth-child(2){width:92%} .esqueleto i:nth-child(3){width:78%}
+@media (prefers-reduced-motion:reduce){ .sugestoes.esperando i,.esqueleto i{animation:none} }
+/* status no topo da resposta: "Pensou por N s" e o conhecimento usado, na mesma linha */
+.ia-status{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:10px}
+.ia-status .usou-conh{margin:0}
+.msg.sem-entrada,.msg.sem-entrada .lugar-card{animation:none}
+.nota.aviso-lugar{margin:0 0 10px}
 .sugestoes button:nth-child(2){animation-delay:60ms} .sugestoes button:nth-child(3){animation-delay:120ms}
 .sugestoes button:hover{background:var(--hover);border-color:var(--accent)}
 .sugestoes button svg{width:14px;height:14px;color:var(--accent);flex:none}
@@ -204,9 +216,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .tk-kw{color:var(--tk-kw)} .tk-str{color:var(--tk-str)} .tk-com{color:var(--tk-com);font-style:italic} .tk-num{color:var(--tk-num)}
 .tk-fn{color:var(--tk-fn)} .tk-tipo{color:var(--tk-tipo)} .tk-attr{color:var(--tk-attr)} .tk-op{color:var(--tk-op)} .tk-dec,.tk-pre{color:var(--tk-attr)} .tk-var{color:var(--tk-tipo)}
 .tabela{overflow-x:auto;margin:.7em 0}
-.txt table{border-collapse:collapse;font-size:.93em;min-width:60%}
-.txt th,.txt td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
-.txt th{font-weight:600;color:var(--muted);font-size:.9em}
+.txt:not(.widget) table{border-collapse:collapse;font-size:.93em;min-width:60%}
+.txt:not(.widget) th,.txt:not(.widget) td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+.txt:not(.widget) th{font-weight:600;color:var(--muted);font-size:.9em}
 .passos{border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);margin:0 0 12px;overflow:hidden}
 .passos summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:var(--t-md);font-weight:500}
 .passos summary::-webkit-details-marker{display:none}
@@ -214,6 +226,12 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .passos summary small{color:var(--muted);font-weight:400;margin-left:auto}
 .passos ol{margin:0;padding:10px 16px 12px 42px;border-top:1px solid var(--line);font:var(--t-sm)/1.75 var(--mono);max-height:320px;overflow-y:auto}
 .passos li::marker{color:var(--faint)}
+/* redação: "Versão melhorada" recolhível (texto normal, sem o ponto verde e a lista de código do passo a passo) */
+.versao-melhor{border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);margin:12px 0 0;overflow:hidden}
+.versao-melhor summary{list-style:none;cursor:pointer;padding:10px 14px;font-size:var(--t-md);font-weight:500}
+.versao-melhor summary::-webkit-details-marker{display:none}
+.versao-melhor[open] summary{border-bottom:1px solid var(--line)}
+.versao-melhor>:not(summary){padding:0 16px}
 /* enquanto a IA ainda não escreveu nada: uma palavra em inglês com brilho passando (estilo Claude) */
 .trabalhando{font-size:var(--t-md);font-weight:500;background:linear-gradient(100deg,var(--faint) 20%,var(--ink) 40%,var(--ink) 52%,var(--faint) 72%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:brilho 2.4s linear infinite}
 @keyframes brilho{0%{background-position:150% 0}100%{background-position:-50% 0}}
@@ -227,8 +245,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .acao.feito{color:var(--ok)}
 .acao.on{color:var(--accent)}
 .acao.ler.on{background:var(--accent-soft)}
-.acao.parar-ler{color:var(--accent)}
-.acao.parar-ler svg{width:13px;height:13px}
 /* leitura em voz alta: o que já foi lido fica roxo e a palavra dita agora ganha o fundo roxo, no ritmo da voz */
 ::highlight(fala-lido){color:var(--accent)}
 ::highlight(fala-agora){background-color:var(--accent);color:var(--accent-ink)}
@@ -302,11 +318,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .dif-l.mais{background:var(--ok-soft);color:var(--ok)} .dif-l.menos{background:var(--danger-soft);color:var(--danger)}
 .dif-corte{display:block;padding:1px 10px;color:var(--faint);font-style:normal}
 @media (min-width:761px){.dlg-fundo.pop .dlg.codigo{width:min(680px,calc(100vw - 16px));max-height:min(80vh,calc(100vh - 16px))}}
-/* pesquisa na internet: passo ao vivo, cartões das fontes com a logo do site e citações no texto */
-.busca-passo{display:inline-flex;align-items:center;gap:3px;font-size:var(--t-md);color:var(--muted)}
-.busca-passo i{width:4px;height:4px;border-radius:50%;background:var(--faint);animation:pisca 1.2s infinite}
-.busca-passo i:nth-child(2){animation-delay:var(--t2)} .busca-passo i:nth-child(3){animation-delay:.4s}
-@keyframes pisca{0%,60%,100%{opacity:.25}30%{opacity:1}}
 /* fontes no fim da resposta: cabeçalho com os ícones empilhados (abre a lista inteira) e os cartões */
 .fontes{margin:12px 0 4px}
 .fontes-t{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px 0 6px;margin:0 0 8px;border:1px solid var(--line);border-radius:var(--r4);background:var(--surface);color:var(--ink);font-size:var(--t-sm);cursor:pointer;transition:background var(--t1),border-color var(--t1)}
@@ -332,8 +343,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .fl-txt small i{font-style:normal;font-weight:700;color:var(--accent)}
 .fl-txt b{display:block;font-weight:500;font-size:var(--t-md);line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 @media (prefers-reduced-motion:reduce){ .giro-icones i{animation:none} }
-.fonte-cards{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
-.fonte-cards::-webkit-scrollbar{display:none}
 /* popup da fonte: site, título, endereço para copiar e as ações */
 .fonte-dlg .fonte-cab{display:flex;align-items:center;gap:12px;margin:2px 4px 14px}
 .fonte-dlg .fonte-cab img{width:32px;height:32px;border-radius:8px;background:var(--hover);padding:4px;flex:none}
@@ -376,17 +385,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .lugar-card.negada small{color:var(--muted);font-size:var(--t-sm)}
 @media (max-width:520px){ .lugar-grade{grid-template-columns:repeat(2,minmax(0,1fr))} .lugar-temp{font-size:calc(var(--t-2xl) * 1.5)} }
 @media (prefers-reduced-motion:reduce){ .lugar-card{animation:none} }
-.fonte{flex:0 0 190px;display:block;padding:9px 11px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);text-decoration:none;color:var(--ink);transition:border-color var(--t1),background var(--t1)}
-.fonte:hover{border-color:var(--accent);background:var(--hover)}
-.fonte .fn{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.fonte .fn i{font-style:normal;font-size:var(--t-xs);font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:var(--r4);min-width:16px;height:16px;display:grid;place-items:center;padding:0 4px}
-.fonte .fn img{width:14px;height:14px;border-radius:8px;display:block}
-.fonte .fn b{font-size:var(--t-xs);font-weight:500;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.fonte .ft{display:block;font-size:var(--t-sm);line-height:1.35;max-height:2.7em;overflow:hidden}
 .cit{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;margin:0 1px;border-radius:var(--r4);background:var(--accent-soft);color:var(--accent);font-size:var(--t-xs);font-weight:700;text-decoration:none;vertical-align:1px}
 .cit:hover{background:var(--accent);color:var(--accent-ink)}
 /* raciocínio (Esforço Alto): uma linha na conversa; o texto fica na folha */
-.msg.pensa{margin:6px 0 2px}
 /* o giro da Própons enquanto responde: marca roxa que muda de forma, palavra com brilho e o tempo (some no fim) */
 .giro{display:flex;align-items:center;gap:8px;margin:8px 0 2px;min-height:28px;color:var(--muted);font-size:var(--fs)}
 .giro.pensa{cursor:pointer}
@@ -399,13 +400,13 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 @media (prefers-reduced-motion:reduce){.giro .giro-marca{animation:none}}
 /* no fim, se pensou: a marca parada, "Pensou por N s" e a flechinha que abre o raciocínio */
 .pensa-linha{display:inline-flex;align-items:center;gap:4px;padding:2px 0;cursor:pointer}
-.msg.ia>.pensa-linha{display:flex;width:max-content;margin-bottom:10px}
+.ia-status>.pensa-linha{display:inline-flex;width:max-content}
 .pensa-rotulo{font-size:var(--fs);color:var(--muted)}
 .pensa-seta{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:transparent;transition:background var(--t2),color var(--t2),transform var(--t3) var(--padrao)}
 .pensa-seta svg{width:15px;height:15px}
 .pensa-linha:hover .pensa-seta{background:var(--hover)}
 .pensa-seta[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent);transform:rotate(180deg)}
-.pensa-folha .pens-txt{margin:2px 6px 10px;max-height:52vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:var(--t-md)/1.65 var(--sans);color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:var(--r2);padding:12px}
+.pensa-folha .pens-txt{margin:2px 6px 10px;white-space:pre-wrap;word-break:break-word;font:var(--t-md)/1.65 var(--sans);color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:var(--r2);padding:12px}
 /* raciocínio que ainda não começou: anel girando e linhas com brilho passando (some quando o texto chega) */
 .pens-espera{display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--sans);font-size:var(--t-md);margin-bottom:14px}
 .pens-anel{width:18px;height:18px;flex:none;border-radius:50%;border:2.5px solid var(--accent-soft);border-top-color:var(--accent);animation:girar .8s linear infinite}
@@ -415,11 +416,6 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 @keyframes brilhoLinha{from{background-position:120% 0}to{background-position:-80% 0}}
 @media (prefers-reduced-motion:reduce){.pens-anel,.pens-linhas i{animation:none}}
 .pensa-pe{margin:0 8px 6px;font-size:var(--t-xs)}
-/* raciocínio antigo (recolhível) */
-.pensando{margin:4px 0 8px;border:1px solid var(--line);border-radius:var(--r1);background:var(--surface);font-size:var(--t-sm);color:var(--muted)}
-.pensando summary{padding:6px 10px;cursor:pointer;color:var(--muted);font-weight:500;list-style:none;display:flex;align-items:center;gap:6px} .pensando summary::before{content:"▸";font-size:var(--t-xs)} .pensando[open] summary::before{content:"▾"}
-.pensando summary .trabalhando{font-size:var(--t-sm)}
-.pensando[open] summary{border-bottom:1px solid var(--line)}
 .pens-txt{padding:8px 10px;white-space:pre-wrap;max-height:220px;overflow:auto;line-height:1.45}
 /* memória e aviso com ação */
 .mem-lista{display:flex;flex-direction:column}
@@ -495,11 +491,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ctx-lista li span{flex:1;min-width:0}
 .ctx-lista li b{font-weight:500;font-variant-numeric:tabular-nums}
 .ctx-lista li > i{width:10px;height:10px;border-radius:3px;flex:none}
-.ctx-lista li.res{color:var(--muted)}
 .ctx .p1{background:var(--accent)} .ctx .p2{background:#d9589a} .ctx .p3{background:#8a6cf0} .ctx .p4{background:#2f9fe0}
 .ctx .p5{background:#20a36b} .ctx .p6{background:#e0932a} .ctx .p7{background:#c9a227}
 .ctx .livre{background:var(--hover);box-shadow:inset 0 0 0 1px var(--line)}
-.ctx .reserva{background:repeating-linear-gradient(45deg,var(--line) 0 3px,transparent 3px 6px);box-shadow:inset 0 0 0 1px var(--line)}
 .ctx-acoes{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}   /* só o nome do modelo encolhe; os botões nunca saem da caixa */
 .linha #anexar{margin-left:-4px}   /* "+" colado no canto, com o modelo ao lado */
 .linha #falar{margin-right:2px}
@@ -551,8 +545,8 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #enviar .parar{display:none;width:12px;height:12px;background:currentColor;border-radius:8px}
 #enviar.gerando .parar{display:block} #enviar.gerando svg{display:none}
 .rodape{text-align:center;font-size:var(--t-xs);color:var(--faint);margin-top:8px}
-.editando{max-width:760px;margin:0 auto 6px;display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--muted)}
-.editando button{color:var(--accent);font-weight:500}
+.editando-barra{max-width:760px;margin:0 auto 6px;display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--muted)}
+.editando-barra button{color:var(--accent);font-weight:500}
 
 /* ---------- ajustes (painel) ---------- */
 .painel-fundo{position:fixed;inset:0;z-index:50;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0;animation:aparece var(--t2) ease}
@@ -701,10 +695,6 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .maviso{color:var(--warn)}
 .mdesc .rec{display:inline-block;margin-left:4px;padding:1px 8px;border-radius:var(--r4);background:var(--ok-soft);color:var(--ok);font-weight:500;font-size:var(--t-xs)}
 @media (max-width:760px){.macoes .btn.primario{flex:1 1 100%}}
-.mtags{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
-.mtags span{font-size:var(--t-sm);padding:3px 9px;border-radius:var(--r4);background:var(--hover);color:var(--muted)}
-.mtags span.rec{background:var(--ok-soft);color:var(--ok);font-weight:500}
-.mtags span.aviso{background:var(--warn-soft);color:var(--warn)}
 .macoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .macoes:empty{display:none}
 .mprog small{font-size:var(--t-sm);color:var(--muted)}
@@ -749,7 +739,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .notas table{font-size:var(--t-sm)}
 
 /* diálogos e folhas (no celular sobem de baixo) */
-.dlg-fundo{position:fixed;inset:0;z-index:80;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0;animation:aparece var(--t2) ease;will-change:opacity}
+.dlg-fundo{position:fixed;inset:0;z-index:80;background:rgba(10,10,14,.45);display:grid;place-items:end center;padding:0 var(--sr) 0 var(--sl);animation:aparece var(--t2) ease;will-change:opacity}
 .dlg{width:min(480px,100%);min-width:0;max-height:88vh;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:var(--rf) var(--rf) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.28);padding:0 20px calc(var(--sb) + 18px);animation:sobe var(--t3) var(--entra);will-change:transform}
 .dlg-topo{position:sticky;top:0;z-index:2;background:var(--bg);box-shadow:0 0 0 24px var(--bg);clip-path:inset(0 -24px);display:flex;align-items:center;gap:8px;padding:22px 0 8px;margin-bottom:2px;cursor:grab}
 .dlg-topo .alca{position:absolute;top:10px;left:50%;transform:translateX(-50%)}
@@ -765,23 +755,27 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .fonte-nota,.pensa-pe{margin-left:6px!important;margin-right:6px!important}
 .dlg:focus,.painel:focus{outline:none}   /* a folha recebe o foco só para o teclado entrar nela: sem contorno */
 .dlg{touch-action:none}                 /* menu curto: o dedo arrasta a folha de qualquer ponto */
-.dlg.rola,.dlg .pens-txt{touch-action:pan-y}   /* o que rola dentro da folha aceita o dedo; no topo, puxar para baixo fecha */           /* menu comprido: o dedo rola o conteúdo; a alça arrasta a folha */
+.dlg.rola{touch-action:pan-y}   /* o que rola dentro da folha aceita o dedo; no topo, puxar para baixo fecha */           /* menu comprido: o dedo rola o conteúdo; a alça arrasta a folha */
 .folha .dlg-topo{padding:22px 12px 6px}
 .folha h3{font-size:var(--t-sm);color:var(--muted);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .folha button.op{display:flex;align-items:center;gap:14px;width:100%;padding:12px;border-radius:var(--r2);font-size:var(--t-md);text-align:left}
 .folha button.op:hover{background:var(--hover)}
 .folha button.op.perigo{color:var(--danger)}
 .folha button.op svg{width:20px;height:20px}
-.toast{position:fixed;left:50%;bottom:calc(96px + var(--sb));transform:translateX(-50%);z-index:90;background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:9px 16px;border-radius:var(--r4);font-size:var(--t-sm);box-shadow:0 8px 24px rgba(0,0,0,.28);animation:aparece var(--t1) ease;max-width:min(90vw,420px);text-align:center;backdrop-filter:blur(8px)}
+.toast{position:fixed;left:50%;bottom:calc(var(--sobre-caixa) + 10px);transform:translateX(-50%);z-index:90;background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:9px 16px;border-radius:var(--r4);font-size:var(--t-sm);box-shadow:0 8px 24px rgba(0,0,0,.28);animation:aparece var(--t1) ease;max-width:min(90vw,420px);text-align:center;backdrop-filter:blur(8px)}
 
 /* "+": câmera, fotos, arquivos, modelo */
 /* folhas no estilo do app do Claude: X à esquerda, título no centro, cartões e linhas */
 .dlg-topo.centro{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;gap:0;padding:26px 0 14px;cursor:default}
 .dlg-topo.centro h3{text-align:center;font-size:var(--t-lg);font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
 .dlg-fundo.atras{pointer-events:none}
-.dlg-fundo.atras .dlg{animation:none;transform:translateX(-16%) scale(.97);opacity:.35;transition:transform var(--t3) var(--entra),opacity var(--t3)}
-/* folha que abre por cima de outra: entra da direita, como uma tela de dentro */
-.dlg-fundo.lado .dlg{animation:vemDireita var(--t3) var(--entra)}
+.dlg-fundo.atras .dlg{animation:none;opacity:.6;transition:transform var(--t3) var(--entra),opacity var(--t3)}
+/* celular: a de trás recua para a esquerda e a que abre por cima entra da direita, como uma tela de dentro.
+   No PC são janelas no centro: a de trás só esmaece */
+@media (max-width:760px){
+  .dlg-fundo.atras .dlg{transform:translateX(-16%) scale(.97);opacity:.35}
+  .dlg-fundo.lado .dlg{animation:vemDireita var(--t3) var(--entra)}
+}
 @keyframes vemDireita{from{transform:translateX(100%)}to{transform:none}}
 .dlg-topo.centro .icone{margin:0}
 .folha .dlg-topo.centro{padding:26px 4px 14px}
@@ -905,6 +899,12 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .bib-ordem:hover,.bib-ordem[aria-expanded="true"]{background:var(--hover)}
 .bib-ordem svg{width:15px;height:15px;color:var(--muted)}
 .bib-abas{display:flex;flex-wrap:nowrap;width:100%;overflow-x:auto;scrollbar-width:none}
+@property --fe{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fd{syntax:'<length>';inherits:false;initial-value:0px}
+@keyframes bordasRolagem{0%{--fe:0px;--fd:28px}8%{--fe:28px}92%{--fd:28px}100%{--fe:28px;--fd:0px}}
+@supports (animation-timeline:scroll(x self)){
+  .bib-abas,#corpoConfig .seg.muitos,.cod-topo{-webkit-mask-image:linear-gradient(to right,transparent,#000 var(--fe),#000 calc(100% - var(--fd)),transparent);mask-image:linear-gradient(to right,transparent,#000 var(--fe),#000 calc(100% - var(--fd)),transparent);animation:bordasRolagem linear both;animation-timeline:scroll(x self)}
+}
 .bib-abas::-webkit-scrollbar{display:none}
 .bib-abas button{flex:1 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;padding:6px 12px;min-height:34px;transition:background var(--t1),color var(--t1)}
 .bib-abas i{font-style:normal;font-size:var(--t-xs);font-weight:600;min-width:20px;padding:0 6px;border-radius:var(--r4);background:var(--bg);color:var(--muted);line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
@@ -986,8 +986,8 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .bib-conv small{display:block;font-size:var(--t-xs);color:var(--muted)}
 .bib-conv b{display:block;font-size:var(--t-md);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .bib-conv svg{width:17px;height:17px;color:var(--muted)}
-.bib-editar textarea.campo-texto{resize:vertical;min-height:96px;line-height:1.5;display:block;touch-action:auto}
-.bib-editar .botoes{margin-top:14px}
+.dlg-txt textarea.campo-texto{resize:vertical;min-height:96px;line-height:1.5;display:block;touch-action:auto}
+.dlg-txt .dica-campo{margin:8px 2px 0;font-size:var(--t-sm)}
 @media (min-width:761px){
   .dlg.bib-det{width:min(560px,calc(100vw - 32px))}
   .bib-campo .campo-texto{font-size:var(--t-md);padding:9px 11px}
@@ -1019,7 +1019,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .foto-cheia{position:fixed;inset:0;z-index:120;background:rgba(8,8,12,.92);display:grid;place-items:center;padding:16px;cursor:zoom-out;animation:aparece var(--t2) ease}
 .foto-cheia img{max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--r1);display:block}
 .foto-cheia .icone{position:absolute;top:calc(12px + var(--st));right:12px;color:#fff;background:rgba(255,255,255,.12)}
-.bib-previa pre{margin:0;max-height:34vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:var(--t-sm)/1.6 var(--mono);color:var(--ink);padding:12px}
+.bib-previa pre{margin:0;max-height:none;overflow-x:auto;white-space:pre-wrap;word-break:break-word;font:var(--t-sm)/1.6 var(--mono);color:var(--ink);padding:12px}
 .bib-ficha{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 6px 12px}
 .bib-ficha>div{border:1px solid var(--line);border-radius:var(--r1);padding:7px 10px;background:var(--surface);min-width:0}
 .bib-ficha dt{font-size:var(--t-xs);color:var(--faint)}
@@ -1029,16 +1029,6 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .bib-acoes .btn{flex:1 1 calc(50% - 4px);min-width:0;min-height:42px;justify-content:center}
 .bib-acoes .btn svg{width:16px;height:16px}
 /* permissões: uma linha por recurso, com o estado e o botão de permitir */
-.perm{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
-.perm:first-child{border-top:0}
-.perm .mico{width:34px;height:34px;border-radius:var(--r1);display:grid;place-items:center;background:var(--hover);color:var(--muted);flex:none}
-.perm .mico svg{width:17px;height:17px}
-.perm .pt{flex:1;min-width:140px}
-.perm b{display:block;font-size:var(--t-md);font-weight:500}
-.perm small{display:block;font-size:var(--t-sm);color:var(--muted);margin-top:1px}
-.perm .st{font-size:var(--t-sm);color:var(--muted);white-space:nowrap}
-.perm .st.ok{color:var(--ok);font-weight:600} .perm .st.negado{color:var(--danger)}
-.perm .btn{min-height:34px;padding:6px 14px;font-size:var(--t-sm);flex:none}
 /* apagar um item dentro de uma linha da lista (conversas de código, moldes) */
 .lm-x{width:32px;height:32px;border-radius:var(--r1);display:grid;place-items:center;color:var(--faint);flex:none}
 .lm-x:hover{background:var(--danger-soft);color:var(--danger)}
@@ -1071,12 +1061,13 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   .acao{height:36px;min-width:36px}
   .item{padding:11px 6px 11px 12px;font-size:var(--t-md);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   .item .mais{width:32px;height:32px}
-  .nova{padding:12px 14px;font-size:var(--t-md)}
+  .lat-nova{padding:12px 14px;font-size:var(--t-md)}
   .busca input{padding:9px 0;font-size:var(--t-md)}
   .lat-pe button{padding:12px 10px;font-size:var(--t-md)}
   .copiar{opacity:1}
   .rodape{display:none}
 
+  .painel-fundo{padding-bottom:var(--kb)}
   .painel{width:100%;height:auto;max-height:calc(100% - var(--st) - 8px);border-left:0;border-right:0}   /* só o tamanho do conteúdo */
   /* o menu principal decide a altura: a página de dentro entra pela direita do mesmo tamanho (irPara congela a altura) */
   .painel.sub{height:auto}
@@ -1110,8 +1101,10 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 
   .dlg-fundo{place-items:end stretch}
   /* o menu abre do tamanho do conteúdo, no máximo até a marca do menu principal; o arrasto pela alça faz crescer */
-  .dlg{width:100%;border-left:0;border-right:0;padding:0 16px calc(var(--sb) + 14px);max-height:var(--folha);min-height:0}
-  .dlg.cheia{max-height:calc(100vh - var(--st) - 14px)}
+  /* --vh é a altura visível de verdade (sem o teclado); o teclado empurra a folha para cima (--kb, no iPhone) */
+  .dlg-fundo{padding-bottom:var(--kb)}
+  .dlg{width:100%;border-left:0;border-right:0;padding:0 16px calc(var(--sb) + 14px);max-height:min(var(--folha),calc(var(--vh) - var(--st) - 14px));min-height:0}
+  .dlg.cheia{height:calc(var(--vh) - var(--st) - 10px);max-height:calc(var(--vh) - var(--st) - 10px)}
   .dlg .alca{cursor:grab}
   .folha{padding:0 8px calc(var(--sb) + 10px)}
   .dlg-topo.centro{padding:20px 0 10px} .folha .dlg-topo.centro{padding:20px 4px 10px}
@@ -1125,8 +1118,6 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   .dlg .botoes .btn{width:100%}
 
   /* telas (Área de código, Biblioteca) no celular: margens iguais às do chat, sem folga estranha */
-  .tela-topo{padding:8px 14px 8px}
-  .tela-topo h2{font-size:var(--t-xl)}
   .cod-topo{padding:0 12px 8px;gap:5px}
   .cod-chip{max-width:44%;padding:6px 10px}
   .chip-conversa b{display:none}
@@ -1139,7 +1130,6 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   .bib-ficha{grid-template-columns:1fr 1fr;margin:0 4px 12px}
   .bib-acoes{margin:0 4px 4px}
   .bib-previa{margin:2px 4px 10px}
-  .toast{bottom:calc(118px + var(--sb))}
 }
 @keyframes sobe{from{transform:translateY(100%)}}
 /* PC e tablet: diálogos no centro, menus flutuando ao lado do botão, ajustes numa janela; nada sobe de baixo */
@@ -1172,13 +1162,12 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 <body>
 <aside id="lateral" class="fechada">
   <div class="lat-topo"><div class="marca" aria-hidden="true"></div><b>Própons IA</b></div>
-  <button class="nova" id="novaLat"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Nova conversa</button>
+  <button class="lat-nova" id="novaLat"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Nova conversa</button>
   <label class="busca"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="busca" type="search" placeholder="Buscar conversas" autocomplete="off"></label>
   <nav class="lat-nav" id="latNav"></nav>
   <div id="lista"></div>
   <div class="lat-pe">
     <button id="abrirConfig"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span style="flex:1;text-align:left">Ajustes</span><i class="ponto" id="pontoConfig" hidden></i></button>
-    <button class="so-icone" id="apagarConversas" title="Apagar todas as conversas" aria-label="Apagar todas as conversas"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
   </div>
 </aside>
 <div id="fundo"></div>
@@ -1193,7 +1182,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
   <section class="tela" id="tela" hidden></section>
   <div class="compor">
     <button id="descer" hidden aria-label="Ir para o fim da conversa"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
-    <div class="editando" id="editando" hidden>Editando a pergunta <button id="cancelarEdicao">Cancelar</button></div>
+    <div class="editando-barra" id="editando" hidden>Editando a pergunta <button id="cancelarEdicao">Cancelar</button></div>
     <div class="caixa" id="caixa">
       <div id="chips" hidden></div>
       <div class="gravando" id="gravando" hidden>

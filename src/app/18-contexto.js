@@ -1,4 +1,4 @@
-/* ---------------- contexto: quanto da memória da IA a conversa ocupa (⋯ no topo → Memória da conversa) ----------------
+/* ---------------- contexto: quanto da memória da IA a conversa ocupa (⋯ no topo → Contexto da conversa) ----------------
    Enche conforme a memória da IA (nCtx) vai sendo ocupada pela conversa: laranja acima de 70 %, vermelho acima de 90 %.
    Tocar abre a folha "Contexto" com cada parte. Os números saem da mesma montarHistorico que monta o que vai para a IA,
    então o que a bolinha mostra é o que a IA recebe. Na mesma folha, "Compactar conversa" troca as mensagens antigas
@@ -46,16 +46,8 @@ const pctUso = u => Math.min(100, Math.round(100 * somaUso(u) / Math.max(1, u.to
 let tMedidor = 0;
 function atualizarMedidor() {
   clearTimeout(tMedidor);
-  tMedidor = setTimeout(() => {
-    const b = $('#medidorCtx'); if (!b) return;
-    let u; try { u = usoAgora(); } catch (e) { return; }
-    const p = pctUso(u);
-    b.style.setProperty('--p', p);
-    b.classList.toggle('alto', p >= 70 && p < 90); b.classList.toggle('cheio', p >= 90);
-    b.title = `Contexto: ${p}% da memória da IA em uso`;
-    b.setAttribute('aria-label', `Contexto: ${p}% da memória da IA em uso. Toque para ver os detalhes.`);
-    const f = document.querySelector('.dlg.contexto'); if (f) desenharFolhaContexto(f);
-  }, 120);
+  // a folha do Contexto aberta acompanha a conversa (resposta nova, compactação, anexo)
+  tMedidor = setTimeout(() => { const f = document.querySelector('.dlg.contexto'); if (f) try { desenharFolhaContexto(f); } catch (e) {} }, 120);
 }
 
 const milhar = n => Math.round(n).toLocaleString('pt-BR');
@@ -75,24 +67,20 @@ function desenharFolhaContexto(folha) {
     ${u.docs.length || u.partes[6][1] ? `<p class="info">${u.docs.length ? esc(u.docs.join(', ')) + (u.docs.length === 1 ? ' continua consultável' : ' continuam consultáveis') + ': a' : 'Arquivo longo não entra inteiro: a'} cada pergunta vão só os trechos ligados a ela (ou o resumo por partes, se você pedir um resumo).</p>` : ''}
     <div class="ctx-acoes">
       <button class="btn primario" data-compactar ${u.compactaveis < 2 || !online || geracao ? 'disabled' : ''}>Compactar conversa</button>
-      <button class="btn" data-nova>Nova conversa</button>
     </div>
     ${u.compactaveis < 2 ? '<p class="info">Compactar fica disponível quando a conversa tiver mais mensagens.</p>' : ''}`;
   const bc = folha.querySelector('[data-compactar]');
   bc.onclick = async () => { bc.disabled = true; bc.textContent = 'Compactando…'; await compactarConversa(atual); desenharFolhaContexto(folha); };
-  folha.querySelector('[data-nova]').onclick = () => { const f = folha.parentNode; if (f && f.fechar) f.fechar(); nova(); };
 }
-function abrirFolhaContexto() {
+function abrirFolhaContexto(ancora) {
   const f = document.createElement('div'); f.className = 'dlg-fundo';
   f.innerHTML = `<div class="dlg folha contexto">${topoCentro('Contexto', false)}<div class="ctx"></div></div>`;
   const folha = f.firstChild, sair = () => animarSaida(f, folha);
   f.fechar = sair; f.onclick = e => { if (e.target === f) sair(); }; folha.querySelector('[data-x]').onclick = sair;
   desenharFolhaContexto(folha);
   folhaArrastavel(f, folha, sair);
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#medidorCtx') || $('#falar'));
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, ancora || $('#menuTopo'), 'fim');
 }
-// a bolinha saiu da caixa (a compactação continua sozinha); o painel ainda abre por Ajustes/testes
-if ($('#medidorCtx')) $('#medidorCtx').onclick = abrirFolhaContexto;
 
 // compactar: as mensagens antigas (todas menos as 4 últimas) viram um resumo que entra no texto de sistema
 async function compactarConversa(conv, dentroDaResposta) {

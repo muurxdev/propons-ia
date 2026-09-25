@@ -1,4 +1,4 @@
-/* ---------------- "+": câmera, fotos, arquivos e modelo ---------------- */
+/* ---------------- "+": câmera, fotos, arquivos, conhecimento, pesquisa e modos de estudo ---------------- */
 function abrirMais() {
   const temVisao = PLATAFORMA.temVisao;
   const f = document.createElement('div'); f.className = 'dlg-fundo';
@@ -30,7 +30,6 @@ function abrirMais() {
     else if (op === 'arquivos') $('#arquivo').click();
     else if (op === 'pesquisa') definirPesquisa(!pesquisaLigada());
     else if (op === 'conhecimento') setTimeout(abrirConhecimentos, 160);
-    else abrirConfig('modelo');
   });
   pausarDesenho();
   document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
@@ -39,16 +38,27 @@ function abrirMais() {
 function posicionarPop(f, folha, ancora, lado) {
   if (estreita() || !ancora) return;
   f.classList.add('pop'); f._pop = { folha, ancora, lado };
-  folha.style.top = folha.style.bottom = '';
+  folha.style.top = folha.style.bottom = folha.style.maxHeight = '';
   const r = ancora.getBoundingClientRect(), w = folha.offsetWidth, h = folha.offsetHeight;
-  const abaixo = innerHeight - r.bottom - 8, acima = r.top - 8, paraCima = abaixo < Math.min(h, 240) && acima > abaixo;
   // menus da caixa de mensagem (+, modelos, esforço, contexto): no meio da caixa, não colados no botão da esquerda
   const caixa = ancora.closest('.caixa'), c = caixa && caixa.getBoundingClientRect();
+  const topoAncora = c ? c.top : r.top;
+  const abaixo = innerHeight - r.bottom - 14, acima = topoAncora - 16, paraCima = abaixo < Math.min(h, 240) && acima > abaixo;
   const x = c ? c.left + (c.width - w) / 2 : lado === 'fim' ? r.right - w : r.left;
   const origem = c ? 'center' : 'left';
   folha.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + 'px';
-  if (paraCima) { folha.style.bottom = (innerHeight - (c ? c.top : r.top) + 8) + 'px'; folha.style.transformOrigin = 'bottom ' + origem; }
+  // nunca passa da borda: o menu fica do tamanho do espaço que sobra e rola por dentro (celular deitado, janela baixa)
+  folha.style.maxHeight = Math.max(160, Math.min(520, paraCima ? acima : abaixo)) + 'px';
+  if (paraCima) { folha.style.bottom = (innerHeight - topoAncora + 8) + 'px'; folha.style.transformOrigin = 'bottom ' + origem; }
   else { folha.style.top = (r.bottom + 6) + 'px'; folha.style.transformOrigin = 'top ' + origem; }
+  f._pop.conteudo = folha.scrollHeight;
+  // conteúdo que chega depois (lista de modelos, resposta do Revisar): escolhe de novo o lado com mais espaço
+  if (!folha._obsPop) {
+    let pend = 0;
+    const ver = () => { pend = 0; if (!f.isConnected || !f._pop || estreita() || Math.abs(folha.scrollHeight - f._pop.conteudo) < 8) return; posicionarPop(f, folha, f._pop.ancora, f._pop.lado); };
+    folha._obsPop = new MutationObserver(() => { if (!pend) pend = requestAnimationFrame(ver); });
+    folha._obsPop.observe(folha, { childList: true, subtree: true });
+  }
 }
 // janela redimensionada ou tablet girado: os menus flutuantes acompanham o botão
 addEventListener('resize', () => { try { atualizarSeletorModelo(); } catch (e) {} });   // o nome do modelo é curto na tela estreita

@@ -102,7 +102,7 @@ function menuFlutuante(ancora, itens, titulo) {
   fecharMenus();
   if (estreita()) {   // celular: folha que sobe de baixo, com botões grandes (arrastar para baixo ou X fecha)
     const f = document.createElement('div'); f.className = 'dlg-fundo';
-    f.innerHTML = `<div class="dlg folha">${topoFolha(titulo)}</div>`;
+    f.innerHTML = `<div class="dlg folha">${topoCentro(titulo)}</div>`;
     const folha = f.firstChild, sair = depois => animarSaida(f, folha, depois);
     itens.forEach(([ico, rot, fn, perigo]) => { const b = document.createElement('button'); b.className = 'op' + (perigo ? ' perigo' : ''); b.innerHTML = ico + `<span>${rot}</span>`; b.onclick = () => { sair(); fn(); }; folha.appendChild(b); });
     f.onclick = e => { if (e.target === f) sair(); };
@@ -116,19 +116,25 @@ function menuFlutuante(ancora, itens, titulo) {
   document.body.appendChild(m);
   const r = ancora.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
-  m.style.top = (r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
+  // abre para o lado com mais espaço e nunca cobre o botão: se não couber, rola por dentro
+  const abaixo = innerHeight - r.bottom - 12, acima = r.top - 12;
+  if (h <= abaixo || abaixo >= acima) { m.style.top = (r.bottom + 4) + 'px'; m.style.maxHeight = abaixo + 'px'; }
+  else { m.style.top = Math.max(8, r.top - Math.min(h, acima) - 4) + 'px'; m.style.maxHeight = acima + 'px'; }
   ancora.setAttribute('aria-expanded', 'true');
 }
 document.addEventListener('click', e => { if (!e.target.closest('.menu')) fecharMenus(); });
+// o menu solto não fica boiando longe do botão: fecha se a janela muda ou a lista de conversas rola
+addEventListener('resize', () => { if (document.querySelector('.menu')) fecharMenus(); });
+document.addEventListener('scroll', e => { if (e.target instanceof Element && e.target.closest('#lateral') && document.querySelector('.menu')) fecharMenus(); }, true);
 function menuConversa(botao, id, doTopo) {
   const c = conversas.find(x => x.id === id); if (!c) return;
   menuFlutuante(botao, [
-    ...(doTopo ? [[ICO.editar, 'Nova conversa', nova], [ICO.esforco, 'Memória da conversa', () => abrirFolhaContexto()]] : []),
+    ...(doTopo ? [[ICO.editar, 'Nova conversa', nova], [ICO.esforco, 'Contexto da conversa', () => abrirFolhaContexto($('#menuTopo'))]] : []),
     [ICO.renomear, 'Renomear', () => renomear(id)],
     [ICO.fixar, c.fixada ? 'Desafixar' : 'Fixar no topo', () => { c.fixada = !c.fixada; salvar(); desenharLista(); }],
     [ICO.pasta, c.pasta ? `Pasta: ${esc(c.pasta)}` : 'Mover para pasta…', async () => {
       const outras = [...new Set(conversas.map(x => x.pasta).filter(Boolean))].filter(p => p !== c.pasta);
-      const nome = await perguntarTexto(`Pasta da conversa${outras.length ? ' (existem: ' + outras.slice(0, 5).join(', ') + ')' : ''}`, c.pasta || '');
+      const nome = await perguntarTexto('Pasta da conversa', c.pasta || '', { max: 40, dica: outras.length ? 'Pastas que já existem: ' + outras.slice(0, 8).join(', ') : '' });
       if (nome === null) return;
       c.pasta = nome.trim().slice(0, 40); if (!c.pasta) delete c.pasta; salvar(); desenharLista();
     }],
@@ -206,7 +212,7 @@ function abrir(id) {
   try {
     c.msgs.forEach((m, i) => {
       if (m.role === 'user') addEu(m, i === iu);
-      else { if (m.passos) addPassos(m.passos.titulo, m.passos.lista); addIa(m, i === c.msgs.length - 1); }
+      else addIa(m, i === c.msgs.length - 1);
     });
   } finally { colDestacada = null; }
   if (geracao && geracao.conv === c && geracao.el) col.appendChild(geracao.el.parentNode);
@@ -332,21 +338,29 @@ function addEu(m, ultima) {
   ligarVerAnexos(d, [...(m.imagens || []).map(x => Object.assign({ tipo: 'imagem' }, x)), ...(m.anexos || [])], false);
   coluna().appendChild(d); rolar(true);
 }
-function addIa(m, ultima) {
-  const d = document.createElement('div'); d.className = 'msg ia';
+/* mensagem da IA, sempre na mesma ordem (durante a resposta e depois dela):
+   1 status (pensou por N s · conhecimento usado)  2 ferramentas (cartão de lugar, passo a passo do algoritmo)
+   3 a resposta (texto ou widget de estudo)  4 nota (erro, interrompida)  5 fontes  6 ações  7 sugestões (só na última)
+   trocar: o elemento da resposta que acabou de ser escrita; a versão final entra no lugar dele, sem animar de novo */
+const htmlStatusIa = (pensou, conhecimentos) => pensou || (conhecimentos && conhecimentos.length)
+  ? `<div class="ia-status">${pensou ? htmlLinhaPensa(pensou) : ''}${conhecimentos && conhecimentos.length ? htmlUsouConh(conhecimentos) : ''}</div>` : '';
+const htmlUsouConh = ks => `<div class="usou-conh">${ICO.conhecimento}<span>Conhecimento: ${ks.map(esc).join(', ')}</span></div>`;
+function addIa(m, ultima, trocar) {
+  const d = document.createElement('div'); d.className = 'msg ia' + (trocar ? ' sem-entrada' : '');
   // modos de estudo: o resultado vira widget (cartões, quiz, correção) no lugar do texto; m.texto continua sendo o Markdown
   const widget = m.cartoes ? htmlCartoes(m) : m.quiz ? htmlQuiz(m) : m.redacao ? htmlRedacao(m) : '';
   const pensou = m.pensou ? (m.tempo ? 'Pensou por ' + tempoBonito(m.tempo) : 'Raciocínio') : '';
-  d.innerHTML = (pensou ? htmlLinhaPensa(pensou) : '') +
+  d.innerHTML = htmlStatusIa(pensou, m.conhecimentos) +
     (m.lugar ? htmlPainelLugar(m.lugar) : '') +
+    (m.passos ? htmlPassos(m.passos.titulo, m.passos.lista) : '') +
     `<div class="txt${widget ? ' widget' : ''}">${widget ? widget : comCitacoes(md(m.texto || ''), m.fontes)}</div>` +
-    (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '') +   // a resposta primeiro; as fontes no fim
-    (m.conhecimentos && m.conhecimentos.length ? `<div class="usou-conh">${ICO.conhecimento}<span>Conhecimento: ${m.conhecimentos.map(esc).join(', ')}</span></div>` : '') +
-    (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : '');
+    (m.erro ? `<div class="nota erro">${esc(m.erro)}</div>` : m.interrompida ? '<div class="nota">Resposta interrompida.</div>' : m.cortada && ultima ? '<div class="nota">A resposta ficou longa e parou aqui.</div>' : '') +
+    (m.fontes && m.fontes.length ? htmlFontes(m.fontes) : '');
   if (m.pensou) ligarLinhaPensa(d, m.pensou, pensou);
   ligarLinks(d); if (m.lugar) ligarPainelLugar(d);
   if (widget) ligarWidgets(d, m);
   if (!m.interno || m.erro) acoes(d, m, ultima);
   if (ultima && m.sugestoes && m.sugestoes.length) anexarSugestoes(d, m);
-  coluna().appendChild(d); enfeitar(d); rolar(); return d.firstChild;
+  if (trocar && trocar.isConnected) trocar.replaceWith(d); else coluna().appendChild(d);
+  enfeitar(d); rolar(); return d.querySelector(':scope > .txt');
 }

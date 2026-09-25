@@ -6,7 +6,6 @@
    (temperatura, sensação, umidade, vento com direção e rajadas, chuva, máxima/mínima, nascer e pôr do sol, UV).
    Só vai para a internet o nome da cidade ou as coordenadas, e só nessas perguntas. Um cartão mostra os números na
    conversa, com o nome do lugar, latitude/longitude e de onde veio cada dado. */
-ICO.clima = '<svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.5 4.3 4.3 0 0 0 7 18z"/></svg>';
 // cidades conhecidas: [nome, outros nomes, país, fuso, latitude, longitude] — hora sem internet
 const CIDADES = [
   ['São Paulo', 'sao paulo|sp|sampa', 'Brasil', 'America/Sao_Paulo', -23.55, -46.63], ['Rio de Janeiro', 'rio de janeiro|rio', 'Brasil', 'America/Sao_Paulo', -22.91, -43.17],

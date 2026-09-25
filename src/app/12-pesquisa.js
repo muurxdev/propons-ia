@@ -8,7 +8,7 @@ const pesquisaLigada = () => pref('pesquisaWeb') === 'sim';
 function definirPesquisa(sim) {
   pref('pesquisaWeb', sim ? 'sim' : 'nao');
   atualizarBotaoPesquisa();
-  toast(sim ? 'Pesquisa na internet ligada: as perguntas vão para a busca.' : 'Pesquisa na internet desligada (religue no "+").', 3000);
+  toast(sim ? 'Pesquisa na internet ligada: as perguntas vão para a busca.' : 'Pesquisa na internet desligada.', 3000);
 }
 function atualizarBotaoPesquisa() {
   const b = $('#btPesquisa'); if (!b) return;

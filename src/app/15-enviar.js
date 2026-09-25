@@ -282,7 +282,7 @@ async function responder(conv, continuacao) {
     const r = resumo(tr.alg, tr.lista, tr.val);
     const msg = { role: 'assistant', texto: r, llm: r, passos: { titulo, lista: tr.steps } };
     conv.msgs.push(msg); conv.atualizada = Date.now();
-    if (atual === conv) { addPassos(titulo, tr.steps); addIa(msg, true); }
+    if (atual === conv) addIa(msg, true);
     salvar(); desenharLista(); return;
   }
   if (!online) {
@@ -315,13 +315,22 @@ async function responder(conv, continuacao) {
     msg = { role: 'assistant', texto: '', llm: '' };
     alvo = atual === conv ? addIa({ texto: '', interno: true }, false) : null;
   }
-  // o giro da Própons embaixo da resposta: marca que muda de forma, palavra do momento e tempo; some no fim
-  let giro = null, pensTxt = '';
+  // o giro da Própons logo embaixo do texto que está sendo escrito: marca que muda de forma, palavra do momento e
+  // tempo; some no fim. O que já se sabe (pensou, conhecimento usado) vai para o status no topo, onde fica depois.
+  let giro = null, pensTxt = '', tPensou = 0;
+  const t0Resposta = performance.now();
+  const status = () => {
+    if (!alvo) return null;
+    let s = alvo.parentNode.querySelector(':scope > .ia-status');
+    if (!s) { s = document.createElement('div'); s.className = 'ia-status'; alvo.parentNode.insertBefore(s, alvo.parentNode.firstChild); }
+    return s;
+  };
   if (alvo) {
     alvo.classList.add('digitando');
     giro = novoGiro(() => pensTxt);
-    alvo.parentNode.appendChild(giro.el);
-    if (comEsquema) giro.passo(modo.espera);
+    alvo.after(giro.el);
+    // modo de estudo: um esqueleto do cartão/quiz no lugar do texto enquanto o resultado é montado
+    if (comEsquema) { giro.passo(modo.espera); alvo.innerHTML = '<div class="esqueleto" aria-hidden="true"><i></i><i></i><i></i></div>'; }
     if (pensar) giro.pensando(true);
   }
   // a partir daqui a resposta está em andamento (o botão vira "parar"): pesquisa e leitura do arquivo também param
@@ -340,12 +349,20 @@ async function responder(conv, continuacao) {
   // Conhecimento (13-conhecimento.js): os pacotes que combinam com a pergunta entram com as instruções e os trechos
   if (!comEsquema && texto.trim()) {
     const ks = conhecimentosPara(texto);
-    if (ks.length) { SISTEMA += '\n\n' + blocoConhecimento(ks, texto); msg.conhecimentos = ks.map(k => k.nome); mostrarPasso('Usando ' + ks.map(k => k.nome).join(' e ')); setTimeout(voltarAoGiro, 900); }
+    if (ks.length) { SISTEMA += '\n\n' + blocoConhecimento(ks, texto); msg.conhecimentos = ks.map(k => k.nome); const s = status(); if (s) { s.insertAdjacentHTML('beforeend', htmlUsouConh(msg.conhecimentos)); rolar(); } }
   }
   // lugar, hora de outra cidade e clima: dados reais pegos agora (12-lugar.js), com o cartão na conversa
   let dl = null;
   if (!comEsquema && !continuacao && texto.trim()) {
-    try { dl = await dadosDeLugar(texto, mostrarPasso, t => { if (alvo) alvo.innerHTML = md(t); }); } catch (e) {}
+    let avisoLugar = null;
+    try {
+      dl = await dadosDeLugar(texto, mostrarPasso, t => {
+        if (!alvo) return;
+        if (!avisoLugar) { avisoLugar = document.createElement('div'); avisoLugar.className = 'nota aviso-lugar'; alvo.parentNode.insertBefore(avisoLugar, alvo); }
+        avisoLugar.innerHTML = md(t); rolar();
+      });
+    } catch (e) {}
+    if (avisoLugar) avisoLugar.remove();
     if (dl) {
       voltarAoGiro(); SISTEMA += '\n\n' + dl.texto;
       // a resposta começa pelas frases do app (números exatos); o motor continua o texto delas, como no Continuar
@@ -411,21 +428,23 @@ async function responder(conv, continuacao) {
   // digitação suave: o texto aparece aos poucos, num ritmo constante; quando chega muito texto de uma vez,
   // o ritmo acelera para não ficar para trás (35 caracteres/s + 2,5x o que falta mostrar)
   let mostrado = continuacao ? inicio.length : 0, tAnt = 0, terminou = false, aoAlcancar = null;
+  // as fontes já são conhecidas antes de a IA escrever: os [1] viram selos clicáveis enquanto o texto chega
+  const mdc = x => (fontes || msg.fontes) ? comCitacoes(md(x), fontes || msg.fontes) : md(x);
   const desenhar = s => {
     const t0 = performance.now();
     if (!fixoEl || !fixoEl.isConnected) { alvo.innerHTML = '<div class="fixo"></div><div class="cauda"></div>'; fixoEl = alvo.firstChild; caudaEl = alvo.lastChild; fixoAte = 0; aberto = null; }
     const { fixo, cerca } = analisarResposta(s);
-    if (fixo > fixoAte) { fixoEl.insertAdjacentHTML('beforeend', md(s.slice(fixoAte, fixo))); enfeitar(fixoEl); fixoAte = fixo; aberto = null; }
+    if (fixo > fixoAte) { fixoEl.insertAdjacentHTML('beforeend', mdc(s.slice(fixoAte, fixo))); enfeitar(fixoEl); fixoAte = fixo; aberto = null; }
     if (cerca && cerca.pos >= fixoAte) {
       if (!aberto || aberto.pos !== cerca.pos) {
-        caudaEl.innerHTML = md(s.slice(fixoAte, cerca.pos)) + `<pre data-lang="${esc(DESTAQUE.rotulo(cerca.lang))}"><code></code></pre>`;
+        caudaEl.innerHTML = mdc(s.slice(fixoAte, cerca.pos)) + `<pre data-lang="${esc(DESTAQUE.rotulo(cerca.lang))}"><code></code></pre>`;
         aberto = { pos: cerca.pos, el: caudaEl.lastChild.firstChild, len: 0, cor: t0 };
       }
       const codigo = s.slice(cerca.codigo);
       if (codigo.length < aberto.len) { aberto.el.textContent = codigo; aberto.len = codigo.length; }
       else if (codigo.length > aberto.len) { aberto.el.appendChild(document.createTextNode(codigo.slice(aberto.len))); aberto.len = codigo.length; }
       if (codigo.length < 8000 && t0 - aberto.cor > 400) { aberto.el.innerHTML = DESTAQUE.destacar(codigo, cerca.lang); aberto.cor = t0; }
-    } else { caudaEl.innerHTML = md(s.slice(fixoAte)); aberto = null; }
+    } else { caudaEl.innerHTML = mdc(s.slice(fixoAte)); aberto = null; }
     rolar();
     custo = custo * 0.7 + (performance.now() - t0) * 0.3;
   };
@@ -466,13 +485,19 @@ async function responder(conv, continuacao) {
     const r = dl && dl.completo && msg.texto ? { fim: 'stop' } : await PLATAFORMA.gerar([{ role: 'system', content: SISTEMA }, ...historico],
       { temperatura: comEsquema ? 0.4 : exato ? (nivel === 'alto' ? 0.15 : 0.2) : nivel === 'alto' ? 0.6 : 0.7, exato: exato || comEsquema, repeticao: exato ? 1.0 : 1.05, maxTokens: comEsquema ? 3500 : dl && dl.inicio ? 400 : maxTokens, continuar: !!continuacao || !!prefixo, esquema: comEsquema ? modo.esquema : undefined, pensar, aoPensar }, t => {
         novo += t; if (!comEsquema) agendar();
+        if (pensar && !tPensou && pensTxt.trim() && giro) {
+          tPensou = Math.max(1, Math.round((performance.now() - t0Resposta) / 1000));
+          const s = status(), rot = 'Pensou por ' + tempoBonito(tPensou);
+          if (s && !s.querySelector('.pensa-linha')) { s.insertAdjacentHTML('afterbegin', htmlLinhaPensa(rot)); ligarLinhaPensa(s, () => pensTxt, rot); }
+          giro.pensando(false); giro.livre();
+        }
         if (narrador && /[.!?…\n]/.test(t)) narrador.alimentar(inicio + novo, false);
       }, ctrl.signal);
     fim = (r && r.fim) || 'stop';
   } catch (e) {
     if (e.name !== 'AbortError') erro = e.message || String(e);
   } finally {
-    if (giro) { msg.tempo = giro.segundos(); giro.parar(); }
+    if (giro) { if (!continuacao) msg.tempo = tPensou || giro.segundos(); giro.parar(); }
     if (!erro && !comEsquema) await alcancar();
     clearTimeout(tTimer); cancelAnimationFrame(tRaf); tTimer = tRaf = 0;
     geracao = null;
@@ -485,7 +510,7 @@ async function responder(conv, continuacao) {
     novo = novo.trimEnd() + '\n\n*Os números do exemplo acima são só ilustrativos. Para um passo a passo exato, me mande a lista — por exemplo: **bubble sort em [5, 2, 8, 1]**.*';
   }
   msg.texto = (inicio + novo).trim(); msg.llm = msg.texto;
-  if (pensTxt.trim()) msg.pensou = pensTxt.trim().slice(0, 6000); else delete msg.pensou;   // o raciocínio fica gravado, recolhido
+  if (pensTxt.trim()) msg.pensou = pensTxt.trim().slice(0, 6000); else if (!continuacao) delete msg.pensou;   // o raciocínio fica gravado, recolhido
   if (comEsquema && !erro) {   // o JSON vira o widget; se não deu (cortado/abortado), avisa
     const d = normalizarModo(pergunta.modo, extrairJSON(novo));
     if (d) { msg[modo.campo] = d; msg.texto = markdownDoModo(pergunta.modo, d); msg.llm = msg.texto; }
@@ -502,7 +527,7 @@ async function responder(conv, continuacao) {
   if (fim === 'length') msg.cortada = true;
   if (!continuacao) conv.msgs.push(msg);
   conv.atualizada = Date.now();
-  if (atual === conv && alvo) { alvo.parentNode.remove(); addIa(msg, true); }
+  if (atual === conv && alvo) addIa(msg, true, alvo.parentNode);
   document.querySelectorAll('.msg.na-fila').forEach(e => coluna().appendChild(e));   // a fila continua embaixo da resposta
   salvar(); desenharLista(); registrarResposta(conv, msg);
   if (filaEnvio.length) setTimeout(andarFila, 80);

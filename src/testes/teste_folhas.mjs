@@ -35,12 +35,12 @@ const r = await js(`(() => { const c = $('#corpoConfig'); c.scrollTop = 0; const
 await puxar(r.x, r.y, 320); await espera(300);
 ok('Ajustes: puxar o conteúdo para baixo fecha', await js(`!document.querySelector('.painel-fundo:not(.saindo)')`));
 
-// 3) menu por cima de outro: mesma altura e entra pela direita; o de baixo recua
+// 3) pergunta curta por cima dos Ajustes: entra pela direita do tamanho do conteúdo (não esticada); o de baixo recua
 await js(`abrirConfig(); 1`); await espera(700);
 const hAj = await js(`$('.painel').offsetHeight`);
 js(`confirmar('Teste', 'Menu aberto por cima dos Ajustes.', 'Ok')`); await espera(600);
 const cima = await js(`(() => { const f = [...document.querySelectorAll('.dlg-fundo')].pop(); return { lado: f.classList.contains('lado'), h: f.firstElementChild.offsetHeight, atras: !!document.querySelector('.painel-fundo.atras') }; })()`);
-ok('menu por cima: entra pela direita com a altura do de baixo', cima.lado && Math.abs(cima.h - hAj) <= 2, JSON.stringify(cima) + ' × ' + hAj);
+ok('pergunta por cima dos Ajustes: entra pela direita do tamanho dela (sem esticar)', cima.lado && cima.h < 320 && cima.h < hAj - 200, JSON.stringify(cima) + ' × ' + hAj);
 ok('menu por cima: o de baixo recua', cima.atras);
 await foto('f2-por-cima');
 await js(`document.querySelectorAll('.dlg-fundo, .painel-fundo').forEach(f => f.remove()); 1`); await espera(200);
@@ -58,8 +58,10 @@ ok('folha comprida: com a lista no topo, puxar do meio fecha', await js(`!docume
 // 5) Ajustes → Respostas e a ajuda (!): balão pequeno, dentro da tela, fecha ao tocar fora
 await js(`abrirConfig('respostas'); 1`); await espera(900);
 const resp = await js(`(() => { const c = $('#corpoConfig'); return { secoes: [...c.querySelectorAll('.secao > h4')].map(h => h.textContent.trim()), ajudas: c.querySelectorAll('.ajuda').length, entra: c.querySelectorAll('.entra').length, titulo: !!$('#pTitulo .ajuda') }; })()`);
-ok('Respostas: instruções, tamanho, nível, esforço, compactar e Enter', ['Instruções para a IA', 'Tamanho das respostas', 'Seu nível de estudo', 'Esforço de cada modelo', 'Compactar sozinho', 'Enter envia'].every(t => resp.secoes.includes(t)), resp.secoes.join(' · '));
-ok('(!) em cada seção e no título do módulo', resp.ajudas >= 6 && resp.titulo, `${resp.ajudas} botões`);
+ok('Respostas: tamanho, compactar e sugestões (o esforço fica na caixa)', ['Tamanho das respostas', 'Compactar sozinho', 'Sugestões no fim da resposta'].every(t => resp.secoes.includes(t)) && !resp.secoes.includes('Esforço de cada modelo'), resp.secoes.join(' · '));
+ok('(!) em cada seção e no título do módulo', resp.ajudas >= 3 && resp.titulo, `${resp.ajudas} botões`);
+const pers = await js(`(async () => { irPara('personalizacao'); await new Promise(r => setTimeout(r, 400)); const a = [...$('#corpoConfig').querySelectorAll('.secao > h4')].map(h => h.textContent.trim()); irPara('privacidade'); await new Promise(r => setTimeout(r, 400)); const b = [...$('#corpoConfig').querySelectorAll('.secao > h4')].map(h => h.textContent.trim()); irPara('geral'); await new Promise(r => setTimeout(r, 400)); const g = [...$('#corpoConfig').querySelectorAll('.secao > h4')].map(h => h.textContent.trim()); irPara('respostas'); await new Promise(r => setTimeout(r, 400)); return JSON.stringify({ a, b, g }); })()`);
+ok('Personalização (instruções, nível, memória), Privacidade (pesquisa, lugar) e Geral com o Enter', (o => ['Instruções para a IA', 'Seu nível de estudo', 'Memória'].every(t => o.a.includes(t)) && ['Pesquisar na internet', 'Lugar, hora e clima'].every(t => o.b.includes(t)) && o.g.includes('Enter envia'))(JSON.parse(pers)), pers);
 ok('blocos entram um depois do outro', resp.entra >= 3, `${resp.entra} blocos animados`);
 await js(`$('#pTitulo .ajuda').click(); 1`); await espera(350);
 const bal = await js(`(() => { const b = document.querySelector('.balao'); if (!b) return null; const r = b.getBoundingClientRect(); return { dentro: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, largura: Math.round(r.width), texto: b.textContent.slice(0, 60) }; })()`);
@@ -139,4 +141,32 @@ await js(`atualizarFolhaPensa('Primeiro passo do raciocínio.'); 1`); await espe
 ok('raciocínio ainda vazio mostra o anel girando e some quando o texto chega', esperaPensa && await js(`!document.querySelector('.pens-espera') && /Primeiro passo/.test(document.querySelector('.pens-txt').textContent)`));
 await js(`folhaPensa && folhaPensa.fechar(); 1`); await espera(400);
 ok('o topo da folha cobre as laterais (conteúdo não vaza por cima)', await js(`(() => { abrirConhecimentos(); const t = document.querySelector('.dlg.conh .dlg-topo'); const s = getComputedStyle(t); return s.position === 'sticky' && /24px/.test(s.boxShadow) && s.clipPath !== 'none'; })()`));
+await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); 1`); await espera(200);
+
+// limites (auditoria 1.26): tela de dentro copia a altura do menu de baixo; teclado; conteúdo que cresce; PC baixo
+await js(`abrirMais(); 1`); await espera(600);
+const hMais = await js(`document.querySelector('.dlg.mais').offsetHeight`);
+await js(`document.querySelector('.dlg.mais [data-modos]').click(); 1`); await espera(700);
+const modos = await js(`(() => { const d = document.querySelector('.dlg-fundo:not(.saindo) .dlg.modos'); return d && { h: d.offsetHeight, lado: d.parentNode.classList.contains('lado') }; })()`);
+ok('+ → Modos: a tela de dentro entra pela direita com a altura do +', modos && modos.lado && Math.abs(modos.h - hMais) <= 2, JSON.stringify(modos) + ' × ' + hMais);
+await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); 1`); await espera(200);
+// teclado aberto (no iPhone a página não encolhe: --vh diminui): título e botões continuam dentro da parte visível
+js(`perguntarTexto('Renomear conversa', 'Teste')`); await espera(500);
+await js(`document.documentElement.style.setProperty('--vh', '380px'); document.documentElement.style.setProperty('--kb', '464px'); 1`); await espera(200);
+const tec = await js(`(() => { const d = document.querySelector('.dlg-fundo:not(.saindo) .dlg'); const r = d.getBoundingClientRect(); const t = d.querySelector('.dlg-topo').getBoundingClientRect(); return { topo: Math.round(t.top), fim: Math.round(r.bottom), h: Math.round(r.height) }; })()`);
+ok('teclado aberto: a folha sobe acima dele com o título à vista', tec.topo >= 0 && tec.fim <= 844 - 464 + 2 && tec.h <= 380, JSON.stringify(tec));
+await js(`medirTela(); document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); 1`); await espera(200);
+// conteúdo que chega depois de abrir: a folha passa a rolar com o dedo
+js(`perguntar('Carregando', '<div id="cresce"></div>', [['Ok', 1, 'primario']])`); await espera(500);
+const antes = await js(`document.querySelector('.dlg').classList.contains('rola')`);
+await js(`document.getElementById('cresce').innerHTML = Array.from({ length: 60 }, (_, i) => '<p>Linha ' + i + '</p>').join(''); 1`); await espera(200);
+ok('conteúdo que cresce depois de abrir: a folha passa a rolar', !antes && await js(`document.querySelector('.dlg').classList.contains('rola')`));
+await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); 1`); await espera(200);
+// tela de PC baixa (celular deitado, janela pequena): o menu flutuante não sai da tela
+await cdp('Emulation.setDeviceMetricsOverride', { width: 900, height: 380, deviceScaleFactor: 1, mobile: false }); await espera(400);
+await js(`abrirMais(); 1`); await espera(500);
+const pop = await js(`(() => { const r = document.querySelector('.dlg.mais').getBoundingClientRect(); return { topo: Math.round(r.top), fim: Math.round(r.bottom), alto: innerHeight }; })()`);
+ok('PC com pouca altura: o + fica inteiro dentro da tela', pop.topo >= 0 && pop.fim <= pop.alto, JSON.stringify(pop));
+await js(`document.querySelectorAll('.dlg-fundo').forEach(f => f.remove()); 1`);
+await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 resumo();

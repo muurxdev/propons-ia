@@ -49,6 +49,11 @@ const ligarLinks = el => {
   el.querySelectorAll('a[href]').forEach(a => a.onclick = e => { e.preventDefault(); abrirFonte(a.href, a.getAttribute('title') || (a.classList.contains('cit') ? '' : a.textContent.trim())); });
   el.querySelectorAll('[data-fontes]').forEach(b => b.onclick = () => { let l = []; try { l = JSON.parse(b.dataset.fontes); } catch (e) {} if (l.length) abrirListaFontes(l); });
 };
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('.msg a[href]');
+  if (!a || e.defaultPrevented || !/^https?:/i.test(a.href)) return;
+  e.preventDefault(); abrirFonte(a.href, a.getAttribute('title') || (a.classList.contains('cit') ? '' : a.textContent.trim()));
+});
 // [1] no meio do texto vira um selo clicável para a fonte (não mexe em blocos de código)
 function comCitacoes(html, fontes) {
   if (!fontes || !fontes.length) return html;

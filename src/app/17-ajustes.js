@@ -3,7 +3,7 @@ const GB = 1073741824;
 let abaAtual = 'modelo';
 const PAGINAS = [
   [['modelo', 'Modelos de IA', ICO.chip], ['atualizacoes', 'Atualizações', ICO.atualizar]],
-  [['respostas', 'Respostas', ICO.respostas], ['geral', 'Aparência', ICO.aparencia], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo], ['memoria', 'Memória', ICO.memoria]],
+  [['geral', 'Geral', ICO.aparencia], ['respostas', 'Respostas', ICO.respostas], ['personalizacao', 'Personalização', ICO.memoria], ['privacidade', 'Privacidade', ICO.cadeado], ['conversas', 'Conversas', ICO.conversas], ['estudo', 'Estudo', ICO.estudo]],
   [['diagnostico', 'Diagnóstico', ICO.diagnostico], ['sobre', 'Sobre', ICO.sobre]],
 ];
 const TITULOS = Object.fromEntries(PAGINAS.flat().map(([k, t]) => [k, t]));
@@ -32,11 +32,12 @@ function subtitulo(k) {
   const ativo = sistemaCache && (sistemaCache.modelos || []).find(m => m.atual);
   switch (k) {
     case 'modelo': return ativo ? 'Em uso: ' + nomeModelo(ativo) : 'Escolher, baixar e apagar';
-    case 'respostas': return ({ curtas: 'Respostas curtas', normais: 'Respostas normais', detalhadas: 'Respostas detalhadas' })[pref('tamanhoResposta') || 'normais'] + (String(pref('instrucoes') || '').trim() ? ' · com suas instruções' : ' · instruções, nível e esforço');
+    case 'respostas': return ({ curtas: 'Respostas curtas', normais: 'Respostas normais', detalhadas: 'Respostas detalhadas' })[pref('tamanhoResposta') || 'normais'] + (querSugestoes() ? ' · com sugestões' : ' · sem sugestões');
     case 'atualizacoes': return atualizacao ? `Versão ${atualizacao.versao} disponível` : `Versão ${VERSAO}`;
     case 'geral': return ({ sistema: 'Tema do sistema', claro: 'Tema claro', escuro: 'Tema escuro' })[pref('tema') || 'sistema'] + ' · letra ' + ({ p: 'pequena', m: 'média', g: 'grande' })[pref('fonte') || 'm'] + (PLATAFORMA.temFala ? (pref('lerRespostas') === 'sim' ? ' · lê em voz alta' : ' · voz') : '');
     case 'conversas': return `${conversas.length} ${conversas.length === 1 ? 'conversa' : 'conversas'} · backup e limpeza`;
-    case 'memoria': { const n = memoria().length; return n ? `${n} ${n === 1 ? 'coisa que a IA sabe' : 'coisas que a IA sabe'} sobre você` : 'O que a IA sabe sobre você'; }
+    case 'personalizacao': { const n = memoria().length, ins = String(pref('instrucoes') || '').trim(); return (ins ? 'Com suas instruções' : 'Instruções, nível') + ' · ' + (n ? `${n} ${n === 1 ? 'lembrança' : 'lembranças'}` : 'memória'); }
+    case 'privacidade': return (pesquisaLigada() ? 'Pesquisa ligada' : 'Pesquisa desligada') + ' · ' + (usarDadosLugar() ? 'clima e lugar reais' : 'sem dados de lugar');
     case 'estudo': { const b = baralho(), n = paraRevisar(b).length; return b.cartoes.length ? `${n ? n + ' para revisar hoje' : 'nada para revisar hoje'} · ${b.cartoes.length} cartões` : 'Flashcards, quiz e redação'; }
     case 'diagnostico': return 'Testar tudo e medir a velocidade';
     case 'sobre': return 'Própons IA ' + VERSAO;
@@ -73,11 +74,12 @@ function abrirConfig(aba) {
   setTimeout(() => lerSistema().then(() => { if (!document.querySelector('.painel-fundo.saindo')) desenharNav(); }), 560);
 }
 function irPara(aba, abrindo) {
+  aba = ({ memoria: 'personalizacao', aparencia: 'geral' })[aba] || aba;   // nomes antigos das páginas
   if (!TITULOS[aba]) aba = 'modelo';
   abaAtual = aba; desenharNav();
   const p = $('.painel'); if (!p) return;
   // celular: a página do módulo fica do tamanho do menu principal (nada de pular para a tela cheia)
-  if (estreita() && !p.style.height) p.style.height = Math.max(p.offsetHeight, Math.min(innerHeight * 0.6, 420)) + 'px';
+  if (estreita() && !p.style.height) alturaPainel(p);
   p.classList.add('sub'); $('#pTitulo').innerHTML = esc(TITULOS[aba]) + botaoAjuda('m:' + aba);
   $('#corpoConfig').scrollTop = 0;
   pausarDesenho(300);
@@ -85,11 +87,18 @@ function irPara(aba, abrindo) {
   if (abrindo) { $('#corpoConfig').innerHTML = '<p class="info">Carregando…</p>'; setTimeout(() => { if ($('#corpoConfig') && abaAtual === aba) desenharAba(); }, 340); }
   else desenharAba();
 }
+function alturaPainel(p) { p.style.height = ''; p.style.height = Math.max(p.offsetHeight, Math.min(alturaVisivel() * 0.6, 420)) + 'px'; }
+// girou o celular com os Ajustes abertos: a altura fixa é refeita para a tela nova
+let larguraPainel = innerWidth;
+addEventListener('resize', () => {
+  if (innerWidth === larguraPainel) return; larguraPainel = innerWidth;
+  const p = $('.painel'); if (p && p.style.height) { if (estreita()) alturaPainel(p); else p.style.height = ''; }
+});
 $('#abrirConfig').onclick = () => abrirConfig();
 
 function desenharAba() {
   const c = $('#corpoConfig'); if (!c) return;
-  const pagina = abaAtual, r = ({ respostas: abaRespostas, geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, memoria: abaMemoria, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
+  const pagina = abaAtual, r = ({ respostas: abaRespostas, personalizacao: abaPersonalizacao, privacidade: abaPrivacidade, geral: abaGeral, modelo: abaModelo, atualizacoes: abaAtualizacoes, conversas: abaConversas, estudo: abaEstudo, diagnostico: abaDiagnostico, sobre: abaSobre })[abaAtual](c);
   // (!) nas seções e entrada suave dos blocos só na primeira vez que a página aparece (redesenhos não piscam)
   Promise.resolve(r).then(() => { if ($('#corpoConfig') !== c || abaAtual !== pagina) return; const nova = c.dataset.pagina !== pagina; c.dataset.pagina = pagina; enfeitarPagina(c, nova); });
 }
@@ -104,10 +113,13 @@ function abaGeral(c) {
     <div class="secao"><h4>Tamanho da letra</h4>${seg('fonte', [['p', 'Pequena'], ['m', 'Média'], ['g', 'Grande']], pref('fonte') || 'm')}</div>
     ${PLATAFORMA.temFala ? `<div class="secao"><h4>Ler em voz alta</h4>${seg('lerRespostas', [['nao', 'Só quando eu pedir'], ['sim', 'Toda resposta']], pref('lerRespostas') || 'nao')}<p class="info">O alto-falante em cada resposta lê o texto com a voz do sistema. Em "Toda resposta", a leitura começa enquanto a IA ainda escreve.</p></div>` : ''}
     <div class="secao"><h4>Avisar quando ficar pronto</h4>${seg('avisarPronto', [['sim', 'Sim'], ['nao', 'Não']], pref('avisarPronto') || 'sim')}<p class="info">A IA continua respondendo com ${estreita() ? 'o app em segundo plano ou a tela apagada' : 'a janela minimizada ou em outro programa'}; quando terminar, ${estreita() ? 'chega uma notificação' : 'o sistema avisa'}. Sem aviso se você estiver com a Própons na frente.</p></div>
+    <div class="secao"><h4>Enter envia</h4>${seg('enterEnvia', [['sim', 'Sim'], ['nao', 'Não, quebra a linha']], enterEnvia() ? 'sim' : 'nao')}
+      <p class="info">${CELULAR ? 'No celular o padrão é Enter quebrar a linha e a seta enviar.' : 'Shift+Enter sempre quebra a linha.'}</p></div>
     ${estreita() ? `<div class="secao"><h4>Gestos</h4><p class="info">Arraste da borda esquerda para abrir o histórico · segure uma conversa para renomear, compartilhar ou apagar · botão voltar fecha menus e telas.</p></div>`
       : `<div class="secao"><h4>Atalhos</h4><p class="info">Enter envia · Shift+Enter quebra linha · ↑ edita a última pergunta · Ctrl+B histórico · Ctrl+K buscar · Ctrl+Shift+O nova conversa · Ctrl+, ajustes</p></div>`}`;
   ligarSeg(c, 'tema', v => { pref('tema', v); aplicarTema(); });
   ligarSeg(c, 'fonte', v => { pref('fonte', v); aplicarFonte(); });
+  ligarSeg(c, 'enterEnvia', v => { pref('enterEnvia', v); $('#entrada').setAttribute('enterkeyhint', v === 'sim' ? 'send' : 'enter'); });
   ligarSeg(c, 'lerRespostas', v => { pref('lerRespostas', v); if (v === 'sim' && !falaAtual) falarAviso('Leitura em voz alta ligada.'); });
   ligarSeg(c, 'avisarPronto', v => { pref('avisarPronto', v); if (v === 'sim') PLATAFORMA.notificar('Própons IA', 'Pronto: é assim que eu vou avisar quando a resposta terminar.'); });
 }
@@ -344,11 +356,14 @@ function abaConversas(c) {
   $('#apagarTudo').onclick = () => apagarTodasConversas().then(ok => { if (ok) { desenharAba(); desenharNav(); } });
 }
 async function apagarTodasConversas() {
-  if (!conversas.length) { toast('Não há conversas para apagar.'); return false; }
-  if (!await confirmar('Apagar todas as conversas?', `${conversas.length} ${conversas.length === 1 ? 'conversa será apagada' : 'conversas serão apagadas'} deste aparelho. Isso não pode ser desfeito.`, 'Apagar tudo', true)) return false;
-  if (geracao) geracao.ctrl.abort(); conversas = []; salvarBloqueado = false; nova(); salvar(true); toast('Conversas apagadas.'); return true;
+  const sai = conversas.filter(c => !c.fixada), ficam = conversas.length - sai.length;
+  if (!sai.length) { toast(ficam ? 'Só há conversas fixadas (desafixe para apagar).' : 'Não há conversas para apagar.', 3000); return false; }
+  if (!await confirmar('Apagar todas as conversas?', `${sai.length} ${sai.length === 1 ? 'conversa será apagada' : 'conversas serão apagadas'} deste aparelho. Isso não pode ser desfeito.${ficam ? ` ${ficam === 1 ? 'A conversa fixada fica' : 'As ' + ficam + ' fixadas ficam'}.` : ''}`, 'Apagar tudo', true)) return false;
+  if (geracao && !geracao.conv.fixada) geracao.ctrl.abort();
+  conversas = conversas.filter(c => c.fixada); salvarBloqueado = false;
+  if (!atual || !atual.fixada) nova(); else desenharLista();
+  salvar(true); toast('Conversas apagadas.'); return true;
 }
-$('#apagarConversas').onclick = () => apagarTodasConversas().then(ok => { if (ok && estreita()) fecharLateral(); });
 $('#importar').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
@@ -566,21 +581,13 @@ function abaAtualizacoes(c) {
       ${u && u.notas ? htmlNotasVersao(u, true) : '<div id="notasAtual"></div>'}
       <div id="progAtual"${atualizando ? '' : ' hidden'}><div class="barra"><i style="width:${atualizando ? (atualizando.pct * 100).toFixed(1) : 0}%"></i></div><small class="info" id="txtProgAtual">${textoAtualizando()}</small></div>
       <div class="botoes" style="margin-top:14px">${u ? `<button class="btn primario" id="btnAtualizar"${atualizando ? ' disabled' : ''}>${ICO.exportar}${rotuloAtualizar()}${u.tamanho && PLATAFORMA.podeAtualizarSozinho ? ` · ${Math.round(u.tamanho / 1048576)} MB` : ''}</button>` : ''}
-        <button class="btn" id="btnProcurar">${ICO.atualizar}Procurar atualizações</button></div>
-      <p class="info" style="margin:12px 0 0">${instrucoesAtualizacao()}</p></div>
-    <div class="secao" style="margin-top:18px"><h4>Atualizar tudo</h4><div class="cartao"><p class="info">Procura versão nova do app e confere se os modelos baixados estão inteiros. Um modelo com defeito é apagado para ser baixado de novo.</p>
-      <button class="btn" id="btnTudo">${ICO.atualizar}Procurar e atualizar tudo</button><ul class="diag" id="listaTudo" style="margin-top:8px"></ul></div></div>
+        <button class="btn" id="btnTudo">${ICO.atualizar}Procurar atualizações</button></div>
+      <ul class="diag" id="listaTudo" style="margin-top:8px"></ul>
+      <p class="info" style="margin:12px 0 0">${instrucoesAtualizacao()} Procurar também confere se os modelos baixados estão inteiros (um com defeito é apagado para ser baixado de novo).</p></div>
     <div class="secao"><h4>Automático</h4><div class="cartao"><button class="interruptor" id="swAvisar" role="switch" aria-checked="${pref('avisarAtualizacao') !== 'nao'}"><span class="pt"><b>Avisar quando sair versão nova</b><small>Confere ao abrir o app, quando houver internet</small></span><span class="chave"></span></button></div></div>`;
   ligarCopiar(c); ligarNotasVersao(c);
   if (!u) mostrarNotasDaAtual();
   if ($('#btnAtualizar')) $('#btnAtualizar').onclick = iniciarAtualizacao;
-  $('#btnProcurar').onclick = async () => {
-    const b = $('#btnProcurar'); b.disabled = true; b.lastChild.textContent = 'Procurando…';
-    const r = await checarAtualizacao();
-    if (r === null) toast('Sem internet para verificar agora.');
-    else if (!r) toast('Você já está na versão mais recente.');
-    if (abaAtual === 'atualizacoes') desenharAba();
-  };
   $('#btnTudo').onclick = atualizarTudo;
   $('#swAvisar').onclick = () => { const on = $('#swAvisar').getAttribute('aria-checked') !== 'true'; $('#swAvisar').setAttribute('aria-checked', on); pref('avisarAtualizacao', on ? 'sim' : 'nao'); };
 }
@@ -621,7 +628,7 @@ PLATAFORMA.ao('atualizacao', d => {
 
 async function atualizarTudo() {
   const ul = $('#listaTudo'), bt = $('#btnTudo'); if (!ul) return;
-  bt.disabled = true; ul.innerHTML = '';
+  bt.disabled = true; bt.lastChild.textContent = 'Procurando…'; ul.innerHTML = '';
   const add = (st, titulo, det) => { const li = document.createElement('li'); li.innerHTML = `<span class="ic">${{ ok: '✅', aviso: '⚠️', erro: '❌', info: 'ℹ️', vai: '⏳' }[st]}</span><div><b>${esc(titulo)}</b>${det ? `<small>${esc(det)}</small>` : ''}</div>`; if ($('#listaTudo')) $('#listaTudo').appendChild(li); return li; };
   const u = await checarAtualizacao();
   add(u === null ? 'aviso' : u ? 'info' : 'ok', 'Aplicativo', u === null ? 'sem internet para verificar' : u ? `versão ${u.versao} disponível` : `versão ${VERSAO} é a mais recente`);
@@ -638,11 +645,9 @@ async function atualizarTudo() {
     verificandoLi = null;
     lerSistema().then(desenharNav);
   }
-  if ($('#btnTudo')) $('#btnTudo').disabled = false;
-  if (u) {
-    if (abaAtual === 'atualizacoes') { const lista = $('#listaTudo').innerHTML; desenharAba(); $('#listaTudo').innerHTML = lista; }
-    iniciarAtualizacao();
-  }
+  if ($('#btnTudo')) { $('#btnTudo').disabled = false; $('#btnTudo').lastChild.textContent = 'Procurar atualizações'; }
+  // versão nova: a página mostra o "Atualizar agora" com as novidades (a lista do que foi conferido continua)
+  if (u && abaAtual === 'atualizacoes' && $('#listaTudo')) { const lista = $('#listaTudo').innerHTML; desenharAba(); if ($('#listaTudo')) $('#listaTudo').innerHTML = lista; }
 }
 let verificandoLi = null;
 PLATAFORMA.ao('verificacao', d => { if (verificandoLi && verificandoLi.isConnected) verificandoLi.querySelector('small').textContent = `conferindo ${d.nome}: ${Math.floor((d.pct || 0) * 100)}%`; });
@@ -663,10 +668,9 @@ async function avisoAutomatico() {
 /* ---------------- sobre ---------------- */
 function abaSobre(c) {
   c.innerHTML = `<div class="cartao"><div class="versao-topo"><div class="marca"></div><div><b>Própons IA</b><small>Versão ${VERSAO} · IA de estudos que roda no seu aparelho</small></div></div></div>
-    <div class="botoes" style="margin-bottom:18px"><button class="btn" id="irAtual">${ICO.atualizar}Atualizações</button><button class="btn" id="abrirSite">Site para baixar</button><button class="btn" id="abrirRepo">Código no GitHub</button></div>
-    <div class="secao"><h4>Privacidade</h4><p class="info">Tudo roda neste aparelho: suas conversas e arquivos não são enviados para nenhum servidor. A internet só é usada para baixar os modelos e procurar atualizações.</p></div>
+    <div class="botoes" style="margin-bottom:18px"><button class="btn" id="abrirSite">Site para baixar</button><button class="btn" id="abrirRepo">Código no GitHub</button></div>
+    <div class="secao"><h4>Privacidade</h4><p class="info">${TEXTO_PRIVACIDADE}</p></div>
     <div class="secao"><h4>Componentes</h4><p class="info">Motor: llama.cpp (MIT) · Modelos: Qwen3.5 (Apache 2.0) · Leitura de PDF: pdf.js (Apache 2.0) · DOCX: mammoth.js (BSD-2)${PLATAFORMA.tipo === 'windows' ? ' · Microsoft WebView2' : ''}.</p></div>`;
-  $('#irAtual').onclick = () => irPara('atualizacoes');
   $('#abrirSite').onclick = () => PLATAFORMA.abrirLink('https://muurxdev.github.io/propons-ia/');
   $('#abrirRepo').onclick = () => PLATAFORMA.abrirLink('https://github.com/' + REPO);
 }

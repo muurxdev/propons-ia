@@ -34,12 +34,14 @@ function respostaLocal(texto) {   // resposta do próprio app (sem passar pela I
   const msg = { role: 'assistant', texto, llm: texto };
   atual.msgs.push(msg); atual.atualizada = Date.now(); addIa(msg, true); salvar(); desenharLista();
 }
-function abaMemoria(c) {
+function htmlMemoria() {
   const m = memoria();
-  c.innerHTML = `<p class="info" style="margin:0 12px 10px">O que a IA sabe sobre você entra em toda resposta. Diga "lembre que…" no chat ou escreva aqui. Fica só neste aparelho.</p>
-    <div class="cartao"><div class="mem-lista">${m.length ? m.map((x, i) => `<div class="mem-item"><span>${esc(x)}</span><button class="icone" data-mem-rm="${i}" aria-label="Apagar">${ICO.apagar}</button></div>`).join('') : '<p class="info" style="margin:8px 12px">Nada ainda. Exemplo: "lembre que estou no 3º ano e vou fazer o ENEM".</p>'}</div>
+  return `<div class="secao"><h4>Memória</h4><div class="cartao"><div class="mem-lista">${m.length ? m.map((x, i) => `<div class="mem-item"><span>${esc(x)}</span><button class="icone" data-mem-rm="${i}" aria-label="Apagar">${ICO.apagar}</button></div>`).join('') : '<p class="info" style="margin:8px 12px">Nada ainda. Exemplo: "lembre que estou no 3º ano e vou fazer o ENEM".</p>'}</div>
       <div class="mem-novo"><input id="memNovo" placeholder="Adicionar: ex. estudo engenharia, prefiro exemplos com código" maxlength="200"><button class="btn primario" id="memAdd">Adicionar</button></div></div>
-    ${m.length ? `<div class="secao" style="margin-top:14px"><div class="botoes"><button class="btn perigo" id="memLimpar">Esquecer tudo</button></div></div>` : ''}`;
+    <p class="info">Entra em toda resposta. Diga "lembre que…" no chat ou escreva aqui. Fica só neste aparelho.</p></div>
+    ${m.length ? `<div class="botoes"><button class="btn perigo" id="memLimpar">Esquecer tudo</button></div>` : ''}`;
+}
+function ligarMemoria(c) {
   c.querySelectorAll('[data-mem-rm]').forEach(b => b.onclick = () => { const l = memoria(); l.splice(+b.dataset.memRm, 1); salvarMemoria(l); desenharAba(); desenharNav(); });
   const add = () => { const v = c.querySelector('#memNovo').value; if (lembrar(v)) { desenharAba(); desenharNav(); } else if (v.trim()) toast('Isso já está na memória.'); };
   c.querySelector('#memAdd').onclick = add; c.querySelector('#memNovo').onkeydown = e => { if (e.key === 'Enter') add(); };
@@ -114,7 +116,7 @@ function htmlRedacao(m) {
   return `<div class="rd"><div class="rd-total"><b>${total}</b><small>de 1000</small></div>
     <table class="rd-tab">${d.notas.map((n, i) => `<tr><td>C${i + 1}</td><td>${esc(COMPETENCIAS[i])}</td><td class="rd-n">${n}</td><td>${esc(d.comentarios[i])}</td></tr>`).join('')}</table>
     <p><b>Pontos fortes:</b> ${esc(d.pontos_fortes)}</p><p><b>O que melhorar:</b></p><ul>${d.melhorias.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-    <details class="passos"><summary>Versão melhorada</summary>${md(d.versao_melhorada)}</details></div>`;
+    <details class="versao-melhor"><summary>Versão melhorada</summary>${md(d.versao_melhorada)}</details></div>`;
 }
 function ligarWidgets(d, m) {
   d.querySelectorAll('.fc').forEach(b => b.onclick = () => b.classList.toggle('virado'));
@@ -162,7 +164,8 @@ function exportarAnki(cartoes) {
   const limpo = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
   PLATAFORMA.salvarArquivo('flashcards-propons.txt', '#separator:tab\n#html:true\n' + cartoes.map(c => `${limpo(c.frente)}\t${limpo(c.verso)}`).join('\n') + '\n', 'text/plain').then(r => r !== false && toast('Arquivo pronto para importar no Anki.')).catch(e => toast('Não foi possível exportar: ' + e.message));
 }
-function abrirRevisao(treino) {
+// ancora: o botão que abriu (no PC o Revisar flutua ao lado dele); null = janela no centro (aberto dos Ajustes)
+function abrirRevisao(treino, ancora) {
   const b = baralho(); const fila = treino || paraRevisar(b);
   if (!fila.length) { toast('Nenhum cartão para revisar agora.'); return; }
   const f = document.createElement('div'); f.className = 'dlg-fundo';
@@ -186,7 +189,7 @@ function abrirRevisao(treino) {
     });
   };
   desenhar();
-  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, $('#anexar'));
+  pausarDesenho(); document.body.appendChild(f); posicionarPop(f, folha, ancora === undefined ? $('#anexar') : ancora);
 }
 function abrirModos() {
   const b = baralho(), n = paraRevisar(b).length;
@@ -207,7 +210,7 @@ function abaEstudo(c) {
       <p class="info" style="margin:8px 12px 0">${b.cartoes.length} ${b.cartoes.length === 1 ? 'cartão' : 'cartões'} no baralho · ${b.revisoes || 0} ${(b.revisoes || 0) === 1 ? 'revisão' : 'revisões'}${b.revisoes ? ` · ${Math.round(100 * (b.acertos || 0) / b.revisoes)}% lembrados` : ''}</p></div>
     <div class="secao" style="margin-top:18px"><h4>Quizzes</h4><p class="info" style="margin:0 12px">${b.quizzes ? `${b.quizzes} ${b.quizzes === 1 ? 'questão respondida' : 'questões respondidas'} · ${pct}% de acerto` : 'Nenhuma questão respondida ainda. Use "+" → Modos de estudo → Quiz.'}</p></div>
     <div class="secao" style="margin-top:18px"><h4>Baralho</h4><div class="botoes" style="justify-content:flex-start;padding:0 12px"><button class="btn" id="expBaralho"${b.cartoes.length ? '' : ' disabled'}>Exportar para o Anki</button><button class="btn perigo" id="apagarBaralho"${b.cartoes.length ? '' : ' disabled'}>Apagar o baralho</button></div></div>`;
-  c.querySelector('#revisarHoje').onclick = () => abrirRevisao();
+  c.querySelector('#revisarHoje').onclick = () => abrirRevisao(null, null);
   c.querySelector('#expBaralho').onclick = () => exportarAnki(b.cartoes);
   c.querySelector('#apagarBaralho').onclick = async () => { if (await confirmar('Apagar o baralho?', `<p>${b.cartoes.length} cartões e o histórico de revisões serão apagados.</p>`, 'Apagar')) { salvarBaralho({ cartoes: [], revisoes: 0, acertos: 0 }); desenharAba(); desenharNav(); } };
 }

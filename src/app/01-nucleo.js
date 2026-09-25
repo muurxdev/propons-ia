@@ -29,8 +29,6 @@ const ICO = {
   foto: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></svg>',
   baixo: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
   baixar: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19h14"/></svg>',
-  escudo: '<svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
-  sino: '<svg viewBox="0 0 24 24"><path d="M18 15V10a6 6 0 0 0-12 0v5l-2 3h16z"/><path d="M10 21h4"/></svg>',
   historico: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>',
   compactar: '<svg viewBox="0 0 24 24"><path d="M4 12h16"/><path d="M9 7l3-3 3 3"/><path d="M9 17l3 3 3-3"/></svg>',
   molde: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="10" height="6" rx="2"/><path d="M17 14h4M17 18h4"/></svg>',
@@ -61,6 +59,20 @@ const LIMITE_ANEXO = 40 * 1024, MAX_ANEXOS = 3, MAX_FOTOS = 3, TOKENS_FOTO = 420
 const eFoto = f => (f.type && /^image\//.test(f.type)) || /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i.test(f.name || '');
 
 /* ---------------- utilidades ---------------- */
+/* teclado e rotação: --vh é a altura que sobra visível (no iPhone o teclado cobre a página sem encolhê-la, e ele
+   vira --kb); --sobre-caixa é a distância do pé da tela até o topo da caixa de mensagem (os avisos ficam acima dela) */
+const alturaVisivel = () => window.visualViewport ? visualViewport.height : innerHeight;
+function medirTela() {
+  const r = document.documentElement.style, vv = window.visualViewport;
+  r.setProperty('--vh', alturaVisivel() + 'px');
+  r.setProperty('--kb', (vv ? Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) : 0) + 'px');
+  const c = document.getElementById('caixa');
+  if (c && c.offsetParent) r.setProperty('--sobre-caixa', Math.max(24, Math.round(innerHeight - c.getBoundingClientRect().top)) + 'px');
+}
+medirTela();
+addEventListener('resize', medirTela); addEventListener('orientationchange', () => setTimeout(medirTela, 200));
+if (window.visualViewport) { visualViewport.addEventListener('resize', medirTela); visualViewport.addEventListener('scroll', medirTela); }
+addEventListener('DOMContentLoaded', () => { const c = document.getElementById('caixa'); if (c) try { new ResizeObserver(medirTela).observe(c); } catch (e) {} medirTela(); });
 function toast(t, ms = 2200) { const d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
 /* enquanto uma folha ou a gaveta anima, o texto da resposta espera (a animação tem prioridade) */
 let pausaDesenhoAte = 0;
@@ -94,9 +106,16 @@ function folhaArrastavel(fundo, folha, fechar) {
   const temMais = () => folha.scrollHeight - folha.clientHeight > 8;
   const marcarRolagem = () => folha.classList.toggle('rola', temMais());
   marcarRolagem(); setTimeout(marcarRolagem, 60);
+  // conteúdo que chega depois (lista que carrega, "Mostrar resposta", referência adicionada): decide de novo se rola
+  let marcaPendente = 0;
+  const remarcar = () => { if (!marcaPendente) marcaPendente = requestAnimationFrame(() => { marcaPendente = 0; marcarRolagem(); }); };
+  try { new ResizeObserver(remarcar).observe(folha); } catch (e) {}
+  new MutationObserver(remarcar).observe(folha, { childList: true, subtree: true });
   // conteúdo rolado: aparece a linha fina embaixo do título (como nas folhas do sistema)
   folha.addEventListener('scroll', () => folha.classList.toggle('rolada', folha.scrollTop > 4), { passive: true });
-  const alturaMax = () => window.innerHeight - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--st')) || 0) - 10;
+  const alturaMax = () => alturaVisivel() - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--st')) || 0) - 10;
+  // tamanho que a folha tinha ao abrir (a de cima copia a de baixo): o gesto que não mudou nada volta para ele
+  const hSolta = () => folha._hFixa ? folha._hFixa + 'px' : '';
   const CURVA = 'cubic-bezier(.2,.9,.25,1)';   // desacelera no fim, como uma mola sem quicar
   const cheia = () => folha.classList.contains('cheia');
   let g = null;   // gesto em andamento: { modo: 'crescer' | 'encolher' | 'fechar', y0, h0, hBase, pontos }
@@ -136,16 +155,15 @@ function folhaArrastavel(fundo, folha, fechar) {
     const d = y - g.y0, v = velocidade(), m = g; g = null;
     if (m.modo === 'crescer') {
       const vai = -d > 48 || (v < -0.35 && -d > 24);   // puxão rápido vale, mas não um tremor de poucos pixels
-      folha.classList.toggle('cheia', vai);
-      assentar({ height: (vai ? alturaMax() : m.h0) + 'px' }, () => { if (!vai) { folha.style.height = ''; folha.style.maxHeight = ''; } });
+      // assentada, a tela cheia fica só pela classe (segue o teclado e a rotação); a altura em px sai
+      assentar({ height: (vai ? alturaMax() : m.h0) + 'px' }, () => { folha.classList.toggle('cheia', vai); folha.style.height = vai ? '' : hSolta(); folha.style.maxHeight = ''; });
       return;
     }
     if (m.modo === 'encolher') {
       const h = m.h0 - Math.max(0, d);
       if (h < m.hBase && (m.hBase - h > Math.min(120, m.hBase * 0.28) || (v > 1.1 && m.hBase - h > 24))) { fechar(); return; }   // desceu além do normal: fecha
       const volta = h < (m.h0 + m.hBase) / 2 || (v > 0.35 && d > 24);   // desceu o bastante (ou rápido): volta ao tamanho normal
-      folha.classList.toggle('cheia', !volta);
-      assentar({ height: (volta ? m.hBase : m.h0) + 'px', transform: '' }, () => { if (volta) { folha.style.height = ''; folha.style.maxHeight = ''; } });
+      assentar({ height: (volta ? m.hBase : m.h0) + 'px', transform: '' }, () => { folha.classList.toggle('cheia', !volta); folha.style.height = volta ? hSolta() : ''; folha.style.maxHeight = ''; });
       return;
     }
     if (d > Math.min(120, folha.offsetHeight * 0.28) || (v > 0.6 && d > 30)) { fechar(); return; }
@@ -219,13 +237,12 @@ const topoCentro = (titulo, voltar) => {
   const v = voltar === undefined ? sobreOutraFolha() : voltar;
   return `<div class="dlg-topo centro"><span class="alca"></span><button class="icone" data-x aria-label="${v ? 'Voltar' : 'Fechar'}">${v ? ICO.voltar : ICO.fechar}</button><h3>${esc(titulo || '')}</h3><span class="vazio-x"></span></div>`;
 };
-const topoFolha = topoCentro;
 
 /* diálogo próprio (folha que sobe de baixo). botoes: [[rótulo, valor, 'primario'|'perigo'|'']]; devolve o valor escolhido (null ao fechar) */
 function perguntar(titulo, html, botoes, opcoes) {
   return new Promise(ok => {
-    const f = document.createElement('div'); f.className = 'dlg-fundo';
-    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}">${topoFolha(titulo, opcoes && 'voltar' in opcoes ? !!opcoes.voltar : sobreOutraFolha())}${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
+    const f = document.createElement('div'); f.className = 'dlg-fundo curta';
+    f.innerHTML = `<div class="dlg" role="dialog" aria-label="${esc(titulo)}">${topoCentro(titulo, opcoes && 'voltar' in opcoes ? !!opcoes.voltar : sobreOutraFolha())}${html ? `<div class="dlg-txt">${html}</div>` : ''}<div class="botoes"></div></div>`;
     let resolvido = false;
     const fim = v => { if (resolvido) return; resolvido = true; ok(v); animarSaida(f, f.firstChild); };
     f.querySelector('[data-x]').onclick = () => fim(null);
@@ -239,11 +256,16 @@ function perguntar(titulo, html, botoes, opcoes) {
   });
 }
 const confirmar = (titulo, html, rotulo = 'Confirmar', perigo) => perguntar(titulo, html, [['Cancelar', false, ''], [rotulo, true, perigo ? 'perigo' : 'primario']]).then(v => v === true);
-function perguntarTexto(titulo, valor) {
-  const id = 'campo' + novoId();
-  const p = perguntar(titulo, `<input id="${id}" class="campo-texto" maxlength="120">`, [['Cancelar', null, ''], ['Salvar', 'ok', 'primario']]);
-  const inp = document.getElementById(id); inp.value = valor || ''; setTimeout(() => { inp.focus(); inp.select(); }, 50);
-  inp.onkeydown = e => { if (e.key === 'Enter') inp.closest('.dlg').querySelector('.primario').click(); };
+/* caixinha de texto (renomear, pasta, nota): Enter salva (com várias linhas, Ctrl+Enter); Esc, X ou fora cancela.
+   op: { dica, rotulo, max, multilinha, placeholder }; devolve o texto (sem espaços nas pontas) ou null */
+function perguntarTexto(titulo, valor, op = {}) {
+  const id = 'campo' + novoId(), max = op.max || (op.multilinha ? 500 : 120);
+  const campo = op.multilinha ? `<textarea id="${id}" class="campo-texto" rows="4" maxlength="${max}" data-autofocus></textarea>` : `<input id="${id}" class="campo-texto" maxlength="${max}" autocomplete="off" data-autofocus>`;
+  const p = perguntar(titulo, campo + (op.dica ? `<p class="info dica-campo">${esc(op.dica)}</p>` : ''), [['Cancelar', null, ''], [op.rotulo || 'Salvar', 'ok', 'primario']]);
+  const inp = document.getElementById(id); inp.value = valor || ''; if (op.placeholder) inp.placeholder = op.placeholder;
+  // nome de arquivo: seleciona sem a extensão
+  setTimeout(() => { try { inp.focus(); if (!op.multilinha) { const pt = inp.value.lastIndexOf('.'); inp.setSelectionRange(0, pt > 0 && /\.[a-z0-9]{1,5}$/i.test(inp.value) ? pt : inp.value.length); } } catch (e) {} }, 50);
+  inp.onkeydown = e => { if (e.key === 'Enter' && (!op.multilinha || e.ctrlKey || e.metaKey)) { e.preventDefault(); inp.closest('.dlg').querySelector('.primario').click(); } };
   return p.then(v => v === 'ok' ? inp.value.trim() : null);
 }
 /* toda folha/diálogo/painel que entra: aria-modal, foco dentro (e de volta ao sair); a folha de trás fica escondida */
@@ -258,18 +280,24 @@ new MutationObserver(muts => {
       const caixa = n.firstElementChild; if (!caixa) continue;
       // abriu por cima de outra folha: entra pela direita, como uma tela de dentro (inclui a que está saindo: é a mesma
       // navegação). No celular fica da mesma altura do menu de baixo: só o menu principal decide o tamanho.
+      // Pergunta curta ("Apagar tudo?") e folha sobre os Ajustes não copiam a altura: ficam do tamanho do conteúdo.
+      // A altura copiada é só a inicial; o teto (--folha, que segue o teclado) continua valendo pelo CSS.
       const baixo = [...document.querySelectorAll('.dlg-fundo, .painel-fundo')].filter(x => x !== n).pop();
-      if (baixo && !/\bpainel-fundo\b/.test(n.className) && !n.classList.contains('por-cima')) {
+      if (baixo && estreita() && !/\bpainel-fundo\b/.test(n.className) && !n.classList.contains('por-cima')) {
         n.classList.add('lado');
-        const h = baixo.firstElementChild ? baixo.firstElementChild.offsetHeight : 0;
-        if (estreita() && h > 160) { caixa.style.height = h + 'px'; caixa.style.maxHeight = h + 'px'; }
+        const cb = baixo.firstElementChild, h = cb ? cb.offsetHeight : 0;
+        if (!n.classList.contains('curta') && !/\bpainel-fundo\b/.test(baixo.className) && cb) {
+          if (cb.classList.contains('cheia')) caixa.classList.add('cheia');
+          else if (h > 160) { caixa.style.height = h + 'px'; caixa._hFixa = h; }
+        }
       }
       caixa.setAttribute('role', caixa.getAttribute('role') || 'dialog'); caixa.setAttribute('aria-modal', 'true');
       if (!caixa.hasAttribute('tabindex')) caixa.tabIndex = -1;
       n._focoAntes = document.activeElement;   // guarda antes de tirar o foco, para devolver ao fechar
       // o teclado sai da frente quando o menu sobe
       try { if (n._focoAntes && n._focoAntes !== document.body && n._focoAntes.blur) n._focoAntes.blur(); } catch (e) {}
-      setTimeout(() => { if (!n.isConnected || n.contains(document.activeElement)) return; const alvo = caixa.querySelector('input:not([readonly]), textarea:not([readonly])') || caixa; alvo.focus({ preventScroll: true }); }, 30);
+      // no celular o teclado só sobe quando a folha pede ([data-autofocus]); no PC o primeiro campo já vem focado
+      setTimeout(() => { if (!n.isConnected || n.contains(document.activeElement)) return; const alvo = caixa.querySelector(estreita() ? '[data-autofocus]' : '[data-autofocus], input:not([readonly]), textarea:not([readonly])') || caixa; alvo.focus({ preventScroll: true }); }, 30);
     }
     for (const n of m.removedNodes) {
       if (!(n instanceof Element) || !n._focoAntes) continue;

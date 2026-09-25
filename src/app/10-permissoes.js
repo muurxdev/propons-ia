@@ -4,11 +4,11 @@
    bloqueado e abre as configurações do app no sistema, onde dá para liberar — o mesmo caminho de todos os apps.
    A câmera do celular é o app de câmera do sistema (não precisa de permissão); a do PC é pedida ao abrir a webcam. */
 const PERMISSOES = {
-  camera: { nome: 'Câmera', ico: 'camera', para: 'tirar uma foto na hora para a IA ver', nav: 'camera' },
-  microfone: { nome: 'Microfone', ico: 'microfone', para: 'gravar a sua voz e transcrever em texto', nav: 'microphone' },
-  localizacao: { nome: 'Localização', ico: 'local', para: 'responder sobre onde você está: hora, clima e lugares por perto', nav: 'geolocation' },
-  notificacao: { nome: 'Notificações', ico: 'sino', para: 'avisar quando a resposta ficar pronta com o app em segundo plano' },
-  ...(CELULAR ? {} : { pasta: { nome: 'Pasta de arquivos', ico: 'pasta', para: 'ler e gravar os seus arquivos na Área de código' } }),
+  camera: { nome: 'Câmera', para: 'tirar uma foto na hora para a IA ver' },
+  microfone: { nome: 'Microfone', para: 'gravar a sua voz e transcrever em texto' },
+  localizacao: { nome: 'Localização', para: 'responder sobre onde você está: hora, clima e lugares por perto' },
+  notificacao: { nome: 'Notificações', para: 'avisar quando a resposta ficar pronta com o app em segundo plano' },
+  ...(CELULAR ? {} : { pasta: { nome: 'Pasta de arquivos', para: 'ler e gravar os seus arquivos na Área de código' } }),
 };
 ICO.local = '<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
 // onde fica o botão no sistema de cada aparelho (o texto da explicação acompanha)

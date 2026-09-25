@@ -2,6 +2,7 @@
    Instruções próprias, tamanho das respostas, nível de estudo, esforço de cada modelo, compactar sozinho e Enter.
    Tudo fica no aparelho e entra no texto de sistema (a bolinha de contexto conta como "Instruções da Própons"). */
 ICO.respostas = '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg>';
+ICO.cadeado = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 ICO.ajuda = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/></svg>';
 const TAMANHOS_RESPOSTA = [['curtas', 'Curtas'], ['normais', 'Normais'], ['detalhadas', 'Detalhadas']];
 const NIVEIS_ESTUDO = [['livre', 'Não dizer'], ['fundamental', 'Fundamental'], ['medio', 'Ensino médio'], ['enem', 'ENEM e vestibular'], ['faculdade', 'Faculdade']];
@@ -17,35 +18,42 @@ function textoPreferencias() {
 const enterEnvia = () => (pref('enterEnvia') || (CELULAR ? 'nao' : 'sim')) === 'sim';
 const compactaSozinho = () => (pref('autoCompactar') || 'sim') === 'sim';
 
+/* Ajustes → Respostas: como a IA responde (tamanho, compactar, sugestões). O esforço fica na etiqueta do modelo na caixa. */
 function abaRespostas(c) {
-  const modelos = ((sistemaCache && sistemaCache.modelos) || Object.keys(NOME_MODELO).map(id => ({ id }))).filter(m => NOME_MODELO[m.id]);
-  c.innerHTML = `<div class="secao"><h4>Instruções para a IA</h4>
-      <textarea class="campo-texto instrucoes" id="instrucoes" rows="4" maxlength="1500" placeholder="Ex.: sou do 3º ano, quero exemplos do dia a dia e as fórmulas sempre no fim.">${esc(pref('instrucoes') || '')}</textarea>
-      <p class="info"><span id="instrucoesConta"></span> Vale para todas as conversas, em todos os modelos.</p></div>
-    <div class="secao"><h4>Tamanho das respostas</h4>${seg('tamanhoResposta', TAMANHOS_RESPOSTA, pref('tamanhoResposta') || 'normais')}</div>
-    <div class="secao"><h4>Seu nível de estudo</h4>${seg('nivelEstudo', NIVEIS_ESTUDO, pref('nivelEstudo') || 'livre')}</div>
-    <div class="secao"><h4>Esforço de cada modelo</h4>${modelos.map(m => `<div class="linha-esforco"><b>${esc(nomeModelo(m))}</b>${seg('esforco-' + m.id, esforcosDe(m.id).map(k => [k, ESFORCO[k][0]]), esforcoDe(m.id))}</div>`).join('')}
-      <p class="info">O mesmo que a etiqueta ao lado do nome do modelo na caixa. Cada modelo mostra só os níveis que usa de verdade.</p></div>
+  c.innerHTML = `<div class="secao"><h4>Tamanho das respostas</h4>${seg('tamanhoResposta', TAMANHOS_RESPOSTA, pref('tamanhoResposta') || 'normais')}</div>
     <div class="secao"><h4>Compactar sozinho</h4>${seg('autoCompactar', [['sim', 'Sim'], ['nao', 'Não']], compactaSozinho() ? 'sim' : 'nao')}
       <p class="info">Quando a conversa enche a memória da IA, as mensagens antigas viram um resumo antes da próxima resposta (continuam na tela).</p></div>
     <div class="secao"><h4>Sugestões no fim da resposta</h4>${seg('sugestoes', [['sim', 'Mostrar'], ['nao', 'Não']], querSugestoes() ? 'sim' : 'nao')}
-      <p class="info">Três perguntas curtas para continuar o assunto; tocar manda a pergunta. A IA gasta alguns segundos a mais depois de cada resposta.</p></div>
-    <div class="secao"><h4>Lugar, hora e clima</h4>${seg('dadosLugar', [['sim', 'Usar dados reais'], ['nao', 'Não']], usarDadosLugar() ? 'sim' : 'nao')}
-      <p class="info">Em perguntas como "que horas são em Londres?" ou "vai chover aqui?", o app pega a hora, a sua localização (o aparelho pede a permissão) e o clima de verdade antes de responder. Só vai para a internet o nome da cidade ou as coordenadas.</p></div>
-    <div class="secao"><h4>Enter envia</h4>${seg('enterEnvia', [['sim', 'Sim'], ['nao', 'Não, quebra a linha']], enterEnvia() ? 'sim' : 'nao')}
-      <p class="info">${CELULAR ? 'No celular o padrão é Enter quebrar a linha e a seta enviar.' : 'Shift+Enter sempre quebra a linha.'}</p></div>`;
+      <p class="info">Três perguntas curtas para continuar o assunto; tocar manda a pergunta. A IA gasta alguns segundos a mais depois de cada resposta.</p></div>`;
+  ligarSeg(c, 'tamanhoResposta', v => pref('tamanhoResposta', v));
+  ligarSeg(c, 'autoCompactar', v => pref('autoCompactar', v));
+  ligarSeg(c, 'sugestoes', v => { pref('sugestoes', v); if (v === 'nao') pararSugestoes(); });
+}
+/* Ajustes → Personalização: tudo o que a IA sabe de você e lê antes de toda resposta (instruções, nível, memória) */
+function abaPersonalizacao(c) {
+  c.innerHTML = `<div class="secao"><h4>Instruções para a IA</h4>
+      <textarea class="campo-texto instrucoes" id="instrucoes" rows="4" maxlength="1500" placeholder="Ex.: sou do 3º ano, quero exemplos do dia a dia e as fórmulas sempre no fim.">${esc(pref('instrucoes') || '')}</textarea>
+      <p class="info"><span id="instrucoesConta"></span> Vale para todas as conversas, em todos os modelos.</p></div>
+    <div class="secao"><h4>Seu nível de estudo</h4>${seg('nivelEstudo', NIVEIS_ESTUDO, pref('nivelEstudo') || 'livre')}</div>
+    ${htmlMemoria()}`;
   const ta = c.querySelector('#instrucoes'), conta = c.querySelector('#instrucoesConta');
   const mostrarConta = () => { conta.textContent = `${ta.value.length}/1500 caracteres.`; };
   let tGuardar = 0; mostrarConta();
   ta.oninput = () => { mostrarConta(); clearTimeout(tGuardar); tGuardar = setTimeout(() => { pref('instrucoes', ta.value.trim()); atualizarMedidor(); }, 400); };
   ta.onblur = () => { pref('instrucoes', ta.value.trim()); atualizarMedidor(); };
-  ligarSeg(c, 'tamanhoResposta', v => pref('tamanhoResposta', v));
   ligarSeg(c, 'nivelEstudo', v => pref('nivelEstudo', v));
-  ligarSeg(c, 'autoCompactar', v => pref('autoCompactar', v));
+  ligarMemoria(c);
+}
+/* Ajustes → Privacidade: o que usa a internet, e como desligar */
+const TEXTO_PRIVACIDADE = 'Suas conversas e arquivos ficam no aparelho. A internet só é usada para baixar o app e os modelos, para a pesquisa (se você ligar), para os ícones dos sites nas fontes e, em perguntas de hora, clima ou lugar, para mandar só o nome da cidade ou as coordenadas ao serviço de previsão.';
+function abaPrivacidade(c) {
+  c.innerHTML = `<p class="info">${TEXTO_PRIVACIDADE}</p>
+    <div class="secao"><h4>Pesquisar na internet</h4>${seg('pesquisaWeb', [['sim', 'Ligada'], ['nao', 'Desligada']], pesquisaLigada() ? 'sim' : 'nao')}
+      <p class="info">Ligada, a sua pergunta vai para a busca pública e as páginas achadas viram fontes da resposta. Também liga e desliga pelo "+".</p></div>
+    <div class="secao"><h4>Lugar, hora e clima</h4>${seg('dadosLugar', [['sim', 'Usar dados reais'], ['nao', 'Não']], usarDadosLugar() ? 'sim' : 'nao')}
+      <p class="info">Em perguntas como "que horas são em Londres?" ou "vai chover aqui?", o app pega a hora, a sua localização (o aparelho pede a permissão) e o clima de verdade antes de responder. Só vai para a internet o nome da cidade ou as coordenadas.</p></div>`;
+  ligarSeg(c, 'pesquisaWeb', v => definirPesquisa(v === 'sim'));
   ligarSeg(c, 'dadosLugar', v => pref('dadosLugar', v));
-  ligarSeg(c, 'sugestoes', v => { pref('sugestoes', v); if (v === 'nao') pararSugestoes(); });
-  ligarSeg(c, 'enterEnvia', v => { pref('enterEnvia', v); $('#entrada').setAttribute('enterkeyhint', v === 'sim' ? 'send' : 'enter'); });
-  modelos.forEach(m => ligarSeg(c, 'esforco-' + m.id, v => { definirEsforco(m.id, v); atualizarSeletorModelo(); }));
 }
 // antes de responder: se a conversa já não cabe na memória da IA, compacta primeiro (o começo vira um resumo)
 async function compactarSeCheia(conv, aoPasso) {
@@ -61,12 +69,15 @@ async function compactarSeCheia(conv, aoPasso) {
 const AJUDA = {
   // módulos
   'm:modelo': ['Modelos de IA', 'Os "cérebros" da Própons, que rodam no seu aparelho. Lume é o mais leve e rápido; Aurora equilibra velocidade e qualidade; Ápice acerta mais e pede mais memória. Baixe uma vez e use sem internet.'],
-  'm:respostas': ['Respostas', 'Como a IA responde para você: instruções próprias, tamanho, seu nível de estudo e o esforço de cada modelo. Vale para todas as conversas.'],
+  'm:respostas': ['Respostas', 'Como a IA responde: tamanho, compactar a conversa cheia e as sugestões no fim. O esforço de cada modelo fica na etiqueta ao lado do nome do modelo, na caixa.'],
+  'm:personalizacao': ['Personalização', 'O que a IA lê antes de toda resposta: suas instruções, seu nível de estudo e o que ela sabe sobre você (memória). Vale para todas as conversas.'],
+  'm:privacidade': ['Privacidade', 'O que usa a internet e como desligar: a pesquisa e os dados reais de lugar, hora e clima. O resto fica no aparelho.'],
   'm:atualizacoes': ['Atualizações', 'Versões novas do app e dos componentes (motor da IA, leitura de fotos, transcrição). O app confere sozinho e avisa; nada é instalado sem você tocar.'],
-  'm:geral': ['Aparência', 'Tema, tamanho da letra, leitura em voz alta e o aviso quando a resposta fica pronta.'],
+  'm:geral': ['Geral', 'Tema, tamanho da letra, leitura em voz alta, o aviso quando a resposta fica pronta e o Enter.'],
   'm:conversas': ['Conversas', 'Backup (exportar e importar tudo num arquivo) e limpeza. As conversas ficam só neste aparelho.'],
   'm:estudo': ['Estudo', 'Seus flashcards (com revisão espaçada: cada cartão volta no dia certo), quizzes e redações corrigidas.'],
-  'm:memoria': ['Memória', 'O que a IA sabe sobre você, porque você pediu ("lembre que eu faço o ENEM"). Entra em todas as conversas; apague o que quiser.'],
+  'Memória': ['Memória', 'O que a IA sabe sobre você, porque você pediu ("lembre que eu faço o ENEM"). Entra em todas as conversas; apague o que quiser.'],
+  'Pesquisar na internet': ['Pesquisar na internet', 'A pergunta vai para um buscador público e os trechos das páginas entram na resposta, com as fontes no fim.'],
   'm:diagnostico': ['Diagnóstico', 'Mede memória, processador, espaço e a velocidade real da IA, e gera um relatório para copiar se algo der errado.'],
   'm:sobre': ['Sobre', 'Versão, licença e como a Própons é feita: código aberto, sem conta, tudo no seu aparelho.'],
   // seções
@@ -80,7 +91,7 @@ const AJUDA = {
   'Tamanho das respostas': ['Tamanho das respostas', 'Curtas: direto ao ponto. Detalhadas: explica o porquê, dá exemplo e resume no fim. Pedir na conversa sempre vale mais que isto.'],
   'Seu nível de estudo': ['Seu nível de estudo', 'A IA ajusta a linguagem e a profundidade: no Fundamental explica do zero; na Faculdade vai direto ao técnico.'],
   'Esforço de cada modelo': ['Esforço', 'Baixo responde rápido e curto. Médio equilibra. Alto raciocina antes de responder (acerta bem mais contas e armadilhas, demora mais). Auto raciocina só quando a pergunta pede.'],
-  'Compactar sozinho': ['Compactar sozinho', 'A memória da IA tem limite (o ⋯ no topo → Memória da conversa mostra quanto já foi usado). Cheia, as mensagens antigas viram um resumo para a IA não esquecer o assunto.'],
+  'Compactar sozinho': ['Compactar sozinho', 'A memória da IA tem limite (o ⋯ no topo → Contexto da conversa mostra quanto já foi usado). Cheia, as mensagens antigas viram um resumo para a IA não esquecer o assunto.'],
   'Enter envia': ['Enter envia', 'Liga ou desliga o envio com a tecla Enter.'],
   'Aceleração por GPU': ['Placa de vídeo', 'Com uma placa de vídeo, a IA pode responder várias vezes mais rápido. A Própons mede processador e placa e usa o mais rápido; se a placa falhar, volta para o processador sozinha.'],
   'API na rede local': ['API na rede local', 'Deixa outros aparelhos da sua rede (outro PC, um script) usarem esta IA, no formato da OpenAI e com chave. Desligada, nada fora deste aparelho fala com ela.'],
@@ -89,7 +100,7 @@ const AJUDA = {
   'Fotos': ['Fotos', 'O módulo de visão deixa a IA ler fotos e prints. É baixado na primeira foto e fica guardado.'],
   'Backup': ['Backup', 'Guarda todas as conversas num arquivo (.json) para levar a outro aparelho ou guardar. Importar junta com as que já existem.'],
   'Limpeza': ['Limpeza', 'Apaga conversas deste aparelho. Conversas fixadas não saem.'],
-  'Privacidade': ['Privacidade', 'Suas conversas e arquivos ficam no aparelho. A internet só é usada para baixar o app e os modelos, para a pesquisa (se você ligar), para os ícones dos sites nas fontes e, em perguntas de hora, clima ou lugar, para mandar só o nome da cidade ou as coordenadas ao serviço de previsão (dá para desligar em Respostas).'],
+  'Privacidade': ['Privacidade', 'Suas conversas e arquivos ficam no aparelho. A internet só é usada para baixar o app e os modelos, para a pesquisa (se você ligar), para os ícones dos sites nas fontes e, em perguntas de hora, clima ou lugar, para mandar só o nome da cidade ou as coordenadas ao serviço de previsão (dá para desligar em Ajustes → Privacidade).'],
   'Automático': ['Atualização automática', 'Confere de tempos em tempos se há versão nova e avisa com um ponto em Ajustes.'],
   'Atualizar tudo': ['Atualizar tudo', 'Baixa e instala de uma vez o app e os componentes que tiverem versão nova.'],
   'Componentes': ['Componentes', 'Peças que a Própons usa por dentro: o motor da IA, a leitura de fotos e a transcrição.'],

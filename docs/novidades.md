@@ -1,3 +1,34 @@
+## Novidades da 1.26.0
+
+Primeira parte da segunda auditoria completa (menus, ordem das respostas e limpeza). O relatório e o plano das próximas versões estão em `docs/auditoria-2026-09-2.md`.
+
+- **Menus que respeitam a tela:**
+  - com o teclado aberto, o menu sobe acima dele e o título continua à vista (inclusive no iPhone);
+  - girar o celular refaz o tamanho;
+  - uma pergunta curta ("Apagar tudo?") abre do tamanho dela, e não esticada na altura dos Ajustes;
+  - o menu que ganha conteúdo depois de abrir passa a rolar com o dedo;
+  - no PC com pouca altura, os menus flutuantes ficam inteiros dentro da janela e rolam por dentro;
+  - os menus soltos da barra lateral fecham quando a janela muda;
+  - o teclado não sobe mais sozinho ao abrir um item da Biblioteca ou um Conhecimento.
+- **Resposta sempre na mesma ordem:**
+  - "Pensou por N s" e o Conhecimento usado ficam no topo, desde o começo;
+  - o cartão de lugar e o passo a passo dos algoritmos ficam dentro da própria resposta;
+  - depois vêm o texto, o aviso (interrompida, erro), as fontes e as ações.
+  - No fim a resposta pronta entra no lugar da que estava sendo escrita, sem piscar nem pular a rolagem.
+  - As citações [1] já viram links enquanto a IA escreve.
+  - As sugestões têm o lugar reservado enquanto chegam.
+  - Os modos de estudo mostram um esboço enquanto montam o resultado.
+- **Continuar** não apaga mais o raciocínio nem o tempo da resposta, e o "Tentar de novo" de erros antigos não some.
+- **Ajustes reorganizados:**
+  - **Geral:** tema, letra, voz, avisos e Enter.
+  - **Respostas:** tamanho, compactar e sugestões.
+  - **Personalização:** instruções, nível e memória.
+  - **Privacidade:** pesquisa na internet, e lugar, hora e clima.
+  - O esforço de cada modelo fica só na etiqueta da caixa.
+  - "Procurar atualizações" também confere os modelos baixados.
+- **Apagar todas as conversas** fica só em Ajustes → Conversas (a lixeira solta no rodapé da barra lateral saiu) e mantém as conversas fixadas, como a ajuda dizia.
+- **Limpeza:** cerca de 40 regras de visual e ícones sem uso saíram; nomes de classe que se atrapalhavam foram corrigidos (a bolha em edição e a "Versão melhorada" da redação estavam com o estilo errado); as duas caixinhas de texto (renomear e nota) viraram uma só.
+
 ## Novidades da 1.25.1
 
 - **Versão para a Microsoft Store:** no Windows 11 com o Controle Inteligente de Aplicativos ligado, programas sem assinatura digital são bloqueados. A release agora traz o pacote `Propons-IA-Windows.msix`, que roda o app, o motor da IA e a transcrição direto da pasta do pacote, e a Microsoft assina tudo na publicação da Store. Na versão da Store, as atualizações chegam pela própria Store, e o módulo de GPU baixável fica de fora.

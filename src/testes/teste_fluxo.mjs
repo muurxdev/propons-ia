@@ -78,7 +78,28 @@ for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
 await espera(400);
 r.estudar = await js(`JSON.stringify({ modo: atual.msgs.filter(m => m.role === 'user').pop().modo, esquema: window.__sis.some(x => x.esquema) })`);
 await js(`conversas = conversas.filter(c => c !== atual); nova(); 1`);
+// ordem da resposta (auditoria 1.26): "Pensou por" entra no topo assim que o texto começa e fica lá; no fim a versão
+// pronta entra no lugar da que foi escrita (sem animar de novo); "Continuar" não apaga o raciocínio
+await js(`nova(); definirEsforco(idModeloAtual(), 'alto'); window.__g0 = PLATAFORMA.gerar; PLATAFORMA.gerar = async (msgs, op, aoToken, sinal) => {
+  if (op.esquema) return { fim: 'stop' };
+  if (op.pensar && op.aoPensar) { op.aoPensar('Primeiro vejo o que foi pedido. '); await new Promise(r => setTimeout(r, 400)); op.aoPensar('Depois confiro.'); await new Promise(r => setTimeout(r, 300)); }
+  for (const p of ['Primeira parte ', 'da resposta', ' continua aqui.']) { await new Promise(r => setTimeout(r, 350)); aoToken(p); }
+  return { fim: op.continuar ? 'stop' : 'length' };
+}; $('#entrada').value = 'Explique a fotossíntese com calma'; ajustar(); $('#enviar').click(); 1`);
+for (let i = 0; i < 20 && !(await js(`!!document.querySelector('.msg.ia:last-of-type .txt .fixo, .msg.ia:last-of-type .txt .cauda') && /Primeira/.test(document.querySelector('.msg.ia:last-of-type .txt').textContent)`)); i++) await espera(150);
+r.durante = await js(`(() => { const d = [...document.querySelectorAll('.msg.ia')].pop(); window.__elVivo = d; const k = [...d.children].map(x => x.className.split(' ')[0]); return JSON.stringify(k); })()`);
+for (let i = 0; i < 40 && (await js('!!geracao')); i++) await espera(250);
+await espera(400);
+r.depois = await js(`(() => { const d = [...document.querySelectorAll('.msg.ia')].pop(); return JSON.stringify({ ordem: [...d.children].map(x => x.className.split(' ')[0]), semEntrada: d.classList.contains('sem-entrada'), velhoSaiu: !window.__elVivo.isConnected, pensou: !!atual.msgs[atual.msgs.length - 1].pensou }); })()`);
+await js(`continuar(); 1`);
+for (let i = 0; i < 40 && (await js('!!geracao')) ; i++) await espera(250);
+await espera(400);
+r.continuou = await js(`(() => { const m = atual.msgs[atual.msgs.length - 1], d = [...document.querySelectorAll('.msg.ia')].pop(); return JSON.stringify({ pensou: !!m.pensou, tempo: m.tempo, linha: !!d.querySelector('.ia-status .pensa-linha'), texto: m.texto.slice(-20), giroSolto: !!document.querySelector('.giro') }); })()`);
+await js(`PLATAFORMA.gerar = window.__g0; definirEsforco(idModeloAtual(), 'auto'); conversas = conversas.filter(c => c !== atual); nova(); 1`);
 const J = x => JSON.parse(x);
+ok('respondendo: "Pensou por" já no topo, o texto embaixo e o giro logo depois do texto', J(r.durante)[0] === 'ia-status' && J(r.durante).indexOf('txt') === 1 && J(r.durante)[2] === 'giro', r.durante);
+ok('no fim: status, texto, nota, ações — a versão pronta entra no lugar (sem animar de novo)', (o => o.ordem[0] === 'ia-status' && o.ordem[1] === 'txt' && o.ordem.indexOf('nota') > 1 && o.ordem.indexOf('acoes') > o.ordem.indexOf('nota') && o.semEntrada && o.velhoSaiu && o.pensou)(J(r.depois)), r.depois);
+ok('Continuar mantém o raciocínio e o tempo (e o giro some)', (o => o.pensou && o.tempo > 0 && o.linha && /continua aqui\.$/.test(o.texto) && !o.giroSolto)(J(r.continuou)), r.continuou);
 ok('tela inicial com 4 sugestões para começar', r.inicio === 4, r.inicio);
 ok('"Me ensina" liga o tutor na conversa, vai no pedido e mostra o chip', J(r.tutor).conv && J(r.tutor).noPedido && J(r.tutor).chip, r.tutor);
 ok('"Estudar isto" → flashcards manda a resposta no modo flashcards (com esquema)', J(r.estudar).modo === 'flashcards' && J(r.estudar).esquema, r.estudar);

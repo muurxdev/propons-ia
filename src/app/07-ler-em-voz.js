@@ -4,10 +4,8 @@
    fica roxo (CSS Custom Highlight: nada muda no texto da resposta). Com "Ler em voz alta: toda resposta" (Aparência)
    a leitura começa enquanto a resposta ainda está chegando, frase por frase. Só uma leitura por vez.
    A voz fala uma frase por vez: é isso que deixa pausar e continuar do mesmo ponto em qualquer aparelho. */
-ICO.falar = '<svg viewBox="0 0 24 24"><path d="M4 10v4h3.5L13 18.5v-13L7.5 10H4z"/><path d="M16.5 9.5a3.5 3.5 0 0 1 0 5"/><path d="M19 7a7 7 0 0 1 0 10"/></svg>';
 ICO.pararFala = '<svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
 ICO.tocar = '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>';
-ICO.pausar = '<svg viewBox="0 0 24 24"><rect x="6.5" y="5.5" width="3.8" height="13" rx="1.2" fill="currentColor"/><rect x="13.7" y="5.5" width="3.8" height="13" rx="1.2" fill="currentColor"/></svg>';
 // falaAtual: { msg, el, frases: [{ t, ini }], i, desloc, palavra, gen, pausado, falando, narrando, terminou, mapa, cursor }
 let falaAtual = null, falaGen = 0;
 function frasesDe(t) {   // frases para a fila do sintetizador (uma fala longa demais é cortada pelo Chromium)
@@ -25,7 +23,7 @@ function frasesCompletas(t, fim) {   // → { frases, consumido }: frases termin
 const temLetra = t => /[\p{L}\p{N}]/u.test(t);
 
 /* o texto que aparece na tela, com a posição de cada pedaço: é dele que sai a fala e é nele que o roxo é pintado */
-const PULAR_FALA = 'pre,.copiar,.katex-mathml,.fonte-cards,.acoes,button,svg,style,script,.giro,.pensa-linha,[aria-hidden="true"]';
+const PULAR_FALA = 'pre,.copiar,.katex-mathml,.fonte-cards,.acoes,button,svg,style,script,.giro,.pensa-linha,.ia-status,.passos,.nota,.fontes,.sugestoes,[aria-hidden="true"]';
 const BLOCO_FALA = /^(P|LI|H[1-6]|TR|BLOCKQUOTE|DIV|UL|OL|TABLE|DT|DD|BR|FIGCAPTION)$/;
 function mapaFala(el) {
   const segs = []; let plano = '', disseCodigo = false;
@@ -183,7 +181,7 @@ function acoes(d, m, ultima) {
     }
   }
   if (m.interno && m.erro) {   // erro: o botão que a mensagem de erro pede
-    const bt = document.createElement('button'); bt.className = 'acao continuar'; bt.innerHTML = ICO.recarregar + '<span>Tentar de novo</span>';
+    const bt = document.createElement('button'); bt.className = 'acao continuar tentar'; bt.innerHTML = ICO.recarregar + '<span>Tentar de novo</span>';
     bt.onclick = () => regenerarDe(m); a.appendChild(bt);
   }
   if (!m.interno) {   // qualquer resposta: gerar de novo (a partir dela) e ramificar a conversa até aqui
@@ -192,7 +190,7 @@ function acoes(d, m, ultima) {
     if (!ultima) { const bf = document.createElement('button'); bf.className = 'acao ramificar'; bf.title = 'Ramificar: nova conversa até aqui'; bf.setAttribute('aria-label', bf.title); bf.innerHTML = ICO.ramificar; bf.onclick = () => ramificar(m); a.appendChild(bf); }
   }
   if (ultima) {
-    document.querySelectorAll('.acao.continuar').forEach(b => b.remove());
+    document.querySelectorAll('.acao.continuar:not(.tentar)').forEach(b => b.remove());
     if (m.cortada || m.interrompida) {
       const bs = document.createElement('button'); bs.className = 'acao continuar'; bs.innerHTML = ICO.seguir + '<span>Continuar</span>';
       bs.onclick = () => continuar(); a.appendChild(bs);
@@ -200,11 +198,8 @@ function acoes(d, m, ultima) {
   }
   d.appendChild(a);
 }
-function addPassos(titulo, lista) {
-  const d = document.createElement('details'); d.className = 'passos';
-  d.innerHTML = `<summary>${esc(titulo)}<small>ver ${lista.length} passos</small></summary><ol>${lista.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`;
-  const w = document.createElement('div'); w.className = 'msg ia'; w.appendChild(d); coluna().appendChild(w); rolar();
-}
+// passo a passo de um algoritmo (calculado por código): recolhido dentro da própria resposta
+const htmlPassos = (titulo, lista) => `<details class="passos"><summary>${esc(titulo)}<small>ver ${lista.length} passos</small></summary><ol>${lista.map(s => `<li>${esc(s)}</li>`).join('')}</ol></details>`;
 function enfeitar(el) {
   el.querySelectorAll('pre').forEach(p => {
     if (p.querySelector('.copiar')) return;

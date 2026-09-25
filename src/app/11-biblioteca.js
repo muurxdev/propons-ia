@@ -417,7 +417,7 @@ function aplicarNomeBib(i, v) {
   return true;
 }
 async function renomearBib(i) {
-  const v = await pedirTextoBib('Renomear', i.nome, { rotulo: 'Salvar', max: 120 });
+  const v = await perguntarTexto('Renomear', i.nome, { rotulo: 'Salvar', max: 120 });
   if (v != null && aplicarNomeBib(i, v)) toast('Renomeado.');
 }
 function aplicarNotaBib(i, v) {
@@ -428,30 +428,8 @@ function aplicarNotaBib(i, v) {
   return true;
 }
 async function notaBib(i) {
-  const v = await pedirTextoBib(i.nota ? 'Editar nota' : 'Nota', i.nota || '', { rotulo: 'Salvar', max: 500, multilinha: true, placeholder: 'Ex.: capítulo 3, cai na prova de sexta' });
+  const v = await perguntarTexto(i.nota ? 'Editar nota' : 'Nota', i.nota || '', { rotulo: 'Salvar', max: 500, multilinha: true, placeholder: 'Ex.: capítulo 3, cai na prova de sexta' });
   if (v != null && aplicarNotaBib(i, v)) toast(v.trim() ? 'Nota salva.' : 'Nota apagada.');
-}
-// caixinha de texto (renomear, nota): Enter salva (na nota, Ctrl+Enter), Esc ou fora cancela
-function pedirTextoBib(titulo, valor, op = {}) {
-  return new Promise(ok => {
-    const f = document.createElement('div'); f.className = 'dlg-fundo';
-    f.innerHTML = `<div class="dlg bib-janela bib-editar" role="dialog" aria-label="${esc(titulo)}">${topoCentro(titulo)}
-      ${op.multilinha ? `<textarea class="campo-texto" rows="4" maxlength="${op.max || 500}"></textarea>` : `<input class="campo-texto" maxlength="${op.max || 120}" autocomplete="off">`}
-      <div class="botoes"><button class="btn" data-n>Cancelar</button><button class="btn primario" data-s>${esc(op.rotulo || 'Salvar')}</button></div></div>`;
-    const dlg = f.firstChild, campo = dlg.querySelector('.campo-texto');
-    campo.value = valor || ''; if (op.placeholder) campo.placeholder = op.placeholder;
-    let feito = false;
-    const fim = v => { if (feito) return; feito = true; ok(v); animarSaida(f, dlg); };
-    f.fechar = () => fim(null);
-    f.onclick = e => { if (e.target === f) fim(null); };
-    dlg.querySelector('[data-x]').onclick = () => fim(null);
-    dlg.querySelector('[data-n]').onclick = () => fim(null);
-    dlg.querySelector('[data-s]').onclick = () => fim(campo.value);
-    campo.onkeydown = e => { if (e.key === 'Enter' && (!op.multilinha || e.ctrlKey || e.metaKey)) { e.preventDefault(); fim(campo.value); } };
-    folhaArrastavel(f, dlg, () => fim(null));
-    pausarDesenho(); document.body.appendChild(f);
-    setTimeout(() => { try { campo.focus(); if (!op.multilinha) { const p = campo.value.lastIndexOf('.'); campo.setSelectionRange(0, p > 0 ? p : campo.value.length); } } catch (e) {} }, 60);
-  });
 }
 // "Perguntar à Própons": volta para a conversa já com o anexo (ou com o texto do áudio na caixa)
 function perguntarSobreBib(i, depois) {

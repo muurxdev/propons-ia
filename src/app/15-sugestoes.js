@@ -18,15 +18,20 @@ async function sugerirSeguintes(conv, msg) {
   if (!querSugestoes() || !online || !msg || !msg.texto || msg.interno || msg.erro || msg.cartoes || msg.quiz || msg.redacao) return;
   pararSugestoes();
   const ctrl = new AbortController(); sugCtrl = ctrl;
+  // o lugar delas já fica reservado (três pílulas apagadas): quando chegam, nada embaixo da resposta pula
+  const ultimaIa = atual === conv && conv.msgs[conv.msgs.length - 1] === msg ? [...document.querySelectorAll('.msg.ia')].pop() : null;
+  let reserva = null;
+  if (ultimaIa) { reserva = document.createElement('div'); reserva.className = 'sugestoes esperando'; reserva.setAttribute('aria-hidden', 'true'); reserva.innerHTML = '<i></i><i></i><i></i>'; ultimaIa.appendChild(reserva); rolar(); }
+  const tirarReserva = () => { if (reserva) reserva.remove(); };
   const pp = conv._prompt || { sistema: SYSTEM, max: 900 }, hist = montarHistorico(conv, pp.max, pp.sistema);
   let out = '';
   try {
     await PLATAFORMA.gerar([{ role: 'system', content: pp.sistema }, ...hist, { role: 'user', content: 'Sugira 3 perguntas curtas (até 8 palavras cada), em português do Brasil, que eu poderia fazer agora para continuar ESTE assunto — na minha voz de estudante (ex.: "Me dá um exemplo prático"). Não repita o que já foi respondido. Responda só com o JSON.' }],
       { temperatura: 0.5, exato: true, maxTokens: CELULAR ? 90 : 120, esquema: ESQ_SUGESTOES }, t => { out += t; }, ctrl.signal);
-  } catch (e) { return; }
-  if (ctrl.signal.aborted || sugCtrl !== ctrl) return;
+  } catch (e) { tirarReserva(); return; }
+  if (ctrl.signal.aborted || sugCtrl !== ctrl) { tirarReserva(); return; }
   sugCtrl = null;
-  const l = limparSugestoes(out); if (!l.length) return;
+  const l = limparSugestoes(out); if (!l.length) { tirarReserva(); return; }
   msg.sugestoes = l; salvar();
   if (atual === conv && conv.msgs[conv.msgs.length - 1] === msg) mostrarSugestoes(msg);
 }
