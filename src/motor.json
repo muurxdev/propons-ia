@@ -7,7 +7,7 @@
   },
   "celular": {
     "contexto": [[0, 8192], [8, 16384]],
-    "args": ["-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "450", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0"],
+    "args": ["-np", "1", "--cache-ram", "0", "-ctxcp", "2", "--reasoning-format", "auto", "--reasoning-budget", "300", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0"],
     "imagemMaxTokens": 300
   }
 }

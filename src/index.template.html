@@ -256,9 +256,9 @@ header .titulo span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .cit:hover{background:var(--accent);color:var(--accent-ink)}
 /* raciocínio (Esforço Alto): uma linha na conversa; o texto fica na folha */
 .msg.pensa{margin:6px 0 2px}
-.pensa-linha{display:inline-flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;border-radius:var(--r4);border:1px solid var(--line);background:var(--surface);cursor:pointer;transition:background var(--t1),border-color var(--t1)}
-.pensa-linha:hover{background:var(--hover);border-color:var(--faint)}
-.pensa-rotulo{font-size:var(--t-sm);color:var(--muted)}
+/* uma linha só enquanto pensa: a palavra com brilho (como o "Pensando" da resposta) e a flechinha que abre o raciocínio */
+.pensa-linha{display:inline-flex;align-items:center;gap:4px;padding:2px 0;cursor:pointer}
+.pensa-rotulo{font-size:var(--fs);color:var(--muted)}
 .pensa-seta{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:transparent;transition:background var(--t2),color var(--t2),transform var(--t3) var(--padrao)}
 .pensa-seta svg{width:15px;height:15px}
 .pensa-linha:hover .pensa-seta{background:var(--hover)}
@@ -500,6 +500,19 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .selo{font-size:var(--t-xs);font-weight:600;padding:3px 8px;border-radius:var(--r4);white-space:nowrap;background:var(--accent);color:var(--accent-ink)}
 .selo.ok{background:var(--ok-soft);color:var(--ok)}
 .selo.cinza{background:var(--hover);color:var(--muted)}
+/* cartão do modelo: selo com a inicial, três medidas lado a lado, para que serve e o botão */
+.mselo{width:40px;height:40px;flex:none;border-radius:12px;display:grid;place-items:center;font-weight:700;font-size:var(--t-lg);color:#fff}
+.mselo.m-leve{background:linear-gradient(135deg,#3aa0ff,#6a48f5)} .mselo.m-normal{background:linear-gradient(135deg,#8a6cf0,#d9589a)} .mselo.m-avancado{background:linear-gradient(135deg,#e0932a,#c53535)}
+.mcard .mtopo b .ajuda{vertical-align:-5px}
+.mmedidas{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:14px 0 0}
+.mmed{background:var(--hover);border-radius:var(--r1);padding:8px 10px;min-width:0}
+.mmed small{display:block;font-size:var(--t-xs);color:var(--muted)}
+.mmed b{display:block;font-size:var(--t-md);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mmed.aviso b{color:var(--warn)}
+.mdesc,.maviso{margin:12px 0 0;font-size:var(--t-sm);color:var(--muted);line-height:1.5}
+.maviso{color:var(--warn)}
+.mdesc .rec{display:inline-block;margin-left:4px;padding:1px 8px;border-radius:var(--r4);background:var(--ok-soft);color:var(--ok);font-weight:500;font-size:var(--t-xs)}
+@media (max-width:760px){.macoes .btn.primario{flex:1 1 100%}}
 .mtags{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
 .mtags span{font-size:var(--t-sm);padding:3px 9px;border-radius:var(--r4);background:var(--hover);color:var(--muted)}
 .mtags span.rec{background:var(--ok-soft);color:var(--ok);font-weight:500}
@@ -534,7 +547,7 @@ textarea.instrucoes{resize:vertical;min-height:96px;font:var(--t-md)/1.5 var(--s
 .folha{padding:0 8px calc(var(--sb) + 10px)}
 .dlg:focus,.painel:focus{outline:none}   /* a folha recebe o foco só para o teclado entrar nela: sem contorno */
 .dlg{touch-action:none}                 /* menu curto: o dedo arrasta a folha de qualquer ponto */
-.dlg.rola{touch-action:pan-y}           /* menu comprido: o dedo rola o conteúdo; a alça arrasta a folha */
+.dlg.rola,.dlg .pens-txt{touch-action:pan-y}   /* o que rola dentro da folha aceita o dedo; no topo, puxar para baixo fecha */           /* menu comprido: o dedo rola o conteúdo; a alça arrasta a folha */
 .folha .dlg-topo{padding:22px 12px 6px}
 .folha h3{font-size:var(--t-sm);color:var(--muted);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .folha button.op{display:flex;align-items:center;gap:14px;width:100%;padding:12px;border-radius:var(--r2);font-size:var(--t-md);text-align:left}

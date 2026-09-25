@@ -30,7 +30,8 @@ ok('bolinha de contexto ao lado do microfone', await js(`(() => { const b = $('#
 // 2) pergunta sobre o meio do arquivo: vão os trechos com a página certa, não o começo
 await js(`anexos = [{ nome: 'apostila.pdf', tam: 400000, lang: 'texto', conteudo: window.__doc, paginas: 120 }]; desenharChips(); $('#entrada').value = 'Em que ano Vale Serrano foi fundada?'; ajustar(); 1`);
 await espera(400);
-ok('anexo ainda não enviado aparece na bolinha', (await js(`usoAgora().partes.find(p => p[0].startsWith('Anexos'))[1]`)) > 0);
+const antesAnexo = await js('pctUso(usoAgora())');
+ok('bolinha não muda com anexo ainda não enviado (só quando a IA responde)', (await js('pctUso(usoAgora())')) === antesAnexo);
 await js(`$('#enviar').click(); 1`);
 await ate('!geracao && atual && atual.msgs.length >= 2', 240000);
 const ult = await js('atual.msgs[atual.msgs.length - 1]');
@@ -38,6 +39,8 @@ const pedido = await js(`(() => { const m = window.__pedidos[window.__pedidos.le
 ok('o pedido leva a página 52 (o fato está no meio do arquivo)', /— página 52 —/.test(pedido) && /Vale Serrano/.test(pedido), pedido.length + ' caracteres');
 ok('o pedido não leva o arquivo inteiro', pedido.length < (await js('window.__doc.length')) / 2);
 ok('a resposta traz o ano certo (1873)', /1873/.test(ult.texto || ''), ult.texto);
+const cu = await js('atual.ctxUso');
+ok('depois da resposta a bolinha guarda o que foi enviado (com os trechos) e a resposta', !!cu && cu.anexos > 0 && cu.resposta > 0 && cu.total === (await js('nCtx')), JSON.stringify(cu));
 await foto('c1-trechos');
 
 // 3) pergunta seguinte, sem anexar de novo: o arquivo da conversa continua consultável
@@ -66,9 +69,9 @@ ok('orçamento calculado × prompt real em ' + cmp.n + ' conversas: diferença <
 
 // 5) a folha "Contexto": as partes somam o total mostrado e há o botão de compactar
 await js(`$('#medidorCtx').click(); 1`); await espera(700);
-const folha = await js(`(() => { const f = document.querySelector('.dlg.contexto'); if (!f) return null; const nums = [...f.querySelectorAll('.ctx-lista li:not(.res) b')].map(b => +b.textContent.replace(/\\D/g, '')); return { itens: [...f.querySelectorAll('.ctx-lista li span')].map(s => s.textContent), soma: nums.reduce((a, b) => a + b, 0), cab: nCtx - usoAgora().reserva, botao: !!f.querySelector('[data-compactar]'), consulta: /apostila.pdf continua consultável/.test(f.textContent) }; })()`);
+const folha = await js(`(() => { const f = document.querySelector('.dlg.contexto'); if (!f) return null; const nums = [...f.querySelectorAll('.ctx-lista li:not(.res) b')].map(b => +b.textContent.replace(/\\D/g, '')); return { itens: [...f.querySelectorAll('.ctx-lista li span')].map(s => s.textContent), soma: nums.reduce((a, b) => a + b, 0), cab: nCtx, botao: !!f.querySelector('[data-compactar]'), consulta: /apostila.pdf continua consultável/.test(f.textContent) }; })()`);
 ok('folha Contexto abre com as partes e diz que o arquivo continua consultável', !!folha && folha.itens.includes('Conversa') && folha.itens.includes('Livre') && folha.consulta, folha && folha.itens.join(', '));
-ok('partes + livre = memória disponível para a conversa', folha && Math.abs(folha.soma - folha.cab) <= 2, folha && `${folha.soma} × ${folha.cab}`);
+ok('partes + livre = memória inteira da IA', folha && Math.abs(folha.soma - folha.cab) <= 2, folha && `${folha.soma} × ${folha.cab}`);
 ok('botão "Compactar conversa"', folha && folha.botao);
 await foto('c2-folha');
 await js('fecharDialogo && fecharDialogo(); document.querySelectorAll(".dlg-fundo").forEach(f => f.remove()); 1');

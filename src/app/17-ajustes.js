@@ -115,6 +115,9 @@ function abaGeral(c) {
 
 /* ---------------- modelos ---------------- */
 const PERFIL_MODELO = { leve: 'Mais rápido', normal: 'Equilibrado', avancado: 'Mais inteligente' };
+// o que cada um faz bem e o acerto no placar de 145 perguntas (sem pensar – pensando), treino/README.md
+const USO_MODELO = { leve: 'Dúvidas rápidas e resumos em qualquer aparelho.', normal: 'O dia a dia de estudo: explicações, exercícios e redação.', avancado: 'Contas, código e perguntas difíceis; o que menos inventa.' };
+const PLACAR_MODELO = { leve: [46, 65], normal: [65, 83], avancado: [88, 97] };
 let baixando = {};          // id → { pct, feito, total, fase }
 let trocandoPara = null;    // id do modelo que está sendo ligado
 // antes do primeiro byte não há tamanho para mostrar (era o "NaN de NaN MB"); rede que bloqueia o download ganha texto próprio
@@ -136,10 +139,14 @@ function cartaoModelo(m, ram, rec) {
   else if (m.baixado) acoes = usar('Usar este') + `<button class="btn perigo" data-acao="apagar" data-id="${m.id}">${ICO.apagar}Apagar</button>`;
   else acoes = usar('Baixar e usar') + `<button class="btn" data-acao="baixar" data-id="${m.id}">${ICO.exportar}Só baixar</button>`;
   if (m.visaoBaixada && !web && !(m.atual && sistemaCache && sistemaCache.visaoAtiva) && !b && !ligando) acoes += `<button class="btn link" data-acao="apagarVisao" data-id="${m.id}">Apagar visão</button>`;
-  const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? `<span class="selo cinza">${esc(m.bloqueado)}</span>` : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
+  const selo = m.atual ? '<span class="selo">Em uso</span>' : ligando ? '<span class="selo cinza">Ligando…</span>' : m.bloqueado ? '' : m.baixado ? '<span class="selo ok">Baixado</span>' : '';
+  const pl = PLACAR_MODELO[m.id];
+  const medida = (rotulo, valor, extra) => `<div class="mmed${extra ? ' ' + extra : ''}"><small>${rotulo}</small><b>${valor}</b></div>`;
   return `<div class="mcard${m.atual ? ' on' : ''}" data-cartao="${m.id}">
-    <div class="mtopo"><div class="pt"><b>${esc(nomeModelo(m))}${botaoAjuda('modelo:' + m.id)}</b><small>${PESO_MODELO[m.id] || ''} · ${esc(m.descricao || '')}</small></div>${selo}</div>
-    <div class="mtags"><span>${perfil}</span><span>${gbBonito(m.tamanho)}</span>${m.visaoTamanho && PLATAFORMA.temVisao ? `<span>${m.visaoBaixada ? 'Visão baixada' : 'Visão ' + gbBonito(m.visaoTamanho)}</span>` : ''}<span${pouca ? ' class="aviso"' : ''}>${pouca ? 'Pouca RAM · pede ' : 'RAM '}${ramNecessaria(m)} GB+</span>${m.id === rec ? '<span class="rec">Recomendado</span>' : ''}</div>
+    <div class="mtopo"><span class="mselo m-${esc(m.id)}">${esc((nomeCurtoModelo(m) || '?')[0])}</span>
+      <div class="pt"><b>${esc(nomeModelo(m))}${botaoAjuda('modelo:' + m.id)}</b><small>${PESO_MODELO[m.id] || esc(m.descricao || '')}</small></div>${selo}</div>
+    <div class="mmedidas">${pl ? medida('Acerto', pl[0] + '–' + pl[1] + ' %') : ''}${medida('Tamanho', gbBonito(m.tamanho))}${medida('Memória', ramNecessaria(m) + ' GB+', pouca ? 'aviso' : '')}</div>
+    ${m.bloqueado ? `<p class="maviso">${esc(m.bloqueado)}</p>` : `<p class="mdesc">${esc(USO_MODELO[m.id] || perfil)}${m.id === rec ? ' <span class="rec">Recomendado para este aparelho</span>' : ''}${m.visaoTamanho && PLATAFORMA.temVisao ? ` · ${m.visaoBaixada ? 'lê fotos' : 'lê fotos (+' + gbBonito(m.visaoTamanho) + ')'}` : ''}</p>`}
     <div class="mprog"${b || ligando ? '' : ' hidden'}><div class="barra"><i style="width:${b ? (b.pct * 100).toFixed(1) : 100}%"></i></div><small>${b ? textoDownload(b) : 'Ligando o modelo…'}</small></div>
     <div class="macoes">${acoes}</div></div>`;
 }

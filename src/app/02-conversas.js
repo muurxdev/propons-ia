@@ -8,7 +8,7 @@ function validar(lista) {
     id: (() => { const id = /^[a-z0-9]{4,40}$/i.test(c.id) && !ids.has(c.id) ? c.id : novoId(); ids.add(id); return id; })(),
     titulo: txt(c.titulo).slice(0, 120) || 'Conversa',
     criada: +c.criada || Date.now(), atualizada: +c.atualizada || +c.criada || Date.now(),
-    ...(c.fixada ? { fixada: true } : {}), ...(txt(c.resumo).trim() ? { resumo: txt(c.resumo).slice(0, 3000) } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
+    ...(c.fixada ? { fixada: true } : {}), ...(txt(c.resumo).trim() ? { resumo: txt(c.resumo).slice(0, 3000) } : {}), ...(c.ctxUso && typeof c.ctxUso === 'object' ? { ctxUso: Object.fromEntries(['total', 'sistema', 'pesquisa', 'historico', 'anexos', 'omitidas', 'resposta'].map(k => [k, Math.max(0, Math.round(+c.ctxUso[k] || 0))])) } : {}), ...(txt(c.pasta).trim() ? { pasta: txt(c.pasta).trim().slice(0, 40) } : {}),
     msgs: c.msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-2000).map(m => ({
       role: m.role, texto: txt(m.texto), llm: txt(m.llm) || txt(m.texto),
       ...(m.interno ? { interno: true } : {}), ...(m.compactada ? { compactada: true } : {}), ...(m.cortada ? { cortada: true } : {}), ...(m.interrompida ? { interrompida: true } : {}), ...(m.pendente ? { pendente: true } : {}),

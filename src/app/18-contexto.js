@@ -3,32 +3,36 @@
    Tocar abre a folha "Contexto" com cada parte. Os números saem da mesma montarHistorico que monta o que vai para a IA,
    então o que a bolinha mostra é o que a IA recebe. Na mesma folha, "Compactar conversa" troca as mensagens antigas
    por um resumo (elas continuam na tela, mas saem da memória da IA). */
-const webPorConversa = new Map();   // tokens da última pesquisa na internet de cada conversa
+// o que a IA recebeu de verdade na última resposta (medido na hora de mandar) + a própria resposta; fica gravado na
+// conversa, então a bolinha só muda quando a IA responde — não a cada anexo, menu ou pesquisa ligada
 function registrarUso(conv, uso, blocoWeb) {
-  webPorConversa.set(conv.id, blocoWeb ? tokens(blocoWeb) : 0);
+  conv.ctxUso = { total: uso.total, sistema: uso.sistema, pesquisa: blocoWeb ? tokens(blocoWeb) : 0, historico: uso.historico, anexos: uso.anexos, omitidas: uso.omitidas, resposta: 0 };
+}
+function registrarResposta(conv, msg) {
+  if (conv.ctxUso && msg && msg.texto) conv.ctxUso.resposta = tokens(msg.texto) + POR_MENSAGEM;
   atualizarMedidor();
 }
 const textoResumo = conv => conv && conv.resumo ? '\n\nResumo do começo desta conversa (as mensagens antigas foram compactadas e saíram da sua memória):\n' + conv.resumo : '';
 function usoAgora() {
-  const conv = atual, maxTk = Math.min(1500, Math.floor(nCtx * 0.45));
-  const sistema = SYSTEM + textoMemoria() + textoPreferencias() + textoResumo(conv);
-  const u = conv ? montarHistorico(conv, maxTk, sistema).uso
-    : { total: nCtx, sistema: tokens(sistema), historico: 0, anexos: 0, reserva: maxTk + 300, omitidas: 0 };
+  const conv = atual;
   const memoria = textoMemoria() ? tokens(textoMemoria()) : 0, resumo = textoResumo(conv) ? tokens(textoResumo(conv)) : 0;
-  const pesquisa = (conv && webPorConversa.get(conv.id)) || 0;
-  const livre = Math.max(0, u.total - u.reserva - u.sistema - pesquisa - u.historico - u.anexos);
-  // arquivos ainda na caixa: um arquivo longo nunca passa do que cabe (ele entra por trechos)
-  const pendentes = Math.min(livre, anexos.reduce((s, a) => s + (a.tipo === 'imagem' ? TOKENS_FOTO : tokens(a.conteudo || '')), 0));
+  let u = conv && conv.ctxUso, estimado = false;
+  if (!u) {   // conversa nova, antiga (de antes da 1.22) ou recém-compactada: estimativa do que vai na próxima resposta
+    const sistema = SYSTEM + textoMemoria() + textoPreferencias() + textoResumo(conv);
+    const m = conv ? montarHistorico(conv, 0, sistema).uso : { sistema: tokens(sistema), historico: 0, anexos: 0, omitidas: 0 };
+    u = { total: nCtx, sistema: m.sistema, pesquisa: 0, historico: m.historico, anexos: m.anexos, omitidas: m.omitidas, resposta: 0 };
+    estimado = true;
+  }
   return {
-    total: u.total, reserva: u.reserva, omitidas: u.omitidas,
+    total: nCtx, omitidas: u.omitidas || 0, estimado,
     partes: [
-      ['Instruções da Própons', Math.max(0, u.sistema - memoria - resumo), 'p1'],
+      ['Instruções da Própons', Math.max(0, u.sistema - memoria - resumo - (u.pesquisa || 0)), 'p1'],
       ['Memória sobre você', memoria, 'p2'],
       ['Resumo da conversa compactada', resumo, 'p3'],
-      ['Pesquisa na internet', pesquisa, 'p4'],
+      ['Pesquisa na internet', u.pesquisa || 0, 'p4'],
       ['Conversa', u.historico, 'p5'],
       ['Arquivos e fotos', u.anexos, 'p6'],
-      ['Anexos ainda não enviados', pendentes, 'p7'],
+      ['Última resposta da IA', u.resposta || 0, 'p7'],
     ],
     compactadas: conv ? conv.msgs.filter(m => m.compactada).length : 0,
     docs: conv ? [...new Set([].concat(...conv.msgs.filter(m => m.role === 'user').map(docsDe)).filter(a => a.conteudo.length > 1500).map(a => a.nome))] : [],
@@ -37,7 +41,7 @@ function usoAgora() {
   };
 }
 const somaUso = u => u.partes.reduce((s, p) => s + p[1], 0);
-const pctUso = u => Math.min(100, Math.round(100 * somaUso(u) / Math.max(1, u.total - u.reserva)));
+const pctUso = u => Math.min(100, Math.round(100 * somaUso(u) / Math.max(1, u.total)));
 
 let tMedidor = 0;
 function atualizarMedidor() {
@@ -56,15 +60,14 @@ function atualizarMedidor() {
 
 const milhar = n => Math.round(n).toLocaleString('pt-BR');
 function desenharFolhaContexto(folha) {
-  const u = usoAgora(), soma = somaUso(u), p = pctUso(u), cab = u.total - u.reserva;
+  const u = usoAgora(), soma = somaUso(u), p = pctUso(u), cab = u.total;
   const visiveis = u.partes.filter(x => x[1] > 0);
   folha.querySelector('.ctx').innerHTML = `
-    <div class="ctx-num"><b>${p}%</b><span>${milhar(soma)} de ${milhar(cab)} tokens para a conversa</span></div>
+    <div class="ctx-num"><b>${p}%</b><span>${milhar(soma)} de ${milhar(cab)} tokens${u.estimado ? ' (estimativa até a próxima resposta)' : ' na última resposta'}</span></div>
     <div class="ctx-barra" role="img" aria-label="${p}% em uso">${visiveis.map(x => `<i class="${x[2]}" style="width:${(100 * x[1] / Math.max(1, cab)).toFixed(2)}%"></i>`).join('')}</div>
     <ul class="ctx-lista">
       ${visiveis.map(x => `<li><i class="${x[2]}"></i><span>${x[0]}</span><b>${milhar(x[1])}</b></li>`).join('')}
       <li><i class="livre"></i><span>Livre</span><b>${milhar(Math.max(0, cab - soma))}</b></li>
-      <li class="res"><i class="reserva"></i><span>Guardado para a resposta</span><b>${milhar(u.reserva)}</b></li>
     </ul>
     <p class="info ctx-total">Memória da IA neste aparelho: ${milhar(u.total)} tokens${u.medido ? ', contados pelo próprio modelo' : ' (estimativa)'}.</p>
     ${u.omitidas ? `<p class="info">${u.omitidas === 1 ? '1 mensagem antiga já ficou' : u.omitidas + ' mensagens antigas já ficaram'} de fora: a IA não ${u.omitidas === 1 ? 'a' : 'as'} vê mais. Compacte a conversa para ela lembrar do essencial.</p>` : ''}
@@ -111,7 +114,7 @@ async function compactarConversa(conv, dentroDaResposta) {
   estado('', false, 'rede');
   r = r.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
   if (!r) { toast('A IA não devolveu o resumo. Tente de novo.'); return false; }
-  conv.resumo = r.slice(0, 3000); velhas.forEach(m => { m.compactada = true; });
+  conv.resumo = r.slice(0, 3000); velhas.forEach(m => { m.compactada = true; }); conv.ctxUso = null;   // a bolinha volta a estimar até a próxima resposta
   conv.atualizada = Date.now(); salvar(); atualizarMedidor();
   toast(`Conversa compactada: ${velhas.length} mensagens viraram um resumo.`, 4000);
   return true;

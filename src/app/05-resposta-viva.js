@@ -44,15 +44,15 @@ function abrirFolhaPensa(texto, linha) {
   if (linha) linha.querySelector('.pensa-seta').setAttribute('aria-expanded', 'true');
   folhaPensa = f;
   pausarDesenho(); document.body.appendChild(f);
-  const t = dlg.querySelector('.pens-txt'); t.scrollTop = t.scrollHeight;
 }
-// enquanto a IA pensa com a folha aberta, o texto vai chegando nela
+// enquanto a IA pensa com a folha aberta, o texto vai chegando nela: só o pedaço novo entra (nada é redesenhado) e a
+// rolagem fica onde a pessoa deixou — antes ela era puxada para o fim a cada palavra e o arraste para fechar brigava
 function atualizarFolhaPensa(texto) {
   if (!folhaPensa) return;
   const t = folhaPensa.querySelector('.pens-txt'); if (!t) return;
-  const colado = t.scrollHeight - t.scrollTop - t.clientHeight < 40;
-  t.textContent = texto;
-  if (colado) t.scrollTop = t.scrollHeight;
+  const atual = t.textContent;
+  if (texto.startsWith(atual)) { if (texto.length > atual.length) t.appendChild(document.createTextNode(texto.slice(atual.length))); }
+  else t.textContent = texto;
 }
 
 /* ---------------- "Pensando": a palavra com brilho passando enquanto a IA não escreveu nada ----------------

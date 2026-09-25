@@ -95,6 +95,7 @@ function folhaArrastavel(fundo, folha, fechar) {
   marcarRolagem(); setTimeout(marcarRolagem, 60);
   folha.addEventListener('pointerdown', e => {
     if (e.button > 0 || !estreita()) return;
+    if (e.pointerType === 'touch' && rolador(e.target)) return;   // dedo sobre algo que rola: o arraste por toque (abaixo) decide
     const zona = e.target.closest('.p-arrastar, .dlg-topo, .p-topo, .p-nav-topo, .folha');
     if (!zona) return;
     if (!e.target.closest('.folha') && e.target.closest('button, input, textarea, select, a')) return;
@@ -147,7 +148,7 @@ function folhaArrastavel(fundo, folha, fechar) {
     tY = null;
     if (!estreita() || e.touches.length !== 1 || y0 !== null) return;   // o arraste de cima (pointerdown vem antes) já pegou
     if (e.target.closest('.dlg-topo, .p-arrastar, .alca, .p-topo, .p-nav-topo, input, textarea, select, [contenteditable]')) return;   // esses o arraste de cima já cuida
-    tRol = rolador(e.target); if (!tRol) return;   // sem rolagem: o arraste de cima já pega qualquer ponto
+    tRol = rolador(e.target) || folha;   // nada rola embaixo do dedo (página curta dos Ajustes): arrasta a folha direto
     tY = e.touches[0].clientY; tDy = 0; tT0 = performance.now(); tDir = 0;
   }, { passive: true });
   folha.addEventListener('touchmove', e => {

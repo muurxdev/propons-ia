@@ -16,6 +16,9 @@ async function medirTokens(textos) {
 }
 // quantos caracteres deste texto cabem em tk tokens (pela proporção medida do próprio texto)
 const charsPara = (s, tk) => Math.max(0, Math.floor(tk * s.length / Math.max(1, tokens(s))));
+// quantos dos tokens (medidos) de um texto são de um pedaço dele, pela proporção de caracteres — nunca somar uma medida
+// exata com uma estimativa (a parte do arquivo passava do todo e a "Conversa" da bolinha ia a zero)
+const parteDe = (inteiro, chars) => Math.max(0, Math.round(tokens(inteiro) * Math.max(0, chars) / Math.max(1, inteiro.length)));
 const POR_MENSAGEM = 6;   // marcas do modelo de chat em volta de cada mensagem
 
 // "resuma o PDF", "do que trata o arquivo": o documento inteiro é lido por partes e cada parte vira um resumo
@@ -36,11 +39,11 @@ function conteudoDaPergunta(m, anteriores, livre) {
     const achados = antigos.map(a => { const r = BUSCA.trechosRelevantes(a.conteudo, pergunta, charsPara(a.conteudo, cabe / antigos.length)); return r && `Arquivo: ${a.nome}\n${r.texto}`; }).filter(Boolean);
     if (!achados.length) return { texto, anexos: 0 };
     const extra = '\n\n[Trechos dos arquivos enviados antes nesta conversa, ligados a esta pergunta]\n' + achados.join('\n\n');
-    return { texto: texto + extra, anexos: tokens(extra) };
+    return { texto: texto + extra, anexos: parteDe(texto + extra, extra.length) };
   }
   const corte = texto.indexOf('\n\nArquivo anexado: ');
   const cabeca = corte >= 0 ? texto.slice(0, corte) : texto;
-  if (tokens(texto) <= livre) return { texto, anexos: tokens(texto) - tokens(cabeca) };
+  if (tokens(texto) <= livre) return { texto, anexos: parteDe(texto, texto.length - cabeca.length) };
   const bloco = (a, corpo, nota) => `Arquivo anexado: ${a.nome}${nota ? ' ' + nota : ''}\n\`\`\`${a.lang}\n${corpo}\n\`\`\``;
   const grandes = docs.filter(a => tokens(a.conteudo) > 600), pequenos = docs.filter(a => !grandes.includes(a));
   const fixos = pequenos.map(a => bloco(a, a.conteudo));
@@ -58,7 +61,7 @@ function conteudoDaPergunta(m, anteriores, livre) {
     return bloco(a, a.conteudo.slice(0, charsPara(a.conteudo, cada)) + '\n[…o resto do arquivo não coube]', `(${tam}; só o começo cabe na memória)`);
   });
   const final = cabeca + '\n\n' + fixos.concat(reduzidos).join('\n\n');
-  return { texto: final, anexos: tokens(final) - tokens(cabeca) };
+  return { texto: final, anexos: parteDe(final, final.length - cabeca.length) };
 }
 
 // lê um arquivo longo por partes (blocos de páginas que cabem na memória) e resume cada uma: fica em a.resumos
@@ -86,7 +89,7 @@ function montarHistorico(conv, maxTokens, sistema, extra) {
     const fotos = m.imagens && m.imagens.length, fotosAgora = !!(fotos && ultima && m._envio), tkFotos = fotosAgora ? TOKENS_FOTO * fotos : 0;
     let conteudo = m.llm || m.texto, doc = 0;
     if (ultima && m.role === 'user') { const r = conteudoDaPergunta(m, msgs.slice(0, i), orcamento - tkFotos - POR_MENSAGEM); conteudo = r.texto; doc = r.anexos; }
-    else if (m.anexos && m.anexos.length) doc = Math.max(0, tokens(conteudo) - tokens(m.texto));
+    else if (m.anexos && m.anexos.length) doc = parteDe(conteudo, conteudo.length - String(m.texto || "").length);
     if (fotos && !fotosAgora) conteudo += `\n[${fotos === 1 ? 'uma foto foi enviada' : fotos + ' fotos foram enviadas'} nesta mensagem]`;
     if (usado + tokens(conteudo) + POR_MENSAGEM + tkFotos > orcamento) {
       if (ultima) { conteudo = conteudo.slice(0, charsPara(conteudo, orcamento - usado - POR_MENSAGEM - tkFotos)) + '\n[…texto cortado por ser longo demais]'; doc = Math.min(doc, tokens(conteudo)); }
@@ -258,6 +261,10 @@ async function responder(conv, continuacao) {
   // já está em andamento, então o passo aparece na conversa e o botão de parar vale
   if (!continuacao && !comEsquema && await compactarSeCheia(conv, () => mostrarPasso('Compactando a conversa')) && alvo && !msg.texto) alvo.innerHTML = pensar ? '' : htmlTrabalhando();
   SISTEMA += textoResumo(conv);
+  // "que dia é hoje", "que horas são": a data e a hora do aparelho (só nessas perguntas, para não mudar o texto de
+  // sistema a cada minuto e perder o que o motor já tinha lido da conversa)
+  if (/\b(hora|horas|hor[áa]rio|data|dia|hoje|agora|amanh[ãa]|ontem|ano|m[êe]s|semana)\b/i.test(texto))
+    SISTEMA += '\n\nData e hora deste aparelho agora: ' + new Date().toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' }) + ' (fuso: ' + Intl.DateTimeFormat().resolvedOptions().timeZone + ').';
   // pesquisa na internet: só quando a pessoa ligou e a pergunta é normal
   if (pesquisaLigada() && !comEsquema && !continuacao && texto.trim()) {
     if (semInternet()) SISTEMA += '\n\nA pesquisa na internet está ligada, mas o aparelho está SEM CONEXÃO agora: comece dizendo em uma linha que não dá para pesquisar e responda com o que você já sabe, avisando que pode estar desatualizado.';
@@ -265,7 +272,7 @@ async function responder(conv, continuacao) {
       estado('pesquisando na internet');
       let r = null;
       try { r = await pesquisarNaWeb(texto.slice(0, 300), mostrarPasso); } catch (e) {}
-      if (alvo && !msg.texto) alvo.innerHTML = htmlTrabalhando();
+      if (alvo && !msg.texto) alvo.innerHTML = pensar ? '' : htmlTrabalhando();   // pensando, a palavra fica só na linha do raciocínio
       estado('', false, 'rede');
       if (r && r.fontes.length) { blocoWeb = blocoPesquisa(r); SISTEMA += '\n\n' + blocoWeb; fontes = r.fontes; msg.fontes = fontes;
         if (alvo) { const c = document.createElement('div'); c.innerHTML = htmlFontes(fontes); const cartoes = c.firstElementChild; alvo.parentNode.insertBefore(cartoes, alvo); cartoes.querySelectorAll('[data-link]').forEach(a => a.onclick = e => { e.preventDefault(); PLATAFORMA.abrirLink(a.href); }); } }
@@ -412,7 +419,7 @@ async function responder(conv, continuacao) {
   if (!continuacao) conv.msgs.push(msg);
   conv.atualizada = Date.now();
   if (atual === conv && alvo) { alvo.parentNode.remove(); addIa(msg, true); }
-  salvar(); desenharLista(); atualizarMedidor();
+  salvar(); desenharLista(); registrarResposta(conv, msg);
   if (!erro && !ctrl.signal.aborted) avisarPronto(msg);   // janela em segundo plano: notificação do sistema
 }
 

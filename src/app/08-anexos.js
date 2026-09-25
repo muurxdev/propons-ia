@@ -5,7 +5,7 @@ function desenharChips() {
   const rm = c.querySelector('[data-rm-modo]'); if (rm) rm.onclick = () => definirModo(null);
   c.querySelectorAll('[data-rm]').forEach(b => b.onclick = e => { e.stopPropagation(); anexos = anexos.filter(a => a.nome !== b.dataset.rm); desenharChips(); ajustar(); });
   ligarVerAnexos(c, anexos, true);
-  ajustar(); atualizarMedidor();
+  ajustar();
 }
 // foto → JPEG reduzido (lado maior até 1024 px) para a IA + miniatura para o histórico
 async function prepararFoto(f) {

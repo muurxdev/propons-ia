@@ -79,7 +79,7 @@ async function pesquisarNaWeb(consulta, aoPasso) {
   }));
   const trechos = achados.map((f, k) => {
     const corpo = (lidas[k] || '').length > 200 ? lidas[k] : f.trecho;
-    return (corpo || f.trecho || '').slice(0, 2500);
+    return (corpo || f.trecho || '').slice(0, CELULAR ? 1200 : 2500);   // no celular o processador lê o texto antes de responder: menos é mais rápido
   });
   return { fontes: achados.map(f => ({ titulo: f.titulo, url: f.url })), trechos: trechos };
 }

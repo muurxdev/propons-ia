@@ -68,4 +68,29 @@ ok('balão fecha ao tocar fora', await js(`!document.querySelector('.balao')`));
 await js(`pref('instrucoes', 'Use exemplos de futebol.'); pref('tamanhoResposta', 'curtas'); 1`);
 ok('instruções e tamanho entram no texto de sistema', await js(`/exemplos de futebol/.test(textoPreferencias()) && /curtas/.test(textoPreferencias())`));
 await js(`pref('instrucoes', ''); pref('tamanhoResposta', 'normais'); 1`);
+await js(`document.querySelectorAll('.painel-fundo, .dlg-fundo, .balao').forEach(f => f.remove()); 1`); await espera(200);
+
+// 6) página curta dos Ajustes (nada rola): puxar do meio do conteúdo fecha — antes só o topo fechava
+await js(`abrirConfig('sobre'); 1`); await espera(900);
+const meioSobre = await js(`(() => { const c = $('#corpoConfig'); const b = c.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + Math.min(b.height / 2, 200), rola: c.scrollHeight - c.clientHeight }; })()`);
+await puxar(meioSobre.x, meioSobre.y, 320); await espera(300);
+ok('Ajustes (página curta): puxar do meio fecha', await js(`!document.querySelector('.painel-fundo:not(.saindo)')`), 'rolagem ' + meioSobre.rola + ' px');
+
+// 7) folha do raciocínio com o texto ainda chegando: não pula para o fim e fecha puxando de qualquer ponto
+await js(`window.__pensa = 'Primeira linha do raciocínio.'; abrirFolhaPensa(window.__pensa, null); 1`); await espera(500);
+await js(`for (let i = 0; i < 80; i++) { window.__pensa += ' Mais um passo ' + i + ' do raciocínio que continua chegando.'; atualizarFolhaPensa(window.__pensa); } 1`); await espera(200);
+const pen = await js(`(() => { const t = document.querySelector('.pens-txt'); const b = t.getBoundingClientRect(); return { topo: t.scrollTop, x: b.left + b.width / 2, y: b.top + 80 }; })()`);
+ok('raciocínio chegando não puxa a rolagem para o fim', pen.topo === 0, 'scrollTop ' + pen.topo);
+await puxar(pen.x, pen.y, 320); await espera(300);
+ok('raciocínio: puxar do meio do texto fecha', await js(`!document.querySelector('.dlg-fundo:not(.saindo) .pensa-folha')`));
+
+// 8) cartões dos modelos (dados de exemplo): selo, três medidas e para que serve
+await js(`sistemaCache = { ramTotal: 8 * GB, discoLivre: 100 * GB, modelos: [
+  { id: 'leve', nome: 'Leve', tamanho: 532517120, baixado: true, visaoTamanho: 204987232 },
+  { id: 'normal', nome: 'Normal', tamanho: 1280835840, baixado: true, atual: true, visaoTamanho: 668227264 },
+  { id: 'avancado', nome: 'Avançado', tamanho: 2740937888, visaoTamanho: 672423616 }] }; lerSistema = async () => sistemaCache; abrirConfig('modelo'); 1`);
+await espera(1200);
+const cards = await js(`[...document.querySelectorAll('.mcard')].map(c => ({ selo: !!c.querySelector('.mselo'), medidas: c.querySelectorAll('.mmed').length, desc: (c.querySelector('.mdesc') || {}).textContent || '' }))`);
+ok('Modelos: cada cartão com selo, 3 medidas e para que serve', cards.length === 3 && cards.every(c => c.selo && c.medidas === 3 && c.desc.length > 10), JSON.stringify(cards.map(c => c.medidas)));
+await foto('f4-modelos');
 resumo();
